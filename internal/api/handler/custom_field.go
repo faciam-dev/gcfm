@@ -3,17 +3,21 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/server/middleware"
 )
 
 type CustomFieldHandler struct {
-	DB     *sql.DB
-	Driver string
+	DB       *sql.DB
+	Driver   string
+	Recorder *audit.Recorder
 }
 
 type createInput struct {
@@ -83,6 +87,8 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
+	actor := middleware.UserFromContext(ctx)
+	_ = h.Recorder.Write(ctx, actor, nil, &meta)
 	return &createOutput{Body: meta}, nil
 }
 
@@ -111,14 +117,43 @@ func splitID(id string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
+func (h *CustomFieldHandler) getField(ctx context.Context, table, column string) (*registry.FieldMeta, error) {
+	var query string
+	switch h.Driver {
+	case "postgres":
+		query = `SELECT data_type FROM custom_fields WHERE table_name=$1 AND column_name=$2`
+	case "mysql":
+		query = `SELECT data_type FROM custom_fields WHERE table_name=? AND column_name=?`
+	default:
+		return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
+	}
+	var typ string
+	err := h.DB.QueryRowContext(ctx, query, table, column).Scan(&typ)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &registry.FieldMeta{TableName: table, ColumnName: column, DataType: typ}, nil
+}
+
 func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*createOutput, error) {
 	table, column, ok := splitID(in.ID)
 	if !ok {
 		return nil, huma.Error400BadRequest("bad id")
 	}
+	oldMeta, err := h.getField(ctx, table, column)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
+	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column, DataType: in.Body.Type}
 	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
+	}
+	actor := middleware.UserFromContext(ctx)
+	if err := h.Recorder.Write(ctx, actor, oldMeta, &meta); err != nil {
+		return nil, fmt.Errorf("failed to write audit log: %w", err)
 	}
 	return &createOutput{Body: meta}, nil
 }
@@ -129,8 +164,16 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column}
+	oldMeta, err := h.getField(ctx, table, column)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)
+	}
 	if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
+	}
+	actor := middleware.UserFromContext(ctx)
+	if err := h.Recorder.Write(ctx, actor, oldMeta, nil); err != nil {
+		return nil, fmt.Errorf("failed to write audit log: %w", err)
 	}
 	return &struct{}{}, nil
 }
