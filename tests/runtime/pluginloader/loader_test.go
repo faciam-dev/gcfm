@@ -1,6 +1,8 @@
 package pluginloader_test
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +34,18 @@ func buildSample(t *testing.T, src, dir, name string) string {
 	return so
 }
 
+func signPlugin(t *testing.T, path string, priv ed25519.PrivateKey) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plugin: %v", err)
+	}
+	sig := ed25519.Sign(priv, data)
+	if err := os.WriteFile(path+".sig", []byte(hex.EncodeToString(sig)), 0644); err != nil {
+		t.Fatalf("write sig: %v", err)
+	}
+}
+
 func TestLoadAll(t *testing.T) {
 	base := filepath.Join(repoRoot, "tests", "runtime", "pluginloader", t.Name())
 	os.RemoveAll(base)
@@ -43,7 +57,20 @@ func TestLoadAll(t *testing.T) {
 	dir := pluginloader.DefaultDir()
 	os.MkdirAll(dir, 0755)
 	defer os.RemoveAll(dir)
-	buildSample(t, "sample/validator_uppercase", dir, "a.so")
+
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("gen key: %v", err)
+	}
+	pubPath := filepath.Join(base, "pub.key")
+	if err := os.WriteFile(pubPath, []byte(hex.EncodeToString(pub)), 0644); err != nil {
+		t.Fatalf("write pub key: %v", err)
+	}
+	pluginloader.PublicKeyPath = pubPath
+
+	so := buildSample(t, "sample/validator_uppercase", dir, "a.so")
+	signPlugin(t, so, priv)
+
 	logger := zaptest.NewLogger(t).Sugar()
 	if err := pluginloader.LoadAll("", logger); err != nil {
 		t.Fatalf("load: %v", err)

@@ -33,6 +33,12 @@ func New(cfg ServiceConfig) Service {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
 	}
+	pluginloader.PublicKeyPath = cfg.PluginPublicKey
+	enabled := true
+	if cfg.PluginEnabled != nil {
+		enabled = *cfg.PluginEnabled
+	}
+	pluginloader.Enabled = enabled
 	if err := pluginloader.LoadAll(cfg.PluginDir, logger); err != nil {
 		logger.Errorf("Failed to load plugins from %s: %v", cfg.PluginDir, err)
 	}

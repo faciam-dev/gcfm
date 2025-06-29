@@ -16,8 +16,10 @@ type DBConfig struct {
 
 // ServiceConfig holds optional configuration for Service.
 type ServiceConfig struct {
-	Logger    *zap.SugaredLogger
-	PluginDir string
-	Recorder  *audit.Recorder
-	Notifier  notifier.Broker
+	Logger          *zap.SugaredLogger
+	PluginDir       string
+	PluginPublicKey string
+	PluginEnabled   *bool
+	Recorder        *audit.Recorder
+	Notifier        notifier.Broker
 }
