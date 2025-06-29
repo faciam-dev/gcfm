@@ -8,7 +8,7 @@ import (
 )
 
 func TestJWTGenerateValidate(t *testing.T) {
-	j := auth.NewJWT("secret", time.Minute)
+	j := auth.NewJWT("secret", 15*time.Minute)
 	tok, err := j.Generate(42)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
