@@ -160,3 +160,14 @@ func main() {
     }
 }
 ```
+
+## Authentication
+
+Run migrations then obtain a token with the seeded admin user:
+
+```bash
+make migrate
+curl -X POST http://localhost:8080/v1/auth/login \
+     -d '{"username":"admin","password":"admin123"}'
+```
+
