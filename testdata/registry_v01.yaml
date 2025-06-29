@@ -1,0 +1,8 @@
+---
+version: 0.1
+fields:
+  - table: posts
+    column: author_email
+    type: varchar(255)
+    placeholder: foo@example.com
+    validator: email
