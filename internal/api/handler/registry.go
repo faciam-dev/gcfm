@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -66,8 +65,8 @@ func (h *RegistryHandler) snapshot(ctx context.Context, in *snapshotInput) (*str
 	base := filepath.Clean(snapshotBaseDir)
 	dest := base
 	if in.Body.Dest != "" {
-		p := filepath.Clean(in.Body.Dest)
-		dest = filepath.Join(base, p)
+		destRel := filepath.Clean(in.Body.Dest)
+		dest = filepath.Join(base, destRel)
 	}
 	absBase, err := filepath.Abs(base)
 	if err != nil {
@@ -77,7 +76,8 @@ func (h *RegistryHandler) snapshot(ctx context.Context, in *snapshotInput) (*str
 	if err != nil {
 		return nil, err
 	}
-	if absDest != absBase && !strings.HasPrefix(absDest, absBase+string(os.PathSeparator)) {
+	relPath, err := filepath.Rel(absBase, absDest)
+	if err != nil || strings.HasPrefix(relPath, "..") {
 		return nil, huma.Error400BadRequest("invalid dest path")
 	}
 	if err := snapshot.Export(ctx, h.DB, "public", snapshot.LocalDir{Path: absDest}); err != nil {
