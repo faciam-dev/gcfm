@@ -1,7 +1,8 @@
+---
 name: Build & Publish Docs
-on:
+'on':
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 jobs:
   docs:
     runs-on: ubuntu-latest
