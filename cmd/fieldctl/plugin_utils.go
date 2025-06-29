@@ -7,6 +7,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 )
 
+const DefaultTrustedModulePrefix = "github.com/faciam-dev/"
+
 func resolvePluginDir(dir string) string {
 	if dir == "" {
 		return pluginloader.DefaultDir()
@@ -17,7 +19,7 @@ func resolvePluginDir(dir string) string {
 func isTrustedModule(module string) bool {
 	allowed := os.Getenv("FIELDCTL_TRUSTED_MODULE_PREFIXES")
 	if allowed == "" {
-		allowed = "github.com/faciam-dev/"
+		allowed = DefaultTrustedModulePrefix
 	}
 	for _, p := range strings.Split(allowed, ",") {
 		p = strings.TrimSpace(p)

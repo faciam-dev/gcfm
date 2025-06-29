@@ -15,7 +15,7 @@ fieldctl plugins install [module@version] [flags]
 
 The module path must begin with one of the prefixes specified by the
 `FIELDCTL_TRUSTED_MODULE_PREFIXES` environment variable. When unset, it
-defaults to `github.com/faciam-dev/`.
+defaults to the `DefaultTrustedModulePrefix` value (`github.com/faciam-dev/`).
 
 ### SEE ALSO
 
