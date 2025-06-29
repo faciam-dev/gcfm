@@ -63,7 +63,9 @@ func TestLoadAll(t *testing.T) {
 		t.Fatalf("gen key: %v", err)
 	}
 	pubPath := filepath.Join(base, "pub.key")
-	os.WriteFile(pubPath, []byte(hex.EncodeToString(pub)), 0644)
+	if err := os.WriteFile(pubPath, []byte(hex.EncodeToString(pub)), 0644); err != nil {
+		t.Fatalf("write pub key: %v", err)
+	}
 	pluginloader.PublicKeyPath = pubPath
 
 	so := buildSample(t, "sample/validator_uppercase", dir, "a.so")
