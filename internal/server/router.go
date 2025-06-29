@@ -9,11 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func New(db *sql.DB) huma.API {
+func New(db *sql.DB, driver, dsn string) huma.API {
 	r := chi.NewRouter()
 	api := humachi.New(r, huma.DefaultConfig("CustomField API", "1.0.0"))
-	handler.Register(api, &handler.CustomFieldHandler{DB: db})
-	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db})
-	handler.RegisterAudit(api, &handler.AuditHandler{DB: db})
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Driver: driver})
+	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn})
+	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	return api
 }

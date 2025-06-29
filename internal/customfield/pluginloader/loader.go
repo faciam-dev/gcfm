@@ -30,10 +30,13 @@ func DefaultDir() string {
 	return "./plugins"
 }
 
-// LoadAll loads all plugins from the default directory.
+// LoadAll loads all plugins from dir.
+// If dir is empty, DefaultDir() is used.
 // It returns an error if loading any plugin fails.
-func LoadAll(logger *zap.SugaredLogger) error {
-	dir := DefaultDir()
+func LoadAll(dir string, logger *zap.SugaredLogger) error {
+	if dir == "" {
+		dir = DefaultDir()
+	}
 	files, err := filepath.Glob(filepath.Join(dir, "*.so"))
 	if err != nil {
 		logger.Warnw("failed to read plugin directory", "dir", dir, "err", err)

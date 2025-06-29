@@ -10,7 +10,10 @@ import (
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 )
 
-type AuditHandler struct{ DB *sql.DB }
+type AuditHandler struct {
+	DB     *sql.DB
+	Driver string
+}
 
 type auditParams struct {
 	Limit int       `query:"limit"`
@@ -36,7 +39,12 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 	if limit == 0 {
 		limit = 100
 	}
-	rows, err := h.DB.QueryContext(ctx, `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM audit_logs ORDER BY id DESC LIMIT $1`, limit)
+	placeholder := "$1"
+	if h.Driver == "mysql" {
+		placeholder = "?"
+	}
+	query := `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM audit_logs ORDER BY id DESC LIMIT ` + placeholder
+	rows, err := h.DB.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,8 @@ import (
 )
 
 func main() {
-	dsn := flag.String("dsn", "", "Postgres DSN")
+	dsn := flag.String("dsn", "", "database DSN")
+	driver := flag.String("driver", "postgres", "database driver")
 	addr := flag.String("addr", ":8080", "listen address")
 	openapi := flag.String("openapi", "", "write OpenAPI JSON and exit")
 	flag.Parse()
@@ -22,14 +23,14 @@ func main() {
 	var db *sql.DB
 	var err error
 	if *dsn != "" {
-		db, err = sql.Open("postgres", *dsn)
+		db, err = sql.Open(*driver, *dsn)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer db.Close()
 	}
 
-	api := server.New(db)
+	api := server.New(db, *driver, *dsn)
 
 	if *openapi != "" {
 		data, err := json.MarshalIndent(api.OpenAPI(), "", "  ")

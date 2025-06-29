@@ -14,7 +14,11 @@ import (
 func (s *service) MigrateRegistry(ctx context.Context, cfg DBConfig, target int) error {
 	drv := cfg.Driver
 	if drv == "" {
-		drv = detectDriver(cfg.DSN)
+		var err error
+		drv, err = detectDriver(cfg.DSN)
+		if err != nil {
+			return err
+		}
 	}
 	db, err := sql.Open(drv, cfg.DSN)
 	if err != nil {
@@ -44,7 +48,11 @@ func (s *service) MigrateRegistry(ctx context.Context, cfg DBConfig, target int)
 func (s *service) RegistryVersion(ctx context.Context, cfg DBConfig) (int, error) {
 	drv := cfg.Driver
 	if drv == "" {
-		drv = detectDriver(cfg.DSN)
+		var err error
+		drv, err = detectDriver(cfg.DSN)
+		if err != nil {
+			return 0, err
+		}
 	}
 	db, err := sql.Open(drv, cfg.DSN)
 	if err != nil {

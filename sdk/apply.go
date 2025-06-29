@@ -34,7 +34,11 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		if req, ok := mig.SemVerToInt(hdr.Version); ok {
 			drv := cfg.Driver
 			if drv == "" {
-				drv = detectDriver(cfg.DSN)
+				var derr error
+				drv, derr = detectDriver(cfg.DSN)
+				if derr != nil {
+					return DiffReport{}, derr
+				}
 			}
 			if drv == "mysql" || drv == "postgres" {
 				db, err := sql.Open(drv, cfg.DSN)
@@ -78,7 +82,11 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 
 	drv := cfg.Driver
 	if drv == "" {
-		drv = detectDriver(cfg.DSN)
+		var derr error
+		drv, derr = detectDriver(cfg.DSN)
+		if derr != nil {
+			return rep, derr
+		}
 	}
 	switch drv {
 	case "postgres", "mysql":
