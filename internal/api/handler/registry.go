@@ -9,7 +9,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
+	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -18,9 +20,10 @@ import (
 const snapshotBaseDir = "./snapshots"
 
 type RegistryHandler struct {
-	DB     *sql.DB
-	Driver string
-	DSN    string
+	DB       *sql.DB
+	Driver   string
+	DSN      string
+	Recorder *audit.Recorder
 }
 
 type applyInput struct {
@@ -53,8 +56,9 @@ func RegisterRegistry(api huma.API, h *RegistryHandler) {
 }
 
 func (h *RegistryHandler) apply(ctx context.Context, in *applyInput) (*applyOutput, error) {
-	svc := sdk.New(sdk.ServiceConfig{})
-	rep, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"}, []byte(in.Body.YAML), sdk.ApplyOptions{DryRun: in.Body.DryRun})
+	svc := sdk.New(sdk.ServiceConfig{Recorder: h.Recorder})
+	actor := middleware.UserFromContext(ctx)
+	rep, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"}, []byte(in.Body.YAML), sdk.ApplyOptions{DryRun: in.Body.DryRun, Actor: actor})
 	if err != nil {
 		return nil, err
 	}
@@ -83,5 +87,7 @@ func (h *RegistryHandler) snapshot(ctx context.Context, in *snapshotInput) (*str
 	if err := snapshot.Export(ctx, h.DB, "public", snapshot.LocalDir{Path: absDest}); err != nil {
 		return nil, err
 	}
+	actor := middleware.UserFromContext(ctx)
+	_ = h.Recorder.Write(ctx, actor, nil, nil)
 	return &struct{}{}, nil
 }
