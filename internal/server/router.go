@@ -5,12 +5,14 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/faciam-dev/gcfm/internal/api/handler"
+	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/go-chi/chi/v5"
@@ -55,7 +57,8 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	}
 
 	api := humachi.New(r, huma.DefaultConfig("CustomField API", "1.0.0"))
-	api.UseMiddleware(middleware.JWT(api, secret))
+	jwtHandler := auth.NewJWT(secret, 15*time.Minute)
+	api.UseMiddleware(auth.Middleware(api, jwtHandler))
 	if err == nil {
 		api.UseMiddleware(middleware.RBAC(e))
 	}
@@ -65,5 +68,6 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	handler.Register(api, &handler.CustomFieldHandler{DB: db, Driver: driver, Recorder: rec})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
+	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver}, JWT: jwtHandler})
 	return api
 }

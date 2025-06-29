@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,11 @@ import (
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 
-func TestAPI_Create_CF_Integration(t *testing.T) {
+type loginResp struct {
+	AccessToken string `json:"access_token"`
+}
+
+func TestAuthLoginAndProtectedEndpoint(t *testing.T) {
 	ctx := context.Background()
 	container, err := func() (c *postgres.PostgresContainer, err error) {
 		defer func() {
@@ -36,6 +41,7 @@ func TestAPI_Create_CF_Integration(t *testing.T) {
 		t.Fatalf("container is nil")
 	}
 	t.Cleanup(func() { container.Terminate(ctx) })
+
 	dsn, err := container.ConnectionString(ctx)
 	if err != nil {
 		t.Fatalf("dsn: %v", err)
@@ -57,21 +63,29 @@ func TestAPI_Create_CF_Integration(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"table":"posts","column":"title","type":"text"}`
-	resp, err := http.Post(srv.URL+"/v1/custom-fields", "application/json", strings.NewReader(body))
+	body := `{"username":"admin","password":"admin123"}`
+	resp, err := http.Post(srv.URL+"/v1/auth/login", "application/json", strings.NewReader(body))
 	if err != nil {
-		t.Fatalf("post: %v", err)
+		t.Fatalf("login post: %v", err)
 	}
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("status=%d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("login status=%d", resp.StatusCode)
+	}
+	var lr loginResp
+	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if lr.AccessToken == "" {
+		t.Fatalf("no token")
 	}
 
-	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
-	if err := row.Scan(&count); err != nil {
-		t.Fatalf("count: %v", err)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/v1/custom-fields", nil)
+	req.Header.Set("Authorization", "Bearer "+lr.AccessToken)
+	resp2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("want 1 got %d", count)
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("get status=%d", resp2.StatusCode)
 	}
 }

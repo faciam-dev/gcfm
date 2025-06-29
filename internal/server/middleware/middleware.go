@@ -17,6 +17,9 @@ type ctxKey string
 
 const userKey ctxKey = "user"
 
+// UserKey returns the context key used to store the user subject.
+func UserKey() any { return userKey }
+
 // JWT returns middleware that validates a bearer token signed with the given secret.
 func JWT(api huma.API, secret string) func(huma.Context, func(huma.Context)) {
 	key := []byte(secret)

@@ -25,9 +25,16 @@ var m0004Up string
 
 //go:embed sql/0004_add_audit_tables.down.sql
 var m0004Down string
+
+//go:embed sql/0005_create_users.up.sql
+var m0005Up string
+
+//go:embed sql/0005_create_users.down.sql
+var m0005Down string
 var defaultMigrations = []Migration{
 	{Version: 1, SemVer: "0.1", UpSQL: m0001Up, DownSQL: m0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: m0002Up, DownSQL: m0002Down},
 	{Version: 3, SemVer: "0.3", UpSQL: m0003Up, DownSQL: m0003Down},
 	{Version: 4, SemVer: "0.4", UpSQL: m0004Up, DownSQL: m0004Down},
+	{Version: 5, SemVer: "0.5", UpSQL: m0005Up, DownSQL: m0005Down},
 }
