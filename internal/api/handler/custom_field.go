@@ -143,13 +143,18 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if !ok {
 		return nil, huma.Error400BadRequest("bad id")
 	}
-	oldMeta, _ := h.getField(ctx, table, column)
+	oldMeta, err := h.getField(ctx, table, column)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
+	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column, DataType: in.Body.Type}
 	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
 	actor := middleware.UserFromContext(ctx)
-	_ = h.Recorder.Write(ctx, actor, oldMeta, &meta)
+	if err := h.Recorder.Write(ctx, actor, oldMeta, &meta); err != nil {
+		return nil, fmt.Errorf("failed to write audit log: %w", err)
+	}
 	return &createOutput{Body: meta}, nil
 }
 
@@ -159,11 +164,16 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column}
-	oldMeta, _ := h.getField(ctx, table, column)
+	oldMeta, err := h.getField(ctx, table, column)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)
+	}
 	if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
 	actor := middleware.UserFromContext(ctx)
-	_ = h.Recorder.Write(ctx, actor, oldMeta, nil)
+	if err := h.Recorder.Write(ctx, actor, oldMeta, nil); err != nil {
+		return nil, fmt.Errorf("failed to write audit log: %w", err)
+	}
 	return &struct{}{}, nil
 }

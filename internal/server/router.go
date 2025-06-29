@@ -20,7 +20,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "secret"
+		log.Fatal("JWT_SECRET environment variable is not set. Application cannot start.")
 	}
 	m := model.NewModel()
 	m.AddDef("r", "r", "sub, obj, act")
@@ -39,8 +39,8 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	}
 
 	api := humachi.New(r, huma.DefaultConfig("CustomField API", "1.0.0"))
-	api.UseMiddleware(middleware.JWT(secret))
-	if e != nil {
+	api.UseMiddleware(middleware.JWT(api, secret))
+	if err == nil {
 		api.UseMiddleware(middleware.RBAC(e))
 	}
 

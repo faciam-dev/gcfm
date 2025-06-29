@@ -18,13 +18,13 @@ type ctxKey string
 const userKey ctxKey = "user"
 
 // JWT returns middleware that validates a bearer token signed with the given secret.
-func JWT(secret string) func(huma.Context, func(huma.Context)) {
+func JWT(api huma.API, secret string) func(huma.Context, func(huma.Context)) {
 	key := []byte(secret)
 	return func(ctx huma.Context, next func(huma.Context)) {
 		r, w := humachi.Unwrap(ctx)
 		auth := r.Header.Get("Authorization")
 		if !strings.HasPrefix(auth, "Bearer ") {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		tokenString := strings.TrimPrefix(auth, "Bearer ")
@@ -35,17 +35,17 @@ func JWT(secret string) func(huma.Context, func(huma.Context)) {
 			return key, nil
 		})
 		if err != nil || !t.Valid {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		claims, ok := t.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		sub, _ := claims["sub"].(string)
-		_ = r // r is still used for header reading only
-		next(huma.WithValue(ctx, userKey, sub))
+		r = r.WithContext(context.WithValue(r.Context(), userKey, sub))
+		next(humachi.NewContext(ctx.Operation(), r, w))
 	}
 }
 
