@@ -1,7 +1,11 @@
+//go:build integration
+// +build integration
+
 package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
@@ -15,10 +19,19 @@ import (
 
 func TestMongoScan(t *testing.T) {
 	ctx := context.Background()
-	t.Skip("integration test requires Docker")
-	container, err := mongodb.Run(ctx, "mongo:7")
+	container, err := func() (c *mongodb.MongoDBContainer, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("%v", r)
+			}
+		}()
+		return mongodb.Run(ctx, "mongo:7")
+	}()
 	if err != nil {
 		t.Skipf("container: %v", err)
+	}
+	if container == nil {
+		t.Fatalf("container is nil")
 	}
 	t.Cleanup(func() { container.Terminate(ctx) })
 

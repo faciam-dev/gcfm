@@ -1,6 +1,11 @@
 package sdk
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+
+	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
+)
 
 // DBConfig specifies database connection parameters.
 type DBConfig struct {
@@ -13,4 +18,6 @@ type DBConfig struct {
 type ServiceConfig struct {
 	Logger    *zap.SugaredLogger
 	PluginDir string
+	Recorder  *audit.Recorder
+	Notifier  notifier.Broker
 }

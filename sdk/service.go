@@ -5,6 +5,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 )
@@ -34,17 +36,20 @@ func New(cfg ServiceConfig) Service {
 	if err := pluginloader.LoadAll(logger); err != nil {
 		logger.Errorf("Failed to load plugins: %v", err)
 	}
-	return &service{logger: logger, pluginDir: cfg.PluginDir}
+	return &service{logger: logger, pluginDir: cfg.PluginDir, recorder: cfg.Recorder, notifier: cfg.Notifier}
 }
 
 type service struct {
 	logger    *zap.SugaredLogger
 	pluginDir string
+	recorder  *audit.Recorder
+	notifier  notifier.Broker
 }
 
 type ApplyOptions struct {
 	// DryRun skips applying changes and only computes the diff.
 	DryRun bool
+	Actor  string
 }
 
 type DiffReport struct {

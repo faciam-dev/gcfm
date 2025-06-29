@@ -59,6 +59,8 @@ func init() {
 	rootCmd.AddCommand(newRegistryCmd())
 	rootCmd.AddCommand(newGenerateCmd())
 	rootCmd.AddCommand(newGenDocsCmd())
+	rootCmd.AddCommand(newSnapshotCmd())
+	rootCmd.AddCommand(newNotifierCmd())
 	scanCmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	scanCmd.Flags().StringVar(&schema, "schema", "", "database schema")
 	scanCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print fields without upsert")

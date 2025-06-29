@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package integration_test
 
 import (
@@ -15,9 +18,7 @@ import (
 
 func TestPostgresScan(t *testing.T) {
 	ctx := context.Background()
-	t.Skip("integration test requires Docker")
-	var err error
-	container, err := func() (*postgres.PostgresContainer, error) {
+	container, err := func() (c *postgres.PostgresContainer, err error) {
 		defer func() {
 			if r := recover(); r != nil {
 				err = fmt.Errorf("%v", r)
@@ -27,6 +28,9 @@ func TestPostgresScan(t *testing.T) {
 	}()
 	if err != nil {
 		t.Skipf("container: %v", err)
+	}
+	if container == nil {
+		t.Fatalf("container is nil")
 	}
 	t.Cleanup(func() { container.Terminate(ctx) })
 

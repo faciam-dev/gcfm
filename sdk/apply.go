@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 )
@@ -92,6 +93,18 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		if err := registry.UpsertSQL(ctx, db, drv, upserts); err != nil {
 			return rep, err
 		}
+	case "sqlmock":
+		db, err := sql.Open("sqlmock", cfg.DSN)
+		if err != nil {
+			return rep, err
+		}
+		defer db.Close()
+		if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
+			return rep, err
+		}
+		if err := registry.UpsertSQL(ctx, db, "mysql", upserts); err != nil {
+			return rep, err
+		}
 	case "mongo":
 		cli, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.DSN))
 		if err != nil {
@@ -106,6 +119,21 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		}
 	default:
 		return rep, fmt.Errorf("unsupported driver: %s", drv)
+	}
+	if !opts.DryRun {
+		for _, c := range changes {
+			switch c.Type {
+			case registry.ChangeAdded:
+				_ = s.recorder.Write(ctx, opts.Actor, nil, c.New)
+			case registry.ChangeDeleted:
+				_ = s.recorder.Write(ctx, opts.Actor, c.Old, nil)
+			case registry.ChangeUpdated:
+				_ = s.recorder.Write(ctx, opts.Actor, c.Old, c.New)
+			}
+		}
+		if s.notifier != nil {
+			_ = s.notifier.Emit(ctx, notifier.DiffReport{Added: rep.Added, Deleted: rep.Deleted, Updated: rep.Updated})
+		}
 	}
 
 	return rep, nil

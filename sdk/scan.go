@@ -38,6 +38,13 @@ func (s *service) Scan(ctx context.Context, cfg DBConfig) ([]registry.FieldMeta,
 		defer cli.Disconnect(ctx)
 		sc := mongoscanner.NewScanner(cli)
 		return sc.Scan(ctx, registry.DBConfig{Schema: cfg.Schema})
+	case "sqlmock":
+		db, err := sql.Open("sqlmock", cfg.DSN)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+		return registry.LoadSQL(ctx, db, registry.DBConfig{Schema: cfg.Schema})
 	default:
 		db, err := sql.Open("mysql", cfg.DSN)
 		if err != nil {
