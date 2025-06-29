@@ -276,6 +276,7 @@
             "type": "string"
           },
           "dest": {
+            "description": "destination directory relative to the server snapshot path",
             "type": "string"
           }
         },

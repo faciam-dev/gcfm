@@ -4,12 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
+
+// snapshotBaseDir defines the directory where registry snapshots are stored.
+// Any destination path provided by the user must remain inside this directory.
+const snapshotBaseDir = "./snapshots"
 
 type RegistryHandler struct {
 	DB     *sql.DB
@@ -56,11 +63,24 @@ func (h *RegistryHandler) apply(ctx context.Context, in *applyInput) (*applyOutp
 }
 
 func (h *RegistryHandler) snapshot(ctx context.Context, in *snapshotInput) (*struct{}, error) {
-	dest := "."
+	base := filepath.Clean(snapshotBaseDir)
+	dest := base
 	if in.Body.Dest != "" {
-		dest = in.Body.Dest
+		p := filepath.Clean(in.Body.Dest)
+		dest = filepath.Join(base, p)
 	}
-	if err := snapshot.Export(ctx, h.DB, "public", snapshot.LocalDir{Path: dest}); err != nil {
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return nil, err
+	}
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return nil, err
+	}
+	if absDest != absBase && !strings.HasPrefix(absDest, absBase+string(os.PathSeparator)) {
+		return nil, huma.Error400BadRequest("invalid dest path")
+	}
+	if err := snapshot.Export(ctx, h.DB, "public", snapshot.LocalDir{Path: absDest}); err != nil {
 		return nil, err
 	}
 	return &struct{}{}, nil
