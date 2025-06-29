@@ -57,6 +57,8 @@ func init() {
 	rootCmd.AddCommand(newMigrateYAMLCmd())
 	rootCmd.AddCommand(newPluginsCmd())
 	rootCmd.AddCommand(newRegistryCmd())
+	rootCmd.AddCommand(newDBCmd())
+	rootCmd.AddCommand(newUserCmd())
 	rootCmd.AddCommand(newGenerateCmd())
 	rootCmd.AddCommand(newGenDocsCmd())
 	rootCmd.AddCommand(newSnapshotCmd())
