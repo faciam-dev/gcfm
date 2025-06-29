@@ -1,0 +1,56 @@
+package sdk
+
+import (
+	"context"
+	"database/sql"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+
+	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+)
+
+// MigrateRegistry upgrades or downgrades the registry schema to the target version.
+func (s *service) MigrateRegistry(ctx context.Context, cfg DBConfig, target int) error {
+	drv := cfg.Driver
+	if drv == "" {
+		drv = detectDriver(cfg.DSN)
+	}
+	db, err := sql.Open(drv, cfg.DSN)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	m := migrator.New()
+	cur, err := m.Current(ctx, db)
+	if err != nil && err != migrator.ErrNoVersionTable {
+		return err
+	}
+	if target == 0 {
+		target = len(migrator.Default())
+	}
+	if target > cur {
+		return m.Up(ctx, db, target)
+	}
+	if target < cur {
+		return m.Down(ctx, db, target)
+	}
+	s.logger.Infow("registry schema up-to-date", "version", m.SemVer(cur))
+	return nil
+}
+
+// RegistryVersion returns the current registry schema version.
+func (s *service) RegistryVersion(ctx context.Context, cfg DBConfig) (int, error) {
+	drv := cfg.Driver
+	if drv == "" {
+		drv = detectDriver(cfg.DSN)
+	}
+	db, err := sql.Open(drv, cfg.DSN)
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+	m := migrator.New()
+	return m.Current(ctx, db)
+}
