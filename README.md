@@ -101,6 +101,11 @@ fieldctl plugins install ./path/to/plugin
 fieldctl plugins list
 ```
 
+`fieldctl plugins install` only allows installing modules whose import path
+matches prefixes listed in the `FIELDCTL_TRUSTED_MODULE_PREFIXES` environment
+variable. When unset, the default prefix `github.com/faciam-dev/` is used.
+Specify a comma separated list to allow additional trusted module paths.
+
 CI などで静的インポートする場合は:
 
 ```

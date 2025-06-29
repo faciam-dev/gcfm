@@ -47,6 +47,9 @@ func signPlugin(t *testing.T, path string, priv ed25519.PrivateKey) {
 }
 
 func TestLoadAll(t *testing.T) {
+	if testing.CoverMode() != "" {
+		t.Skip("plugin loading incompatible with coverage")
+	}
 	base := filepath.Join(repoRoot, "tests", "runtime", "pluginloader", t.Name())
 	os.RemoveAll(base)
 	os.MkdirAll(base, 0755)
