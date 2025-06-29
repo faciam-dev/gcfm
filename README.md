@@ -2,6 +2,12 @@
 [![Docs](https://img.shields.io/badge/docs-latest-blue)](https://faciam-dev.github.io/gcfm/)
 A model system that provides custom fields
 
+## Build
+
+Run `make build` to compile the CLI and API server. Binaries will be placed in
+the `bin` directory.
+
+
 ## fieldctl scan
 
 Scan existing database tables and store the metadata in the `custom_fields` table.

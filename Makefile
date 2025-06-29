@@ -15,6 +15,12 @@ test:
 	@go test -v ./... -coverprofile=coverage.out
 	@go tool cover -html=coverage.out -o coverage.html
 
+.PHONY: build
+build:
+	@mkdir -p bin
+	go build -o bin/fieldctl ./cmd/fieldctl
+	go build -o bin/api-server ./cmd/api-server
+
 # docs generation
 .PHONY: docs
 docs:
@@ -25,12 +31,12 @@ docs:
 # code generation
 .PHONY: generate
 generate:
-	       fieldctl gen go --pkg=models --out=internal/models/cf_post.go --table=posts
-	       fieldctl gen registry --src internal/models/*.go --out registry.yaml --merge
+	fieldctl gen go --pkg=models --out=internal/models/cf_post.go --table=posts
+	fieldctl gen registry --src internal/models/*.go --out registry.yaml --merge
 
 .PHONY: openapi
 openapi:
-               go run ./cmd/api-server -openapi dist/openapi.json
+	go run ./cmd/api-server -openapi dist/openapi.json
 
 .PHONY: db-init
 db-init:
