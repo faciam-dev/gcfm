@@ -1,7 +1,7 @@
 package dbcmd
 
 import (
-	"log"
+	"fmt"
 	"net/url"
 
 	"github.com/spf13/cobra"
@@ -22,18 +22,17 @@ func (f *DBFlags) AddFlags(cmd *cobra.Command) {
 }
 
 // DetectDriver returns the driver based on DSN scheme.
-func DetectDriver(dsn string) string {
+func DetectDriver(dsn string) (string, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
-		log.Printf("parse DSN: %v", err)
-		return "unknown"
+		return "", fmt.Errorf("failed to parse DSN: %w", err)
 	}
 	switch u.Scheme {
 	case "postgres", "postgresql":
-		return "postgres"
+		return "postgres", nil
 	case "mysql":
-		return "mysql"
+		return "mysql", nil
 	default:
-		return "unknown"
+		return "", fmt.Errorf("unsupported DSN scheme: %s", u.Scheme)
 	}
 }

@@ -20,6 +20,7 @@ func TestCLIUserCommands(t *testing.T) {
 	container, err := func() (c *postgres.PostgresContainer, err error) {
 		defer func() {
 			if r := recover(); r != nil {
+				t.Logf("Recovered from panic: %v", r)
 				err = fmt.Errorf("%v", r)
 			}
 		}()

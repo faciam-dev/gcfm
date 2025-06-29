@@ -22,3 +22,16 @@ func TestDBFlagsParse(t *testing.T) {
 		t.Fatalf("mismatch: %#v != %#v", f, want)
 	}
 }
+
+func TestDetectDriver(t *testing.T) {
+	drv, err := dbcmd.DetectDriver("postgres://u:p@localhost/db")
+	if err != nil {
+		t.Fatalf("detect: %v", err)
+	}
+	if drv != "postgres" {
+		t.Fatalf("want postgres got %s", drv)
+	}
+	if _, err := dbcmd.DetectDriver("://"); err == nil {
+		t.Fatalf("expected error for bad dsn")
+	}
+}

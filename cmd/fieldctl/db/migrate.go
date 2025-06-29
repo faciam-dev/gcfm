@@ -27,7 +27,11 @@ func NewMigrateCmd() *cobra.Command {
 				return fmt.Errorf("--db is required")
 			}
 			if flags.Driver == "" {
-				flags.Driver = DetectDriver(flags.DSN)
+				d, err := DetectDriver(flags.DSN)
+				if err != nil {
+					return err
+				}
+				flags.Driver = d
 			}
 			target := 0
 			if to != "" && to != "latest" {

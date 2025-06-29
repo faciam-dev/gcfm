@@ -26,7 +26,11 @@ func NewDeleteCmd() *cobra.Command {
 				return fmt.Errorf("--id is required")
 			}
 			if flags.Driver == "" {
-				flags.Driver = dbcmd.DetectDriver(flags.DSN)
+				d, err := dbcmd.DetectDriver(flags.DSN)
+				if err != nil {
+					return err
+				}
+				flags.Driver = d
 			}
 			db, err := sql.Open(flags.Driver, flags.DSN)
 			if err != nil {
