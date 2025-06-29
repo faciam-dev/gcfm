@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
@@ -13,10 +14,25 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 )
 
 func New(db *sql.DB, driver, dsn string) huma.API {
 	r := chi.NewRouter()
+	allowed := os.Getenv("ALLOWED_ORIGINS")
+	if allowed == "" {
+		allowed = "http://localhost:5173"
+	}
+	origins := strings.Split(allowed, ",")
+	for i := range origins {
+		origins[i] = strings.TrimSpace(origins[i])
+	}
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   origins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowCredentials: true,
+	}))
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {

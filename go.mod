@@ -102,6 +102,7 @@ require (
 	github.com/casbin/casbin/v2 v2.108.0
 	github.com/danielgtaylor/huma/v2 v2.33.0
 	github.com/go-chi/chi/v5 v5.2.2
+	github.com/go-chi/cors v1.2.1
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/go-cmp v0.7.0
