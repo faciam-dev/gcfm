@@ -1,0 +1,21 @@
+---
+name: CI
+
+'on':
+  pull_request:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - run: gofmt -w $(git ls-files '*.go') && git diff --exit-code
+      - run: go test ./...
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          strict: true
