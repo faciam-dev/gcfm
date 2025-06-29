@@ -19,7 +19,7 @@ test:
 .PHONY: docs
 docs:
 	mkdir -p docs/sdk docs/cli
-	gomarkdoc ./sdk --output docs/sdk/README.md
+	go run github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest ./sdk --output docs/sdk/README.md
 	go run ./cmd/fieldctl gen-docs --dir docs/cli --format markdown
 
 # code generation
