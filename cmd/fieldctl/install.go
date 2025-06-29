@@ -18,6 +18,9 @@ func newPluginsInstallCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mod := args[0]
+			if !isTrustedModule(mod) {
+				return fmt.Errorf("untrusted module: %s", mod)
+			}
 			dir = resolvePluginDir(dir)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err
