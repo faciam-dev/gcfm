@@ -30,4 +30,12 @@ generate:
 
 .PHONY: openapi
 openapi:
-	       go run ./cmd/api-server -openapi dist/openapi.json
+               go run ./cmd/api-server -openapi dist/openapi.json
+
+.PHONY: db-init
+db-init:
+	@fieldctl db migrate --db $(DB_DSN) --schema public --seed
+
+.PHONY: user-create
+user-create:
+	@fieldctl user create --db $(DB_DSN) --username=$(U) --password=$(P) --role=$(R)

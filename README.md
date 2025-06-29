@@ -171,3 +171,17 @@ curl -X POST http://localhost:8080/v1/auth/login \
      -d '{"username":"admin","password":"admin123"}'
 ```
 
+## クイックスタート
+
+1. DB 初期化（スキーマ & admin 作成）
+
+```bash
+fieldctl db migrate --db postgres://user:pass@localhost:5432/app --schema public --seed
+```
+
+2. 追加ユーザー
+
+```bash
+fieldctl user create --db ... --username alice --password s3cr3t --role editor
+```
+
