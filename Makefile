@@ -21,3 +21,13 @@ docs:
 	mkdir -p docs/sdk docs/cli
 	gomarkdoc ./sdk --output docs/sdk/README.md
 	go run ./cmd/fieldctl gen-docs --dir docs/cli --format markdown
+
+# code generation
+.PHONY: generate
+generate:
+	       fieldctl gen go --pkg=models --out=internal/models/cf_post.go --table=posts
+	       fieldctl gen registry --src internal/models/*.go --out registry.yaml --merge
+
+.PHONY: openapi
+openapi:
+	       go run ./cmd/api-server -openapi dist/openapi.json
