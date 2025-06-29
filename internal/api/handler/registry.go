@@ -8,10 +8,13 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
+	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 
 type RegistryHandler struct {
-	DB *sql.DB
+	DB     *sql.DB
+	Driver string
+	DSN    string
 }
 
 type applyInput struct {
@@ -44,8 +47,12 @@ func RegisterRegistry(api huma.API, h *RegistryHandler) {
 }
 
 func (h *RegistryHandler) apply(ctx context.Context, in *applyInput) (*applyOutput, error) {
-	// for simplicity just return success
-	return &applyOutput{Body: map[string]any{"dryRun": in.Body.DryRun}}, nil
+	svc := sdk.New(sdk.ServiceConfig{})
+	rep, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"}, []byte(in.Body.YAML), sdk.ApplyOptions{DryRun: in.Body.DryRun})
+	if err != nil {
+		return nil, err
+	}
+	return &applyOutput{Body: rep}, nil
 }
 
 func (h *RegistryHandler) snapshot(ctx context.Context, in *snapshotInput) (*struct{}, error) {

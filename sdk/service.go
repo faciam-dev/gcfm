@@ -33,8 +33,8 @@ func New(cfg ServiceConfig) Service {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
 	}
-	if err := pluginloader.LoadAll(logger); err != nil {
-		logger.Errorf("Failed to load plugins: %v", err)
+	if err := pluginloader.LoadAll(cfg.PluginDir, logger); err != nil {
+		logger.Errorf("Failed to load plugins from %s: %v", cfg.PluginDir, err)
 	}
 	return &service{logger: logger, pluginDir: cfg.PluginDir, recorder: cfg.Recorder, notifier: cfg.Notifier}
 }

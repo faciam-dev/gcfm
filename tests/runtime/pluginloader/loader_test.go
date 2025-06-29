@@ -45,14 +45,14 @@ func TestLoadAll(t *testing.T) {
 	defer os.RemoveAll(dir)
 	buildSample(t, "sample/validator_uppercase", dir, "a.so")
 	logger := zaptest.NewLogger(t).Sugar()
-	if err := pluginloader.LoadAll(logger); err != nil {
+	if err := pluginloader.LoadAll("", logger); err != nil {
 		t.Fatalf("load: %v", err)
 	}
 	if _, ok := customfield.GetValidator("uppercase"); !ok {
 		t.Fatalf("validator not registered")
 	}
 	// calling LoadAll again should not fail even though the validator is already registered
-	if err := pluginloader.LoadAll(logger); err != nil {
+	if err := pluginloader.LoadAll("", logger); err != nil {
 		t.Fatalf("reload: %v", err)
 	}
 }

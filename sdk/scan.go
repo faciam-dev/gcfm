@@ -19,7 +19,11 @@ import (
 func (s *service) Scan(ctx context.Context, cfg DBConfig) ([]registry.FieldMeta, error) {
 	drv := cfg.Driver
 	if drv == "" {
-		drv = detectDriver(cfg.DSN)
+		var err error
+		drv, err = detectDriver(cfg.DSN)
+		if err != nil {
+			return nil, err
+		}
 	}
 	switch drv {
 	case "postgres":

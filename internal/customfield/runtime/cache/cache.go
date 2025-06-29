@@ -22,7 +22,7 @@ type Cache struct {
 
 func New(ctx context.Context, scan registry.Scanner, conf registry.DBConfig, reloadInterval time.Duration) (*Cache, error) {
 	logger := zap.NewNop().Sugar()
-	if err := pluginloader.LoadAll(logger); err != nil {
+	if err := pluginloader.LoadAll("", logger); err != nil {
 		return nil, err
 	}
 	fn := func(c context.Context) ([]registry.FieldMeta, error) { return scan.Scan(c, conf) }

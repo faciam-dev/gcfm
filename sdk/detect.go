@@ -1,20 +1,23 @@
 package sdk
 
-import "net/url"
+import (
+	"fmt"
+	"net/url"
+)
 
-func detectDriver(dsn string) string {
+func detectDriver(dsn string) (string, error) {
 	parsedURL, err := url.Parse(dsn)
 	if err != nil {
-		return "unknown"
+		return "", err
 	}
 	switch parsedURL.Scheme {
 	case "postgres", "postgresql":
-		return "postgres"
+		return "postgres", nil
 	case "mongodb", "mongodb+srv":
-		return "mongo"
+		return "mongo", nil
 	case "mysql":
-		return "mysql"
+		return "mysql", nil
 	default:
-		return "unknown"
+		return "", fmt.Errorf("unknown scheme: %s", parsedURL.Scheme)
 	}
 }

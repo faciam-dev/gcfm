@@ -51,7 +51,7 @@ func TestAPI_Create_CF_Integration(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	api := server.New(db)
+	api := server.New(db, "postgres", dsn)
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 

@@ -12,7 +12,8 @@ import (
 )
 
 type CustomFieldHandler struct {
-	DB *sql.DB
+	DB     *sql.DB
+	Driver string
 }
 
 type createInput struct {
@@ -79,7 +80,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		ColumnName: in.Body.Column,
 		DataType:   in.Body.Type,
 	}
-	if err := registry.UpsertSQL(ctx, h.DB, "postgres", []registry.FieldMeta{meta}); err != nil {
+	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
 	return &createOutput{Body: meta}, nil
@@ -116,7 +117,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column, DataType: in.Body.Type}
-	if err := registry.UpsertSQL(ctx, h.DB, "postgres", []registry.FieldMeta{meta}); err != nil {
+	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
 	return &createOutput{Body: meta}, nil
@@ -128,7 +129,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column}
-	if err := registry.DeleteSQL(ctx, h.DB, "postgres", []registry.FieldMeta{meta}); err != nil {
+	if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
 	return &struct{}{}, nil
