@@ -157,6 +157,8 @@ ServiceConfig holds optional configuration for Service.
 type ServiceConfig struct {
     Logger    *zap.SugaredLogger
     PluginDir string
+    PluginPublicKey string
+    PluginEnabled   *bool
 }
 ```
 

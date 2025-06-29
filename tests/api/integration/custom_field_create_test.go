@@ -46,7 +46,8 @@ func TestAPI_Create_CF_Integration(t *testing.T) {
 	}
 	defer db.Close()
 
-	svc := sdk.New(sdk.ServiceConfig{})
+	disable := false
+	svc := sdk.New(sdk.ServiceConfig{PluginEnabled: &disable})
 	if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: "postgres", DSN: dsn}, 0); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
