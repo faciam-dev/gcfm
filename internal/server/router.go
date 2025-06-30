@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +56,15 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		e.AddPolicy("admin", "/v1/*", "POST")
 		e.AddPolicy("admin", "/v1/*", "PUT")
 		e.AddPolicy("admin", "/v1/*", "DELETE")
+		repo := &auth.UserRepo{DB: db, Driver: driver}
+		users, err := repo.List(context.Background())
+		if err != nil {
+			log.Printf("load users: %v", err)
+		} else {
+			for _, u := range users {
+				e.AddGroupingPolicy(strconv.FormatUint(u.ID, 10), u.Role)
+			}
+		}
 	}
 
 	api := humachi.New(r, huma.DefaultConfig("CustomField API", "1.0.0"))
