@@ -88,10 +88,9 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	if driver == "mongo" && dsn != "" {
 		cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI(dsn))
 		if err != nil {
-			log.Printf("mongo connect: %v", err)
-		} else {
-			mongoCli = cli
+			log.Fatal("Failed to connect to MongoDB: ", err)
 		}
+		mongoCli = cli
 	}
 
 	schema := "public"
