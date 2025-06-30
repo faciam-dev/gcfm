@@ -173,7 +173,7 @@ func isTableMissing(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "no such table") || strings.Contains(msg, "undefined table")
+	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "doesn't exist") || strings.Contains(msg, "no such table") || strings.Contains(msg, "undefined table")
 }
 
 // SQLForRange returns SQL statements needed to migrate from->to.
