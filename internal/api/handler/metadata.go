@@ -43,7 +43,9 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *tablesParams) (*tab
 		case "postgres":
 			schemaName = "public"
 		case "mysql":
-			schemaName = ""
+			if err := h.DB.QueryRowContext(ctx, "SELECT DATABASE()").Scan(&schemaName); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, huma.Error400BadRequest("unsupported driver")
 		}
