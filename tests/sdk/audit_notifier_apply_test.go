@@ -26,7 +26,7 @@ func TestApplyHooks(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT table_name, column_name, data_type FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"table_name", "column_name", "data_type"}))
 	mock.ExpectBegin()
-	mock.ExpectPrepare("INSERT INTO custom_fields").ExpectExec().WithArgs("posts", "title", "text").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectPrepare("INSERT INTO custom_fields").ExpectExec().WithArgs("posts", "title", "text", false, false, "", "").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	nt := &stubNotifier{}

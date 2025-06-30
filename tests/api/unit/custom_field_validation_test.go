@@ -25,9 +25,14 @@ func TestCustomFieldValidation(t *testing.T) {
 		Default:   strPtr("foo"),
 		Validator: "uuid",
 	}
-	b, _ := json.Marshal(cf)
+	b, err := json.Marshal(cf)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
 	var m map[string]any
-	json.Unmarshal(b, &m)
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
 	res := &huma.ValidateResult{}
 	huma.Validate(reg, sch, pb, huma.ModeWriteToServer, m, res)
 	if len(res.Errors) > 0 {

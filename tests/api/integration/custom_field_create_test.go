@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/server"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
@@ -121,5 +123,23 @@ func TestAPI_Create_CF_FullPayload(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+	var out registry.FieldMeta
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !out.Nullable || out.Unique || out.Default != "n/a" || out.Validator != "uuid" {
+		t.Fatalf("unexpected meta: %+v", out)
+	}
+
+	row := db.QueryRowContext(ctx, `SELECT nullable, "unique", "default", validator FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
+	var nullable, unique bool
+	var def, validator string
+	if err := row.Scan(&nullable, &unique, &def, &validator); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if !nullable || unique || def != "n/a" || validator != "uuid" {
+		t.Fatalf("persisted values mismatch: %v %v %s %s", nullable, unique, def, validator)
 	}
 }
