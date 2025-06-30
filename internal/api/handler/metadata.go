@@ -39,7 +39,14 @@ func RegisterMetadata(api huma.API, h *MetadataHandler) {
 func (h *MetadataHandler) listTables(ctx context.Context, p *tablesParams) (*tablesOutput, error) {
 	schemaName := p.Schema
 	if schemaName == "" {
-		schemaName = "public"
+		switch h.Driver {
+		case "postgres":
+			schemaName = "public"
+		case "mysql":
+			schemaName = ""
+		default:
+			return nil, huma.Error400BadRequest("unsupported driver")
+		}
 	}
 	var tables []metadata.Table
 	var err error
