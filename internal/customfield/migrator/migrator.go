@@ -28,9 +28,19 @@ type Migrator struct {
 	migrations []Migration
 }
 
-// New returns a Migrator with default migrations.
+// New returns a Migrator with MySQL migrations.
 func New() *Migrator {
-	return &Migrator{migrations: defaultMigrations}
+	return NewWithDriver("mysql")
+}
+
+// NewWithDriver returns a Migrator for the specified driver.
+func NewWithDriver(driver string) *Migrator {
+	switch driver {
+	case "postgres":
+		return &Migrator{migrations: postgresMigrations}
+	default:
+		return &Migrator{migrations: defaultMigrations}
+	}
 }
 
 // ErrNoVersionTable indicates registry_schema_version table is missing.

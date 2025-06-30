@@ -32,10 +32,10 @@ func NewMigrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				m := migrator.New()
+				m := migrator.NewWithDriver(driver)
 				target := to
 				if target == 0 {
-					target = len(migrator.Default())
+					target = len(migrator.DefaultForDriver(driver))
 				}
 				sqls := m.SQLForRange(cur, target)
 				for _, s := range sqls {
