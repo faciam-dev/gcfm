@@ -180,7 +180,8 @@ password to `admin123` if the user already exists. For example:
 DB_DSN=postgres://user:pass@localhost:5432/app make build db-init
 ```
 
-After seeding the admin account, obtain a token:
+After seeding the admin account, obtain a token. The API server listens on
+`8080` by default, but you can change it with the `-addr` flag if needed:
 
 ```bash
 curl -X POST http://localhost:8080/v1/auth/login \
