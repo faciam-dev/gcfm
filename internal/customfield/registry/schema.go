@@ -18,14 +18,28 @@ func normalizeType(driver, typ string) string {
 	return typ
 }
 
-func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string) error {
+func escapeLiteral(v string) string {
+	return strings.ReplaceAll(v, "'", "''")
+}
+
+func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
+	opts := []string{typ}
+	if nullable != nil && !*nullable {
+		opts = append(opts, "NOT NULL")
+	}
+	if def != nil {
+		opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+	}
+	if unique != nil && *unique {
+		opts = append(opts, "UNIQUE")
+	}
 	var stmt string
 	switch driver {
 	case "postgres":
-		stmt = fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN "%s" %s`, table, column, typ)
+		stmt = fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN "%s" %s`, table, column, strings.Join(opts, " "))
 	case "mysql":
-		stmt = fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s", table, column, typ)
+		stmt = fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s", table, column, strings.Join(opts, " "))
 	default:
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
@@ -35,14 +49,38 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 	return nil
 }
 
-func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string) error {
+func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
 	var stmt string
 	switch driver {
 	case "postgres":
-		stmt = fmt.Sprintf(`ALTER TABLE "%s" ALTER COLUMN "%s" TYPE %s`, table, column, typ)
+		clauses := []string{fmt.Sprintf(`ALTER COLUMN "%s" TYPE %s`, column, typ)}
+		if nullable != nil {
+			if *nullable {
+				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" DROP NOT NULL`, column))
+			} else {
+				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET NOT NULL`, column))
+			}
+		}
+		if def != nil {
+			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT '%s'`, column, escapeLiteral(*def)))
+		}
+		if unique != nil && *unique {
+			clauses = append(clauses, fmt.Sprintf(`ADD UNIQUE ("%s")`, column))
+		}
+		stmt = fmt.Sprintf(`ALTER TABLE "%s" %s`, table, strings.Join(clauses, ", "))
 	case "mysql":
-		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, typ)
+		opts := []string{typ}
+		if nullable != nil && !*nullable {
+			opts = append(opts, "NOT NULL")
+		}
+		if def != nil {
+			opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+		}
+		if unique != nil && *unique {
+			opts = append(opts, "UNIQUE")
+		}
+		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, strings.Join(opts, " "))
 	default:
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}

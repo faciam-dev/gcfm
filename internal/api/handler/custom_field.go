@@ -110,7 +110,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 		if !exists {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType); err != nil {
+			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
 				return nil, err
 			}
 		}
@@ -234,11 +234,11 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 		if exists {
-			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType); err != nil {
+			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
 				return nil, err
 			}
 		} else {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType); err != nil {
+			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
 				return nil, err
 			}
 		}
