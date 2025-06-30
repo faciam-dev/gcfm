@@ -148,14 +148,18 @@ schema, it will exit with an error asking to run migration first.
 package main
 
 import (
-    "context"
-    "log"
-
-    "github.com/faciam-dev/gcfm/sdk"
+	"context"
+	"database/sql"
+	"log"
+	
+	client "github.com/faciam-dev/gcfm/sdk/client"
+	"github.com/faciam-dev/gcfm/sdk"
 )
 
 func main() {
-    svc := sdk.New(sdk.ServiceConfig{})
+    db, _ := sql.Open("mysql", "user:pass@tcp(localhost:3306)/app")
+    svc := sdk.New(sdk.ServiceConfig{DB: db, Driver: "mysql", Schema: "app"})
+    cli := client.NewLocalService(svc)
     ctx := context.Background()
     yaml, err := svc.Export(ctx, sdk.DBConfig{DSN: "mysql://user:pass@tcp(localhost:3306)/app", Schema: "app"})
     if err != nil {
@@ -164,7 +168,16 @@ func main() {
     if _, err := svc.Apply(ctx, sdk.DBConfig{DSN: "mysql://user:pass@tcp(localhost:3306)/app", Schema: "app"}, yaml, sdk.ApplyOptions{}); err != nil {
         log.Fatal(err)
     }
+
+    _ = cli.Create(ctx, sdk.FieldMeta{TableName: "posts", ColumnName: "title", DataType: "text"})
 }
+```
+
+### Remote HTTP
+
+```go
+cli := client.NewHTTP("https://api.example.com", client.WithToken("TOKEN"))
+fields, _ := cli.List(ctx, "posts")
 ```
 
 ## Authentication

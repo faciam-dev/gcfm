@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"database/sql"
 	"go.uber.org/zap"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
@@ -22,4 +23,7 @@ type ServiceConfig struct {
 	PluginEnabled   *bool
 	Recorder        *audit.Recorder
 	Notifier        notifier.Broker
+	DB              *sql.DB
+	Driver          string
+	Schema          string
 }
