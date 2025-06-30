@@ -94,7 +94,14 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		}
 	}
 
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: "public"})
+	schema := "public"
+	if driver == "mysql" {
+		if err := db.QueryRowContext(context.Background(), "SELECT DATABASE()").Scan(&schema); err != nil {
+			log.Printf("get schema: %v", err)
+		}
+	}
+
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
