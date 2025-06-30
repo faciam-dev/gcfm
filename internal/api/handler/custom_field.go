@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -111,6 +112,9 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		}
 		if !exists {
 			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
+				if errors.Is(err, registry.ErrDefaultNotSupported) {
+					return nil, huma.Error400BadRequest("invalid default for column type")
+				}
 				return nil, err
 			}
 		}
@@ -235,10 +239,16 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		}
 		if exists {
 			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
+				if errors.Is(err, registry.ErrDefaultNotSupported) {
+					return nil, huma.Error400BadRequest("invalid default for column type")
+				}
 				return nil, err
 			}
 		} else {
 			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
+				if errors.Is(err, registry.ErrDefaultNotSupported) {
+					return nil, huma.Error400BadRequest("invalid default for column type")
+				}
 				return nil, err
 			}
 		}

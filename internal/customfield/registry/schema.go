@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -22,8 +23,24 @@ func escapeLiteral(v string) string {
 	return strings.ReplaceAll(v, "'", "''")
 }
 
+var ErrDefaultNotSupported = errors.New("default not supported for column type")
+
+func supportsDefault(driver, typ string) bool {
+	if driver != "mysql" {
+		return true
+	}
+	t := strings.ToLower(strings.TrimSpace(typ))
+	if strings.Contains(t, "text") || strings.Contains(t, "blob") || strings.Contains(t, "geometry") || strings.Contains(t, "json") {
+		return false
+	}
+	return true
+}
+
 func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
+	if def != nil && !supportsDefault(driver, typ) {
+		return fmt.Errorf("%w", ErrDefaultNotSupported)
+	}
 	opts := []string{typ}
 	if nullable != nil && !*nullable {
 		opts = append(opts, "NOT NULL")
@@ -51,6 +68,9 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 
 func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
+	if def != nil && !supportsDefault(driver, typ) {
+		return fmt.Errorf("%w", ErrDefaultNotSupported)
+	}
 	var stmt string
 	switch driver {
 	case "postgres":
