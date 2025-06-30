@@ -60,13 +60,13 @@ func (r *UserRepo) List(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var us []User
+	var users []User
 	for rows.Next() {
 		var u User
 		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role); err != nil {
 			return nil, err
 		}
-		us = append(us, u)
+		users = append(users, u)
 	}
-	return us, rows.Err()
+	return users, rows.Err()
 }
