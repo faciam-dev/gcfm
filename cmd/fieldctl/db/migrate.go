@@ -67,14 +67,10 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 		return err
 	}
 	defer db.Close()
-
 	var count int
 	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE username='admin'`)
 	if err := row.Scan(&count); err != nil {
 		return err
-	}
-	if count > 0 {
-		return nil
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte("admin123"), 12)
@@ -84,13 +80,25 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	var q string
 	switch f.Driver {
 	case "postgres":
-		q = `INSERT INTO users (username,password_hash,role) VALUES ($1,$2,'admin')`
+		if count > 0 {
+			q = `UPDATE users SET password_hash=$1 WHERE username='admin'`
+		} else {
+			q = `INSERT INTO users (username,password_hash,role) VALUES ('admin',$1,'admin')`
+		}
 	default:
-		q = `INSERT INTO users (username,password_hash,role) VALUES (?,?, 'admin')`
+		if count > 0 {
+			q = `UPDATE users SET password_hash=? WHERE username='admin'`
+		} else {
+			q = `INSERT INTO users (username,password_hash,role) VALUES ('admin',?,'admin')`
+		}
 	}
-	if _, err := db.ExecContext(ctx, q, "admin", string(hash)); err != nil {
+	if _, err := db.ExecContext(ctx, q, string(hash)); err != nil {
 		return err
 	}
-	fmt.Fprintln(out, "created admin user: admin / admin123")
+	if count > 0 {
+		fmt.Fprintln(out, "updated admin password: admin / admin123")
+	} else {
+		fmt.Fprintln(out, "created admin user: admin / admin123")
+	}
 	return nil
 }
