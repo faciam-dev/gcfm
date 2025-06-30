@@ -50,7 +50,7 @@ func TestLocalClient_Postgres(t *testing.T) {
 	}
 
 	svc := sdk.New(sdk.ServiceConfig{DB: db, Driver: "postgres", Schema: "public"})
-	if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: "postgres", DSN: dsn}, 0); err != nil {
+	if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: "postgres", DSN: dsn, Schema: "public"}, 0); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

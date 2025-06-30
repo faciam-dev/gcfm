@@ -17,7 +17,7 @@ func (s *service) ListCustomFields(ctx context.Context, table string) ([]registr
 		return nil, err
 	}
 	if table != "" {
-		filtered := metas[:0]
+		var filtered []registry.FieldMeta
 		for _, m := range metas {
 			if m.TableName == table {
 				filtered = append(filtered, m)

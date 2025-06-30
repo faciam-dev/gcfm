@@ -148,12 +148,12 @@ schema, it will exit with an error asking to run migration first.
 package main
 
 import (
-    "context"
-    "database/sql"
-    "log"
-
-    client "github.com/faciam-dev/gcfm/sdk/client"
-    "github.com/faciam-dev/gcfm/sdk"
+	"context"
+	"database/sql"
+	"log"
+	
+	client "github.com/faciam-dev/gcfm/sdk/client"
+	"github.com/faciam-dev/gcfm/sdk"
 )
 
 func main() {
