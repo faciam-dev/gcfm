@@ -30,7 +30,7 @@ var (
 ```
 
 <a name="ApplyOptions"></a>
-## type [ApplyOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L55-L59>)
+## type [ApplyOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L67-L71>)
 
 
 
@@ -43,7 +43,7 @@ type ApplyOptions struct {
 ```
 
 <a name="DBConfig"></a>
-## type [DBConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L11-L15>)
+## type [DBConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L12-L16>)
 
 DBConfig specifies database connection parameters.
 
@@ -56,7 +56,7 @@ type DBConfig struct {
 ```
 
 <a name="DiffReport"></a>
-## type [DiffReport](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L61-L68>)
+## type [DiffReport](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L73-L80>)
 
 
 
@@ -90,7 +90,7 @@ type FieldMeta = registry.FieldMeta
 ```
 
 <a name="Service"></a>
-## type [Service](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L16-L27>)
+## type [Service](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L17-L36>)
 
 Service exposes high level operations for custom field registry. Service provides database operations for custom field registry.
 
@@ -106,6 +106,14 @@ type Service interface {
     MigrateRegistry(ctx context.Context, cfg DBConfig, target int) error
     // RegistryVersion returns the current registry schema version.
     RegistryVersion(ctx context.Context, cfg DBConfig) (int, error)
+    // ListCustomFields returns custom field metadata.
+    ListCustomFields(ctx context.Context, table string) ([]registry.FieldMeta, error)
+    // CreateCustomField inserts a new field into the registry.
+    CreateCustomField(ctx context.Context, fm registry.FieldMeta) error
+    // UpdateCustomField modifies an existing field.
+    UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
+    // DeleteCustomField removes a field from the registry.
+    DeleteCustomField(ctx context.Context, table, column string) error
 }
 ```
 
@@ -151,7 +159,7 @@ func main() {
 </details>
 
 <a name="New"></a>
-### func [New](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L31>)
+### func [New](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L40>)
 
 ```go
 func New(cfg ServiceConfig) Service
@@ -160,7 +168,7 @@ func New(cfg ServiceConfig) Service
 New returns a Service initialized with the given configuration. Validator plugins under PluginDir are loaded automatically.
 
 <a name="ServiceConfig"></a>
-## type [ServiceConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L18-L25>)
+## type [ServiceConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L19-L29>)
 
 ServiceConfig holds optional configuration for Service.
 
@@ -172,6 +180,9 @@ type ServiceConfig struct {
     PluginEnabled   *bool
     Recorder        *audit.Recorder
     Notifier        notifier.Broker
+    DB              *sql.DB
+    Driver          string
+    Schema          string
 }
 ```
 
