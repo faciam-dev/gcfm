@@ -113,10 +113,10 @@
       "DisplayMeta": {
         "additionalProperties": false,
         "properties": {
-          "LabelKey": {
+          "labelKey": {
             "type": "string"
           },
-          "Options": {
+          "options": {
             "items": {
               "$ref": "#/components/schemas/DisplayOption"
             },
@@ -125,34 +125,33 @@
               "null"
             ]
           },
-          "PlaceholderKey": {
+          "placeholderKey": {
             "type": "string"
           },
-          "Widget": {
+          "widget": {
             "type": "string"
           }
         },
         "required": [
-          "LabelKey",
-          "Widget",
-          "PlaceholderKey",
-          "Options"
+          "labelKey",
+          "widget",
+          "placeholderKey"
         ],
         "type": "object"
       },
       "DisplayOption": {
         "additionalProperties": false,
         "properties": {
-          "LabelKey": {
+          "labelKey": {
             "type": "string"
           },
-          "Value": {
+          "value": {
             "type": "string"
           }
         },
         "required": [
-          "Value",
-          "LabelKey"
+          "value",
+          "labelKey"
         ],
         "type": "object"
       },
