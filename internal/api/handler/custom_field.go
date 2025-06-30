@@ -104,7 +104,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 }
 
 func (h *CustomFieldHandler) list(ctx context.Context, in *listParams) (*listOutput, error) {
-       metas, err := registry.LoadSQL(ctx, h.DB, registry.DBConfig{Driver: h.Driver})
+	metas, err := registry.LoadSQL(ctx, h.DB, registry.DBConfig{Driver: h.Driver})
 	if err != nil {
 		return nil, err
 	}
