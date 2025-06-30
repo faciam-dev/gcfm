@@ -171,11 +171,17 @@ func main() {
 
 Run migrations then obtain a token with the seeded admin user. The login
 endpoint expects a JSON body, so be sure to set the `Content-Type` header.
-Use `make db-init` (or `fieldctl db migrate --seed`) to create the admin
-account before logging in:
+Before running `make db-init`, compile the CLI with `make build` and set the
+`DB_DSN` environment variable to point at your database. `make db-init` simply
+runs `fieldctl db migrate --seed` using this DSN. For example:
 
 ```bash
-make db-init
+DB_DSN=postgres://user:pass@localhost:5432/app make build db-init
+```
+
+After seeding the admin account, obtain a token:
+
+```bash
 curl -X POST http://localhost:8080/v1/auth/login \
      -H 'Content-Type: application/json' \
      -d '{"username":"admin","password":"admin123"}'
