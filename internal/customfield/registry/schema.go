@@ -1,0 +1,127 @@
+package registry
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+)
+
+func normalizeType(driver, typ string) string {
+	switch driver {
+	case "mysql":
+		lower := strings.ToLower(strings.TrimSpace(typ))
+		if lower == "varchar" {
+			return "VARCHAR(255)"
+		}
+	}
+	return typ
+}
+
+func escapeLiteral(v string) string {
+	return strings.ReplaceAll(v, "'", "''")
+}
+
+var ErrDefaultNotSupported = errors.New("default not supported for column type")
+
+func supportsDefault(driver, typ string) bool {
+	if driver != "mysql" {
+		return true
+	}
+	t := strings.ToLower(strings.TrimSpace(typ))
+	if strings.Contains(t, "text") || strings.Contains(t, "blob") || strings.Contains(t, "geometry") || strings.Contains(t, "json") {
+		return false
+	}
+	return true
+}
+
+func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
+	typ = normalizeType(driver, typ)
+	if def != nil && !supportsDefault(driver, typ) {
+		return fmt.Errorf("%w", ErrDefaultNotSupported)
+	}
+	opts := []string{typ}
+	if nullable != nil && !*nullable {
+		opts = append(opts, "NOT NULL")
+	}
+	if def != nil {
+		opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+	}
+	if unique != nil && *unique {
+		opts = append(opts, "UNIQUE")
+	}
+	var stmt string
+	switch driver {
+	case "postgres":
+		stmt = fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN "%s" %s`, table, column, strings.Join(opts, " "))
+	case "mysql":
+		stmt = fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s", table, column, strings.Join(opts, " "))
+	default:
+		return fmt.Errorf("unsupported driver: %s", driver)
+	}
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("add column: %w", err)
+	}
+	return nil
+}
+
+func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
+	typ = normalizeType(driver, typ)
+	if def != nil && !supportsDefault(driver, typ) {
+		return fmt.Errorf("%w", ErrDefaultNotSupported)
+	}
+	var stmt string
+	switch driver {
+	case "postgres":
+		clauses := []string{fmt.Sprintf(`ALTER COLUMN "%s" TYPE %s`, column, typ)}
+		if nullable != nil {
+			if *nullable {
+				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" DROP NOT NULL`, column))
+			} else {
+				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET NOT NULL`, column))
+			}
+		}
+		if def != nil {
+			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT '%s'`, column, escapeLiteral(*def)))
+		}
+		if unique != nil && *unique {
+			clauses = append(clauses, fmt.Sprintf(`ADD UNIQUE ("%s")`, column))
+		}
+		stmt = fmt.Sprintf(`ALTER TABLE "%s" %s`, table, strings.Join(clauses, ", "))
+	case "mysql":
+		opts := []string{typ}
+		if nullable != nil && !*nullable {
+			opts = append(opts, "NOT NULL")
+		}
+		if def != nil {
+			opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+		}
+		if unique != nil && *unique {
+			opts = append(opts, "UNIQUE")
+		}
+		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, strings.Join(opts, " "))
+	default:
+		return fmt.Errorf("unsupported driver: %s", driver)
+	}
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("modify column: %w", err)
+	}
+	return nil
+}
+
+func DropColumnSQL(ctx context.Context, db *sql.DB, driver, table, column string) error {
+	var stmt string
+	switch driver {
+	case "postgres":
+		stmt = fmt.Sprintf(`ALTER TABLE "%s" DROP COLUMN IF EXISTS "%s"`, table, column)
+	case "mysql":
+		stmt = fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN IF EXISTS `%s`", table, column)
+	default:
+		return fmt.Errorf("unsupported driver: %s", driver)
+	}
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("drop column: %w", err)
+	}
+	return nil
+}

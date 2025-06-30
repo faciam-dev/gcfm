@@ -19,6 +19,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func New(db *sql.DB, driver, dsn string) huma.API {
@@ -82,7 +84,23 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	rec := &audit.Recorder{DB: db, Driver: driver}
 
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Driver: driver, Recorder: rec})
+	var mongoCli *mongo.Client
+	if driver == "mongo" && dsn != "" {
+		cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI(dsn))
+		if err != nil {
+			log.Fatal("Failed to connect to MongoDB: ", err)
+		}
+		mongoCli = cli
+	}
+
+	schema := "public"
+	if driver == "mysql" {
+		if err := db.QueryRowContext(context.Background(), "SELECT DATABASE()").Scan(&schema); err != nil {
+			log.Printf("get schema: %v", err)
+		}
+	}
+
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
