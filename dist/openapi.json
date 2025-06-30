@@ -81,10 +81,25 @@
           "column": {
             "type": "string"
           },
+          "default": {
+            "type": "string"
+          },
+          "display": {
+            "$ref": "#/components/schemas/DisplayMeta"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
           "table": {
             "type": "string"
           },
           "type": {
+            "type": "string"
+          },
+          "unique": {
+            "type": "boolean"
+          },
+          "validator": {
             "type": "string"
           }
         },
@@ -240,14 +255,23 @@
           "DataType": {
             "type": "string"
           },
+          "Default": {
+            "type": "string"
+          },
           "Display": {
             "$ref": "#/components/schemas/DisplayMeta"
+          },
+          "Nullable": {
+            "type": "boolean"
           },
           "Placeholder": {
             "type": "string"
           },
           "TableName": {
             "type": "string"
+          },
+          "Unique": {
+            "type": "boolean"
           },
           "Validator": {
             "type": "string"
@@ -259,7 +283,35 @@
           "DataType",
           "Placeholder",
           "Display",
-          "Validator"
+          "Validator",
+          "Nullable",
+          "Unique",
+          "Default"
+        ],
+        "type": "object"
+      },
+      "LoginBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/LoginBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
         ],
         "type": "object"
       },
@@ -276,10 +328,35 @@
             "type": "string"
           },
           "dest": {
-            "description": "destination directory relative to the server snapshot path",
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "TokenResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TokenResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "access_token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_at"
+        ],
         "type": "object"
       }
     }
@@ -383,6 +460,78 @@
         "summary": "List audit logs",
         "tags": [
           "Audit"
+        ]
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Refresh token",
+        "tags": [
+          "Auth"
         ]
       }
     },

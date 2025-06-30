@@ -22,6 +22,9 @@ type FieldMeta struct {
 	Placeholder string       `yaml:"placeholder,omitempty"` // v0.1 compatibility
 	Display     *DisplayMeta `yaml:"display,omitempty"`
 	Validator   string       `yaml:"validator,omitempty"`
+	Nullable    bool         `yaml:"nullable,omitempty"`
+	Unique      bool         `yaml:"unique,omitempty"`
+	Default     string       `yaml:"default,omitempty"`
 }
 
 type Scanner interface {
