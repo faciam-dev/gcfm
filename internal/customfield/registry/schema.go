@@ -4,9 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
+func normalizeType(driver, typ string) string {
+	switch driver {
+	case "mysql":
+		lower := strings.ToLower(strings.TrimSpace(typ))
+		if lower == "varchar" {
+			return "VARCHAR(255)"
+		}
+	}
+	return typ
+}
+
 func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string) error {
+	typ = normalizeType(driver, typ)
 	var stmt string
 	switch driver {
 	case "postgres":
@@ -23,6 +36,7 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 }
 
 func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string) error {
+	typ = normalizeType(driver, typ)
 	var stmt string
 	switch driver {
 	case "postgres":
