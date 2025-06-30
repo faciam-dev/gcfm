@@ -48,7 +48,7 @@ func (s *service) Scan(ctx context.Context, cfg DBConfig) ([]registry.FieldMeta,
 			return nil, err
 		}
 		defer db.Close()
-		return registry.LoadSQL(ctx, db, registry.DBConfig{Schema: cfg.Schema, Driver: "mysql"})
+		return registry.LoadSQL(ctx, db, registry.DBConfig{Schema: cfg.Schema, Driver: cfg.Driver})
 	default:
 		db, err := sql.Open("mysql", cfg.DSN)
 		if err != nil {
