@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"database/sql"
 
 	"go.uber.org/zap"
 
@@ -24,6 +25,14 @@ type Service interface {
 	MigrateRegistry(ctx context.Context, cfg DBConfig, target int) error
 	// RegistryVersion returns the current registry schema version.
 	RegistryVersion(ctx context.Context, cfg DBConfig) (int, error)
+	// ListCustomFields returns custom field metadata.
+	ListCustomFields(ctx context.Context, table string) ([]registry.FieldMeta, error)
+	// CreateCustomField inserts a new field into the registry.
+	CreateCustomField(ctx context.Context, fm registry.FieldMeta) error
+	// UpdateCustomField modifies an existing field.
+	UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
+	// DeleteCustomField removes a field from the registry.
+	DeleteCustomField(ctx context.Context, table, column string) error
 }
 
 // New returns a Service initialized with the given configuration.
@@ -42,7 +51,7 @@ func New(cfg ServiceConfig) Service {
 	if err := pluginloader.LoadAll(cfg.PluginDir, logger); err != nil {
 		logger.Errorf("Failed to load plugins from %s: %v", cfg.PluginDir, err)
 	}
-	return &service{logger: logger, pluginDir: cfg.PluginDir, recorder: cfg.Recorder, notifier: cfg.Notifier}
+	return &service{logger: logger, pluginDir: cfg.PluginDir, recorder: cfg.Recorder, notifier: cfg.Notifier, db: cfg.DB, driver: cfg.Driver, schema: cfg.Schema}
 }
 
 type service struct {
@@ -50,6 +59,9 @@ type service struct {
 	pluginDir string
 	recorder  *audit.Recorder
 	notifier  notifier.Broker
+	db        *sql.DB
+	driver    string
+	schema    string
 }
 
 type ApplyOptions struct {

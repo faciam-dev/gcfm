@@ -14,32 +14,33 @@ type Client interface {
 	Create(ctx context.Context, fm sdk.FieldMeta) error
 	Update(ctx context.Context, fm sdk.FieldMeta) error
 	Delete(ctx context.Context, table, column string) error
+	Mode() string
 }
 
-type client struct {
+type httpClient struct {
 	base string
 	http *resty.Client
 }
 
-type Option func(*client)
+type Option func(*httpClient)
 
 // WithToken sets the Authorization token
 func WithToken(tok string) Option {
-	return func(c *client) {
+	return func(c *httpClient) {
 		c.http.SetAuthToken(tok)
 	}
 }
 
-// New returns a new Client for the given base URL
-func New(base string, opts ...Option) Client {
-	c := &client{base: base, http: resty.New()}
+// NewHTTP returns a new Client for the given base URL.
+func NewHTTP(base string, opts ...Option) Client {
+	c := &httpClient{base: base, http: resty.New()}
 	for _, o := range opts {
 		o(c)
 	}
 	return c
 }
 
-func (c *client) List(ctx context.Context, table string) ([]sdk.FieldMeta, error) {
+func (c *httpClient) List(ctx context.Context, table string) ([]sdk.FieldMeta, error) {
 	var out []sdk.FieldMeta
 	resp, err := c.http.R().SetContext(ctx).SetQueryParam("table", table).SetResult(&out).Get(c.base + "/v1/custom-fields")
 	if err != nil {
@@ -51,7 +52,7 @@ func (c *client) List(ctx context.Context, table string) ([]sdk.FieldMeta, error
 	return out, nil
 }
 
-func (c *client) Create(ctx context.Context, fm sdk.FieldMeta) error {
+func (c *httpClient) Create(ctx context.Context, fm sdk.FieldMeta) error {
 	body := map[string]any{"table": fm.TableName, "column": fm.ColumnName, "type": fm.DataType}
 	resp, err := c.http.R().SetContext(ctx).SetBody(body).Post(c.base + "/v1/custom-fields")
 	if err != nil {
@@ -63,7 +64,7 @@ func (c *client) Create(ctx context.Context, fm sdk.FieldMeta) error {
 	return nil
 }
 
-func (c *client) Update(ctx context.Context, fm sdk.FieldMeta) error {
+func (c *httpClient) Update(ctx context.Context, fm sdk.FieldMeta) error {
 	id := fmt.Sprintf("%s.%s", fm.TableName, fm.ColumnName)
 	body := map[string]any{"table": fm.TableName, "column": fm.ColumnName, "type": fm.DataType}
 	resp, err := c.http.R().SetContext(ctx).SetBody(body).Put(c.base + "/v1/custom-fields/" + id)
@@ -76,7 +77,7 @@ func (c *client) Update(ctx context.Context, fm sdk.FieldMeta) error {
 	return nil
 }
 
-func (c *client) Delete(ctx context.Context, table, column string) error {
+func (c *httpClient) Delete(ctx context.Context, table, column string) error {
 	id := fmt.Sprintf("%s.%s", table, column)
 	resp, err := c.http.R().SetContext(ctx).Delete(c.base + "/v1/custom-fields/" + id)
 	if err != nil {
@@ -87,6 +88,8 @@ func (c *client) Delete(ctx context.Context, table, column string) error {
 	}
 	return nil
 }
+
+func (c *httpClient) Mode() string { return "http" }
 
 func restyErr(resp *resty.Response) error {
 	return fmt.Errorf("%s", resp.Status())
