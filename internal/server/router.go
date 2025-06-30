@@ -85,5 +85,6 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	handler.Register(api, &handler.CustomFieldHandler{DB: db, Driver: driver, Recorder: rec})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
+	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
 	return api
 }
