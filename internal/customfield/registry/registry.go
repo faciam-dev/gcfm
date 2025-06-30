@@ -22,6 +22,9 @@ type FieldMeta struct {
 	Placeholder string       `yaml:"placeholder,omitempty"` // v0.1 compatibility
 	Display     *DisplayMeta `yaml:"display,omitempty"`
 	Validator   string       `yaml:"validator,omitempty"`
+	Nullable    bool         `yaml:"nullable,omitempty"`
+	Unique      bool         `yaml:"unique,omitempty"`
+	Default     string       `yaml:"default,omitempty"`
 }
 
 type Scanner interface {
@@ -61,9 +64,9 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO custom_fields (table_name, column_name, data_type, created_at, updated_at) VALUES ($1,$2,$3, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, updated_at=NOW()`)
+		stmt, err = tx.PrepareContext(ctx, `INSERT INTO custom_fields (table_name, column_name, data_type, nullable, "unique", "default", validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", "default"=EXCLUDED."default", validator=EXCLUDED.validator, updated_at=NOW()`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO custom_fields (table_name, column_name, data_type, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), updated_at=NOW()`)
+		stmt, err = tx.PrepareContext(ctx, "INSERT INTO custom_fields (table_name, column_name, data_type, nullable, `unique`, `default`, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), nullable=VALUES(nullable), `unique`=VALUES(`unique`), `default`=VALUES(`default`), validator=VALUES(validator), updated_at=NOW()")
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)
@@ -75,7 +78,7 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	defer stmt.Close()
 
 	for _, m := range metas {
-		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType); err != nil {
+		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType, m.Nullable, m.Unique, m.Default, m.Validator); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
 		}

@@ -189,6 +189,14 @@ curl -X POST http://localhost:8080/v1/auth/login \
      -d '{"username":"admin","password":"admin123"}'
 ```
 
+Example request to create a custom field with all options:
+
+```bash
+curl -X POST http://localhost:8080/v1/custom-fields \
+     -H 'Content-Type: application/json' \
+     -d '{"table":"posts","column":"foo","type":"varchar","display":{"labelKey":"field.foo.label","placeholderKey":"field.foo.ph","widget":"text"},"nullable":true,"unique":false,"default":"bar","validator":"uuid"}'
+```
+
 ## クイックスタート
 
 1. DB 初期化（スキーマ & admin 作成）

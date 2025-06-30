@@ -83,6 +83,17 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		TableName:  in.Body.Table,
 		ColumnName: in.Body.Column,
 		DataType:   in.Body.Type,
+		Display:    in.Body.Display,
+		Validator:  in.Body.Validator,
+	}
+	if in.Body.Nullable != nil {
+		meta.Nullable = *in.Body.Nullable
+	}
+	if in.Body.Unique != nil {
+		meta.Unique = *in.Body.Unique
+	}
+	if in.Body.Default != nil {
+		meta.Default = *in.Body.Default
 	}
 	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
@@ -147,7 +158,16 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{TableName: table, ColumnName: column, DataType: in.Body.Type}
+	meta := registry.FieldMeta{TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
+	if in.Body.Nullable != nil {
+		meta.Nullable = *in.Body.Nullable
+	}
+	if in.Body.Unique != nil {
+		meta.Unique = *in.Body.Unique
+	}
+	if in.Body.Default != nil {
+		meta.Default = *in.Body.Default
+	}
 	if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 		return nil, err
 	}
