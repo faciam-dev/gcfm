@@ -105,6 +105,15 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 	default:
+		exists, err := h.columnExists(ctx, meta.TableName, meta.ColumnName)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType); err != nil {
+				return nil, err
+			}
+		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
@@ -144,6 +153,21 @@ func splitID(id string) (string, string, bool) {
 		return "", "", false
 	}
 	return parts[0], parts[1], true
+}
+
+func (h *CustomFieldHandler) columnExists(ctx context.Context, table, column string) (bool, error) {
+	var query string
+	switch h.Driver {
+	case "postgres":
+		query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3`
+	case "mysql":
+		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`
+	default:
+		return false, fmt.Errorf("unsupported driver: %s", h.Driver)
+	}
+	var count int
+	err := h.DB.QueryRowContext(ctx, query, h.Schema, table, column).Scan(&count)
+	return count > 0, err
 }
 
 func (h *CustomFieldHandler) getField(ctx context.Context, table, column string) (*registry.FieldMeta, error) {
@@ -205,6 +229,19 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 	default:
+		exists, err := h.columnExists(ctx, table, column)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType); err != nil {
+				return nil, err
+			}
+		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
@@ -232,6 +269,9 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 			return nil, err
 		}
 	default:
+		if err := registry.DropColumnSQL(ctx, h.DB, h.Driver, table, column); err != nil {
+			return nil, err
+		}
 		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}

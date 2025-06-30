@@ -50,6 +50,10 @@ func TestAPI_Create_CF_MySQL(t *testing.T) {
 	}
 	defer db.Close()
 
+	if _, err := db.ExecContext(ctx, `CREATE TABLE posts(id INT PRIMARY KEY AUTO_INCREMENT)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
 	disable := false
 	svc := sdk.New(sdk.ServiceConfig{PluginEnabled: &disable})
 	if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: "mysql", DSN: dsn}, 0); err != nil {
@@ -77,5 +81,13 @@ func TestAPI_Create_CF_MySQL(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("want 1 got %d", count)
+	}
+
+	row = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='testdb' AND TABLE_NAME='posts' AND COLUMN_NAME='title'`)
+	if err := row.Scan(&count); err != nil {
+		t.Fatalf("column check: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("column not created")
 	}
 }
