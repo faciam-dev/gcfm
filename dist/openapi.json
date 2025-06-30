@@ -332,6 +332,21 @@
         },
         "type": "object"
       },
+      "TableMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "table"
+        ],
+        "type": "object"
+      },
       "TokenResponse": {
         "additionalProperties": false,
         "properties": {
@@ -700,6 +715,53 @@
         "summary": "Update custom field",
         "tags": [
           "CustomField"
+        ]
+      }
+    },
+    "/v1/metadata/tables": {
+      "get": {
+        "operationId": "listTables",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "schema",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TableMeta"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List tables",
+        "tags": [
+          "Metadata"
         ]
       }
     },
