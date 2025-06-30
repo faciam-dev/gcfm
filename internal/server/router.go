@@ -58,6 +58,12 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	api := humachi.New(r, huma.DefaultConfig("CustomField API", "1.0.0"))
 	jwtHandler := auth.NewJWT(secret, 15*time.Minute)
+
+	// Register login & refresh handlers before applying auth middleware so
+	// that they remain publicly accessible.
+	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver}, JWT: jwtHandler})
+
+	// Apply authentication & RBAC middleware for the remaining endpoints.
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
 	if err == nil {
 		api.UseMiddleware(middleware.RBAC(e))
@@ -68,6 +74,5 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	handler.Register(api, &handler.CustomFieldHandler{DB: db, Driver: driver, Recorder: rec})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
-	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver}, JWT: jwtHandler})
 	return api
 }
