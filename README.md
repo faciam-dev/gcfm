@@ -170,10 +170,12 @@ func main() {
 ## Authentication
 
 Run migrations then obtain a token with the seeded admin user. The login
-endpoint expects a JSON body, so be sure to set the `Content-Type` header:
+endpoint expects a JSON body, so be sure to set the `Content-Type` header.
+Use `make db-init` (or `fieldctl db migrate --seed`) to create the admin
+account before logging in:
 
 ```bash
-make migrate
+make db-init
 curl -X POST http://localhost:8080/v1/auth/login \
      -H 'Content-Type: application/json' \
      -d '{"username":"admin","password":"admin123"}'
