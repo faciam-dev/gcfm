@@ -173,7 +173,8 @@ Run migrations then obtain a token with the seeded admin user. The login
 endpoint expects a JSON body, so be sure to set the `Content-Type` header.
 Before running `make db-init`, compile the CLI with `make build` and set the
 `DB_DSN` environment variable to point at your database. `make db-init` simply
-runs `fieldctl db migrate --seed` using this DSN. For example:
+runs `fieldctl db migrate --seed` using this DSN and will reset the admin
+password to `admin123` if the user already exists. For example:
 
 ```bash
 DB_DSN=postgres://user:pass@localhost:5432/app make build db-init
