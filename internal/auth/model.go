@@ -42,3 +42,31 @@ func (r *UserRepo) GetByUsername(ctx context.Context, name string) (*User, error
 	}
 	return &u, nil
 }
+
+// List returns all users and their roles.
+func (r *UserRepo) List(ctx context.Context) ([]User, error) {
+	if r == nil || r.DB == nil {
+		return nil, fmt.Errorf("repo not initialized")
+	}
+	var q string
+	switch r.Driver {
+	case "postgres":
+		q = `SELECT id, username, password_hash, role FROM users`
+	default:
+		q = `SELECT id, username, password_hash, role FROM users`
+	}
+	rows, err := r.DB.QueryContext(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
