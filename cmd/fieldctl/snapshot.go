@@ -47,7 +47,7 @@ func newSnapshotCmd() *cobra.Command {
 			} else {
 				d = snapshot.LocalDir{Path: dest}
 			}
-			return snapshot.Export(context.Background(), db, schema, d)
+			return snapshot.Export(context.Background(), db, schema, driver, d)
 		},
 	}
 	cmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")

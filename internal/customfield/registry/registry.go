@@ -13,6 +13,7 @@ import (
 type DBConfig struct {
 	DSN    string
 	Schema string
+	Driver string
 }
 
 type FieldMeta struct {
@@ -32,7 +33,14 @@ type Scanner interface {
 }
 
 func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error) {
-	rows, err := db.QueryContext(ctx, `SELECT table_name, column_name, data_type FROM custom_fields ORDER BY table_name, column_name`)
+	var query string
+	switch conf.Driver {
+	case "postgres":
+		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", "default", validator FROM custom_fields ORDER BY table_name, column_name`
+	default:
+		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, `default`, validator FROM custom_fields ORDER BY table_name, column_name"
+	}
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -41,8 +49,19 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 	var metas []FieldMeta
 	for rows.Next() {
 		var m FieldMeta
-		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType); err != nil {
+		var labelKey, widget, placeholderKey sql.NullString
+		var def, validator sql.NullString
+		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &def, &validator); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
+		}
+		if labelKey.Valid || widget.Valid || placeholderKey.Valid {
+			m.Display = &DisplayMeta{LabelKey: labelKey.String, Widget: widget.String, PlaceholderKey: placeholderKey.String}
+		}
+		if def.Valid {
+			m.Default = def.String
+		}
+		if validator.Valid {
+			m.Validator = validator.String
 		}
 		metas = append(metas, m)
 	}
@@ -64,9 +83,9 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO custom_fields (table_name, column_name, data_type, nullable, "unique", "default", validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", "default"=EXCLUDED."default", validator=EXCLUDED.validator, updated_at=NOW()`)
+		stmt, err = tx.PrepareContext(ctx, `INSERT INTO custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", "default", validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", "default"=EXCLUDED."default", validator=EXCLUDED.validator, updated_at=NOW()`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, "INSERT INTO custom_fields (table_name, column_name, data_type, nullable, `unique`, `default`, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), nullable=VALUES(nullable), `unique`=VALUES(`unique`), `default`=VALUES(`default`), validator=VALUES(validator), updated_at=NOW()")
+		stmt, err = tx.PrepareContext(ctx, "INSERT INTO custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, `default`, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), `default`=VALUES(`default`), validator=VALUES(validator), updated_at=NOW()")
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)
@@ -78,7 +97,13 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	defer stmt.Close()
 
 	for _, m := range metas {
-		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType, m.Nullable, m.Unique, m.Default, m.Validator); err != nil {
+		var labelKey, widget, placeholderKey string
+		if m.Display != nil {
+			labelKey = m.Display.LabelKey
+			widget = m.Display.Widget
+			placeholderKey = m.Display.PlaceholderKey
+		}
+		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.Default, m.Validator); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
 		}
