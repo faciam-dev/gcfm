@@ -137,9 +137,18 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 				}
 			} else {
 				// MySQL stores the UNIQUE constraint as an index so it must be dropped separately.
-				drop := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, name)
-				if _, err := db.ExecContext(ctx, drop); err != nil {
-					return fmt.Errorf("drop index: %w", err)
+				var cnt int
+				err := db.QueryRowContext(ctx,
+					`SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+					table, name).Scan(&cnt)
+				if err != nil {
+					return fmt.Errorf("failed to check index existence: %w", err)
+				}
+				if cnt > 0 {
+					drop := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, name)
+					if _, err := db.ExecContext(ctx, drop); err != nil {
+						return fmt.Errorf("drop index: %w", err)
+					}
 				}
 			}
 		}
