@@ -116,7 +116,19 @@ func DropColumnSQL(ctx context.Context, db *sql.DB, driver, table, column string
 	case "postgres":
 		stmt = fmt.Sprintf(`ALTER TABLE "%s" DROP COLUMN IF EXISTS "%s"`, table, column)
 	case "mysql":
-		stmt = fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN IF EXISTS `%s`", table, column)
+		// MySQL < 8.0 does not support IF EXISTS for DROP COLUMN.
+		// Check whether the column exists before attempting to drop it.
+		var exists int
+		err := db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+			table, column).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("check column: %w", err)
+		}
+		if exists == 0 {
+			return nil
+		}
+		stmt = fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN `%s`", table, column)
 	default:
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
