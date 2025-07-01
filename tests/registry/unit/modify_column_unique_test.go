@@ -42,4 +42,19 @@ func TestModifyColumnSQL_DropUnique_MySQL(t *testing.T) {
 	}
 }
 
-func boolPtr(b bool) *bool { return &b }
+func TestModifyColumnSQL_AddUnique_MySQL(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	modify := "ALTER TABLE `posts` MODIFY COLUMN `email` varchar(255)"
+	add := "ALTER TABLE `posts` ADD UNIQUE (`email`)"
+	mock.ExpectExec(regexp.QuoteMeta(modify)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(add)).WillReturnResult(sqlmock.NewResult(0, 1))
+	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(true), nil); err != nil {
+		t.Fatalf("modify: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
