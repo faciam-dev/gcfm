@@ -59,15 +59,26 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 	if def != nil {
 		opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
 	}
-	if unique != nil && *unique {
-		opts = append(opts, "UNIQUE")
-	}
 	var stmt string
 	switch driver {
 	case "postgres":
+		if unique != nil && *unique {
+			opts = append(opts, fmt.Sprintf(`CONSTRAINT "%s_%s_key" UNIQUE`, table, column))
+		}
 		stmt = fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN "%s" %s`, table, column, strings.Join(opts, " "))
 	case "mysql":
 		stmt = fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s", table, column, strings.Join(opts, " "))
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("add column: %w", err)
+		}
+		if unique != nil && *unique {
+			name := fmt.Sprintf("%s_%s_key", table, column)
+			uq := fmt.Sprintf("ALTER TABLE `%s` ADD CONSTRAINT `%s` UNIQUE (`%s`)", table, name, column)
+			if _, err := db.ExecContext(ctx, uq); err != nil {
+				return fmt.Errorf("add unique: %w", err)
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
@@ -96,8 +107,13 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		if def != nil {
 			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT '%s'`, column, escapeLiteral(*def)))
 		}
-		if unique != nil && *unique {
-			clauses = append(clauses, fmt.Sprintf(`ADD UNIQUE ("%s")`, column))
+		if unique != nil {
+			if *unique {
+				clauses = append(clauses, fmt.Sprintf(`ADD UNIQUE ("%s")`, column))
+			} else {
+				uqName := fmt.Sprintf("%s_%s_key", table, column)
+				clauses = append(clauses, fmt.Sprintf(`DROP CONSTRAINT IF EXISTS "%s"`, uqName))
+			}
 		}
 		stmt = fmt.Sprintf(`ALTER TABLE "%s" %s`, table, strings.Join(clauses, ", "))
 	case "mysql":
@@ -108,10 +124,26 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		if def != nil {
 			opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
 		}
-		if unique != nil && *unique {
-			opts = append(opts, "UNIQUE")
-		}
 		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, strings.Join(opts, " "))
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("modify column: %w", err)
+		}
+		if unique != nil {
+			name := fmt.Sprintf("%s_%s_key", table, column)
+			if *unique {
+				add := fmt.Sprintf("ALTER TABLE `%s` ADD CONSTRAINT `%s` UNIQUE (`%s`)", table, name, column)
+				if _, err := db.ExecContext(ctx, add); err != nil {
+					return fmt.Errorf("add unique: %w", err)
+				}
+			} else {
+				// MySQL stores the UNIQUE constraint as an index so it must be dropped separately.
+				drop := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, name)
+				if _, err := db.ExecContext(ctx, drop); err != nil {
+					return fmt.Errorf("drop index: %w", err)
+				}
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
