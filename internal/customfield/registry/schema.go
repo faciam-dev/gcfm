@@ -23,6 +23,17 @@ func escapeLiteral(v string) string {
 	return strings.ReplaceAll(v, "'", "''")
 }
 
+func quoteIdentifier(driver, ident string) string {
+	switch driver {
+	case "postgres":
+		return `"` + strings.ReplaceAll(ident, `"`, `""`) + `"`
+	case "mysql":
+		return "`" + strings.ReplaceAll(ident, "`", "``") + "`"
+	default:
+		return ident
+	}
+}
+
 var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
 func supportsDefault(driver, typ string) bool {
@@ -116,7 +127,19 @@ func DropColumnSQL(ctx context.Context, db *sql.DB, driver, table, column string
 	case "postgres":
 		stmt = fmt.Sprintf(`ALTER TABLE "%s" DROP COLUMN IF EXISTS "%s"`, table, column)
 	case "mysql":
-		stmt = fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN IF EXISTS `%s`", table, column)
+		// MySQL < 8.0 does not support IF EXISTS for DROP COLUMN.
+		// Check whether the column exists before attempting to drop it.
+		var columnCount int
+		err := db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+			table, column).Scan(&columnCount)
+		if err != nil {
+			return fmt.Errorf("failed to check column existence: %w", err)
+		}
+		if columnCount == 0 {
+			return nil
+		}
+		stmt = fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", quoteIdentifier(driver, table), quoteIdentifier(driver, column))
 	default:
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
