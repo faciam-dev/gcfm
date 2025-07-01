@@ -202,9 +202,9 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		var query string
 		switch h.Driver {
 		case "postgres":
-			query = `SELECT data_type FROM custom_fields WHERE table_name=$1 AND column_name=$2`
+			query = `SELECT data_type FROM gcfm_custom_fields WHERE table_name=$1 AND column_name=$2`
 		case "mysql":
-			query = `SELECT data_type FROM custom_fields WHERE table_name=? AND column_name=?`
+			query = `SELECT data_type FROM gcfm_custom_fields WHERE table_name=? AND column_name=?`
 		default:
 			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
 		}

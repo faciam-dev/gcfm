@@ -52,9 +52,9 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 		table = old.TableName
 		column = old.ColumnName
 	}
-	q := "INSERT INTO audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
 	if r.Driver == "postgres" {
-		q = "INSERT INTO audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
 	}
 	var beforeJSON sql.NullString
 	if before != nil {

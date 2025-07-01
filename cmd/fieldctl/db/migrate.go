@@ -68,7 +68,7 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	}
 	defer db.Close()
 	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE username='admin'`)
+	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_users WHERE username='admin'`)
 	if err := row.Scan(&count); err != nil {
 		return err
 	}
@@ -81,15 +81,15 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	switch f.Driver {
 	case "postgres":
 		if count > 0 {
-			q = `UPDATE users SET password_hash=$1 WHERE username='admin'`
+			q = `UPDATE gcfm_users SET password_hash=$1 WHERE username='admin'`
 		} else {
-			q = `INSERT INTO users (username,password_hash,role) VALUES ('admin',$1,'admin')`
+			q = `INSERT INTO gcfm_users (username,password_hash,role) VALUES ('admin',$1,'admin')`
 		}
 	default:
 		if count > 0 {
-			q = `UPDATE users SET password_hash=? WHERE username='admin'`
+			q = `UPDATE gcfm_users SET password_hash=? WHERE username='admin'`
 		} else {
-			q = `INSERT INTO users (username,password_hash,role) VALUES ('admin',?,'admin')`
+			q = `INSERT INTO gcfm_users (username,password_hash,role) VALUES ('admin',?,'admin')`
 		}
 	}
 	if _, err := db.ExecContext(ctx, q, string(hash)); err != nil {

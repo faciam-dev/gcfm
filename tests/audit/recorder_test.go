@@ -17,7 +17,7 @@ func TestRecorderWrite(t *testing.T) {
 	rec := &audit.Recorder{DB: db, Driver: "mysql"}
 	old := &registry.FieldMeta{TableName: "posts", ColumnName: "title", DataType: "text"}
 	newm := &registry.FieldMeta{TableName: "posts", ColumnName: "title", DataType: "varchar"}
-	mock.ExpectExec("INSERT INTO audit_logs").WithArgs("alice", "update", "posts", "title", sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO gcfm_audit_logs").WithArgs("alice", "update", "posts", "title", sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
 	if err := rec.Write(context.Background(), "alice", old, newm); err != nil {
 		t.Fatalf("write: %v", err)
 	}

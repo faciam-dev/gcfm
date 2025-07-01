@@ -14,7 +14,7 @@ type User struct {
 	Role         string
 }
 
-// UserRepo provides access to the users table.
+// UserRepo provides access to the gcfm_users table.
 type UserRepo struct {
 	DB     *sql.DB
 	Driver string
@@ -28,9 +28,9 @@ func (r *UserRepo) GetByUsername(ctx context.Context, name string) (*User, error
 	var q string
 	switch r.Driver {
 	case "postgres":
-		q = `SELECT id, username, password_hash, role FROM users WHERE username=$1`
+		q = `SELECT id, username, password_hash, role FROM gcfm_users WHERE username=$1`
 	default:
-		q = `SELECT id, username, password_hash, role FROM users WHERE username=?`
+		q = `SELECT id, username, password_hash, role FROM gcfm_users WHERE username=?`
 	}
 	row := r.DB.QueryRowContext(ctx, q, name)
 	var u User
@@ -51,9 +51,9 @@ func (r *UserRepo) List(ctx context.Context) ([]User, error) {
 	var q string
 	switch r.Driver {
 	case "postgres":
-		q = `SELECT id, username, password_hash, role FROM users`
+		q = `SELECT id, username, password_hash, role FROM gcfm_users`
 	default:
-		q = `SELECT id, username, password_hash, role FROM users`
+		q = `SELECT id, username, password_hash, role FROM gcfm_users`
 	}
 	rows, err := r.DB.QueryContext(ctx, q)
 	if err != nil {

@@ -43,7 +43,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 	if h.Driver == "mysql" {
 		placeholder = "?"
 	}
-	query := `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM audit_logs ORDER BY id DESC LIMIT ` + placeholder
+	query := `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM gcfm_audit_logs ORDER BY id DESC LIMIT ` + placeholder
 	rows, err := h.DB.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err

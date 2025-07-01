@@ -10,7 +10,7 @@ the `bin` directory.
 
 ## fieldctl scan
 
-Scan existing database tables and store the metadata in the `custom_fields` table.
+Scan existing database tables and store the metadata in the `gcfm_custom_fields` table.
 
 ```
 fieldctl scan --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres

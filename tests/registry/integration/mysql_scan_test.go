@@ -56,7 +56,7 @@ func TestScanAndUpsert(t *testing.T) {
 		t.Fatalf("create table: %v", err)
 	}
 
-	_, err = db.ExecContext(ctx, `CREATE TABLE custom_fields (
+	_, err = db.ExecContext(ctx, `CREATE TABLE gcfm_custom_fields (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
         table_name VARCHAR(255) NOT NULL,
         column_name VARCHAR(255) NOT NULL,
@@ -80,7 +80,7 @@ func TestScanAndUpsert(t *testing.T) {
 	}
 
 	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM custom_fields`)
+	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_custom_fields`)
 	if err := row.Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}

@@ -38,7 +38,7 @@ func NewDeleteCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			_, err = db.Table("users").
+			_, err = db.Table("gcfm_users").
 				Where("id", id).
 				Update(map[string]any{"is_deleted": true})
 			return err

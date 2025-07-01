@@ -43,7 +43,7 @@ func NewCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = db.Table("users").
+			_, err = db.Table("gcfm_users").
 				Insert(map[string]any{"username": username, "password_hash": string(hash), "role": role})
 			return err
 		},

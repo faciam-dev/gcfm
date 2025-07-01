@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS custom_fields;
+DROP TABLE IF EXISTS gcfm_custom_fields;

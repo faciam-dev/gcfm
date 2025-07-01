@@ -56,7 +56,7 @@ func TestExportApplyRoundTrip(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `CREATE TABLE comments (id INT PRIMARY KEY AUTO_INCREMENT, message TEXT)`); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE custom_fields (
+	if _, err := db.ExecContext(ctx, `CREATE TABLE gcfm_custom_fields (
         id BIGINT PRIMARY KEY AUTO_INCREMENT,
         table_name VARCHAR(255) NOT NULL,
         column_name VARCHAR(255) NOT NULL,
