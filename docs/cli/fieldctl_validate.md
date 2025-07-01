@@ -9,10 +9,10 @@ fieldctl validate [flags]
 ### Options
 
 ```
-      --file string   input file (default "registry.yaml")
-  -h, --help          help for validate
-      --ui            validate display metadata
-      --reserved      validate reserved tables
+  --file string     input file (default "registry.yaml")
+  -h, --help        help for validate
+  --ui              validate display metadata
+  --reserved        validate reserved tables
 ```
 
 ### SEE ALSO
