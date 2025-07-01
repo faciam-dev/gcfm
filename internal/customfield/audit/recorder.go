@@ -56,14 +56,18 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 	if r.Driver == "postgres" {
 		q = "INSERT INTO audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
 	}
-	var beforeArg interface{}
+	var beforeJSON sql.NullString
 	if before != nil {
-		beforeArg = string(before)
+		beforeJSON = sql.NullString{String: string(before), Valid: true}
+	} else {
+		beforeJSON = sql.NullString{Valid: false}
 	}
-	var afterArg interface{}
+	var afterJSON sql.NullString
 	if after != nil {
-		afterArg = string(after)
+		afterJSON = sql.NullString{String: string(after), Valid: true}
+	} else {
+		afterJSON = sql.NullString{Valid: false}
 	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, table, column, beforeArg, afterArg)
+	_, err = r.DB.ExecContext(ctx, q, actor, action, table, column, beforeJSON, afterJSON)
 	return err
 }
