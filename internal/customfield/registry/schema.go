@@ -96,8 +96,13 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		if def != nil {
 			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT '%s'`, column, escapeLiteral(*def)))
 		}
-		if unique != nil && *unique {
-			clauses = append(clauses, fmt.Sprintf(`ADD UNIQUE ("%s")`, column))
+		if unique != nil {
+			if *unique {
+				clauses = append(clauses, fmt.Sprintf(`ADD UNIQUE ("%s")`, column))
+			} else {
+				uqName := fmt.Sprintf("%s_%s_key", table, column)
+				clauses = append(clauses, fmt.Sprintf(`DROP CONSTRAINT IF EXISTS "%s"`, uqName))
+			}
 		}
 		stmt = fmt.Sprintf(`ALTER TABLE "%s" %s`, table, strings.Join(clauses, ", "))
 	case "mysql":
@@ -117,6 +122,12 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 	}
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("modify column: %w", err)
+	}
+	if driver == "mysql" && unique != nil && !*unique {
+		dropStmt := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, column)
+		if _, err := db.ExecContext(ctx, dropStmt); err != nil {
+			return fmt.Errorf("drop index: %w", err)
+		}
 	}
 	return nil
 }
