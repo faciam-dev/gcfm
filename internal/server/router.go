@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/api/handler"
 	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/go-chi/chi/v5"
@@ -65,13 +65,9 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		e.AddPolicy("admin", "/v1/*", "POST")
 		e.AddPolicy("admin", "/v1/*", "PUT")
 		e.AddPolicy("admin", "/v1/*", "DELETE")
-		repo := &auth.UserRepo{DB: db, Driver: driver}
-		users, err := repo.List(context.Background())
-		if err != nil {
-			log.Printf("load users: %v", err)
-		} else {
-			for _, u := range users {
-				e.AddGroupingPolicy(strconv.FormatUint(u.ID, 10), u.Role)
+		if db != nil {
+			if err := rbac.Load(context.Background(), db, driver, e); err != nil {
+				log.Printf("load rbac: %v", err)
 			}
 		}
 	}
@@ -110,6 +106,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
+	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
 	return api
 }
