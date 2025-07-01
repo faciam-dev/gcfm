@@ -31,9 +31,30 @@ func TestModifyColumnSQL_DropUnique_MySQL(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	modify := "ALTER TABLE `posts` MODIFY COLUMN `email` varchar(255)"
-	drop := "ALTER TABLE `posts` DROP INDEX `posts_email_key`"
 	mock.ExpectExec(regexp.QuoteMeta(modify)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM INFORMATION_SCHEMA.STATISTICS").
+		WithArgs("posts", "posts_email_key").
+		WillReturnRows(sqlmock.NewRows([]string{"cnt"}).AddRow(1))
+	drop := "ALTER TABLE `posts` DROP INDEX `posts_email_key`"
 	mock.ExpectExec(regexp.QuoteMeta(drop)).WillReturnResult(sqlmock.NewResult(0, 1))
+	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(false), nil); err != nil {
+		t.Fatalf("modify: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestModifyColumnSQL_DropUnique_MySQL_NoIndex(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	modify := "ALTER TABLE `posts` MODIFY COLUMN `email` varchar(255)"
+	mock.ExpectExec(regexp.QuoteMeta(modify)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM INFORMATION_SCHEMA.STATISTICS").
+		WithArgs("posts", "posts_email_key").
+		WillReturnRows(sqlmock.NewRows([]string{"cnt"}).AddRow(0))
 	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(false), nil); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
