@@ -38,6 +38,12 @@ var m0006Up string
 //go:embed sql/0006_add_cf_constraints.down.sql
 var m0006Down string
 
+//go:embed sql/0007_add_id_column.up.sql
+var m0007Up string
+
+//go:embed sql/0007_add_id_column.down.sql
+var m0007Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -75,6 +81,12 @@ var pg0006Up string
 
 //go:embed sql/postgres/0006_add_cf_constraints.down.sql
 var pg0006Down string
+
+//go:embed sql/postgres/0007_add_id_column.up.sql
+var pg0007Up string
+
+//go:embed sql/postgres/0007_add_id_column.down.sql
+var pg0007Down string
 var defaultMigrations = []Migration{
 	{Version: 1, SemVer: "0.1", UpSQL: m0001Up, DownSQL: m0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: m0002Up, DownSQL: m0002Down},
@@ -82,6 +94,7 @@ var defaultMigrations = []Migration{
 	{Version: 4, SemVer: "0.4", UpSQL: m0004Up, DownSQL: m0004Down},
 	{Version: 5, SemVer: "0.5", UpSQL: m0005Up, DownSQL: m0005Down},
 	{Version: 6, SemVer: "0.6", UpSQL: m0006Up, DownSQL: m0006Down},
+	{Version: 7, SemVer: "0.7", UpSQL: m0007Up, DownSQL: m0007Down},
 }
 
 var postgresMigrations = []Migration{
@@ -91,4 +104,5 @@ var postgresMigrations = []Migration{
 	{Version: 4, SemVer: "0.4", UpSQL: pg0004Up, DownSQL: pg0004Down},
 	{Version: 5, SemVer: "0.5", UpSQL: pg0005Up, DownSQL: pg0005Down},
 	{Version: 6, SemVer: "0.6", UpSQL: pg0006Up, DownSQL: pg0006Down},
+	{Version: 7, SemVer: "0.7", UpSQL: pg0007Up, DownSQL: pg0007Down},
 }

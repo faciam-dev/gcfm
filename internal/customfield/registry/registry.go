@@ -17,6 +17,7 @@ type DBConfig struct {
 }
 
 type FieldMeta struct {
+	ID          int64        `yaml:"-"`
 	TableName   string       `yaml:"table"`
 	ColumnName  string       `yaml:"column"`
 	DataType    string       `yaml:"type"`
@@ -36,9 +37,9 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 	var query string
 	switch conf.Driver {
 	case "postgres":
-		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", "default", validator FROM custom_fields ORDER BY table_name, column_name`
+		query = `SELECT id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", "default", validator FROM custom_fields ORDER BY table_name, column_name`
 	default:
-		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, `default`, validator FROM custom_fields ORDER BY table_name, column_name"
+		query = "SELECT id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, `default`, validator FROM custom_fields ORDER BY table_name, column_name"
 	}
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
@@ -51,7 +52,7 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 		var m FieldMeta
 		var labelKey, widget, placeholderKey sql.NullString
 		var def, validator sql.NullString
-		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &def, &validator); err != nil {
+		if err := rows.Scan(&m.ID, &m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &def, &validator); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
 		if labelKey.Valid || widget.Valid || placeholderKey.Valid {

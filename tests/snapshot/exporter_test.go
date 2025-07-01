@@ -17,8 +17,8 @@ func TestExportLocal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	rows := sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "default", "validator"}).AddRow("posts", "title", "text", "", "", "", false, false, "", "")
-	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, `default`, validator FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(rows)
+	rows := sqlmock.NewRows([]string{"id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "default", "validator"}).AddRow(1, "posts", "title", "text", "", "", "", false, false, "", "")
+	mock.ExpectQuery("^SELECT id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, `default`, validator FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(rows)
 	dir := t.TempDir()
 	if err := snapshot.Export(context.Background(), db, "", "mysql", snapshot.LocalDir{Path: dir}); err != nil {
 		t.Fatalf("export: %v", err)
@@ -51,8 +51,8 @@ func TestExportLocalPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	rows := sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "default", "validator"}).AddRow("posts", "title", "text", "", "", "", false, false, "", "")
-	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, \"unique\", \"default\", validator FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(rows)
+	rows := sqlmock.NewRows([]string{"id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "default", "validator"}).AddRow(1, "posts", "title", "text", "", "", "", false, false, "", "")
+	mock.ExpectQuery("^SELECT id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, \"unique\", \"default\", validator FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(rows)
 	dir := t.TempDir()
 	if err := snapshot.Export(context.Background(), db, "", "postgres", snapshot.LocalDir{Path: dir}); err != nil {
 		t.Fatalf("export: %v", err)

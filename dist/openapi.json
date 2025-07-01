@@ -260,6 +260,10 @@
           "Display": {
             "$ref": "#/components/schemas/DisplayMeta"
           },
+          "ID": {
+            "format": "int64",
+            "type": "integer"
+          },
           "Nullable": {
             "type": "boolean"
           },
@@ -277,6 +281,7 @@
           }
         },
         "required": [
+          "ID",
           "TableName",
           "ColumnName",
           "DataType",
