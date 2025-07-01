@@ -10,6 +10,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/driver/mysql"
 	"github.com/faciam-dev/gcfm/internal/driver/postgres"
 	"github.com/faciam-dev/gcfm/internal/metadata"
+	"github.com/faciam-dev/gcfm/internal/server/reserved"
 )
 
 // MetadataHandler handles metadata endpoints.
@@ -65,7 +66,7 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *tablesParams) (*tab
 	}
 	out := make([]schema.TableMeta, 0, len(tables))
 	for _, t := range tables {
-		out = append(out, schema.TableMeta{Table: t.Name, Comment: t.Comment})
+		out = append(out, schema.TableMeta{Table: t.Name, Comment: t.Comment, Reserved: reserved.Is(t.Name)})
 	}
 	return &tablesOutput{Body: out}, nil
 }

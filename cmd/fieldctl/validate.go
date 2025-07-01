@@ -4,15 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/internal/server/reserved"
 )
 
 func newValidateCmd() *cobra.Command {
 	var file string
 	var checkUI bool
+	var checkReserved bool
 	cmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate registry YAML",
@@ -39,11 +43,22 @@ func newValidateCmd() *cobra.Command {
 					return fmt.Errorf("%d fields missing display", missing)
 				}
 			}
+			if checkReserved {
+				_, f, _, _ := runtime.Caller(0)
+				base := filepath.Join(filepath.Dir(f), "..", "..")
+				reserved.Load(filepath.Join(base, "configs", "default.yaml"))
+				for _, m := range metas {
+					if reserved.Is(m.TableName) {
+						return fmt.Errorf("table %s is reserved", m.TableName)
+					}
+				}
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&file, "file", "registry.yaml", "input file")
 	cmd.Flags().BoolVar(&checkUI, "ui", false, "validate display metadata")
+	cmd.Flags().BoolVar(&checkReserved, "reserved", false, "validate reserved tables")
 	return cmd
 }

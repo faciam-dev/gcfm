@@ -13,6 +13,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -64,6 +65,7 @@ func Register(api huma.API, h *CustomFieldHandler) {
 		Path:          "/v1/custom-fields",
 		Summary:       "Create custom field",
 		Tags:          []string{"CustomField"},
+		Errors:        []int{http.StatusConflict},
 		DefaultStatus: http.StatusCreated,
 	}, h.create)
 	huma.Register(api, huma.Operation{
@@ -72,6 +74,7 @@ func Register(api huma.API, h *CustomFieldHandler) {
 		Path:        "/v1/custom-fields/{id}",
 		Summary:     "Update custom field",
 		Tags:        []string{"CustomField"},
+		Errors:      []int{http.StatusConflict},
 	}, h.update)
 	huma.Register(api, huma.Operation{
 		OperationID:   "deleteCustomField",
@@ -79,11 +82,15 @@ func Register(api huma.API, h *CustomFieldHandler) {
 		Path:          "/v1/custom-fields/{id}",
 		Summary:       "Delete custom field",
 		Tags:          []string{"CustomField"},
+		Errors:        []int{http.StatusConflict},
 		DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 }
 
 func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*createOutput, error) {
+	if reserved.Is(in.Body.Table) {
+		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", in.Body.Table))
+	}
 	meta := registry.FieldMeta{
 		TableName:  in.Body.Table,
 		ColumnName: in.Body.Column,
@@ -218,6 +225,9 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if !ok {
 		return nil, huma.Error400BadRequest("bad id")
 	}
+	if reserved.Is(table) {
+		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
+	}
 	oldMeta, err := h.getField(ctx, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
@@ -277,6 +287,9 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	table, column, ok := splitID(in.ID)
 	if !ok {
 		return nil, huma.Error400BadRequest("bad id")
+	}
+	if reserved.Is(table) {
+		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
 	meta := registry.FieldMeta{TableName: table, ColumnName: column}
 	oldMeta, err := h.getField(ctx, table, column)
