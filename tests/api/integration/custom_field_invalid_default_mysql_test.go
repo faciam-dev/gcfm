@@ -65,12 +65,12 @@ func TestAPI_Create_CF_InvalidDefault_MySQL(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"table":"posts","column":"body","type":"text","default":"abc"}`
+	body := `{"table":"posts","column":"body","type":"text","hasDefault":true,"defaultValue":"abc"}`
 	resp, err := http.Post(srv.URL+"/v1/custom-fields", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
-	if resp.StatusCode != http.StatusBadRequest {
+	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
 }

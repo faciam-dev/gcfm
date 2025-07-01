@@ -65,7 +65,7 @@ func TestAPI_Create_CF_Options_MySQL(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"table":"posts","column":"email","type":"varchar","nullable":false,"unique":true,"default":"abc"}`
+	body := `{"table":"posts","column":"email","type":"varchar","nullable":false,"unique":true,"hasDefault":true,"defaultValue":"abc"}`
 	resp, err := http.Post(srv.URL+"/v1/custom-fields", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)

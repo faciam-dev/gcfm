@@ -50,7 +50,7 @@ func supportsDefault(driver, typ string) bool {
 func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
 	if def != nil && !supportsDefault(driver, typ) {
-		return fmt.Errorf("%w", ErrDefaultNotSupported)
+		def = nil
 	}
 	opts := []string{typ}
 	if nullable != nil && !*nullable {
@@ -91,7 +91,7 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
 	if def != nil && !supportsDefault(driver, typ) {
-		return fmt.Errorf("%w", ErrDefaultNotSupported)
+		def = nil
 	}
 	var stmt string
 	switch driver {
