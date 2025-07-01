@@ -124,6 +124,9 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		return fmt.Errorf("modify column: %w", err)
 	}
 	if driver == "mysql" && unique != nil && !*unique {
+		// MySQL creates a backing index for UNIQUE constraints which is
+		// not removed by MODIFY COLUMN. Drop it explicitly when UNIQUE
+		// is cleared.
 		dropStmt := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, column)
 		if _, err := db.ExecContext(ctx, dropStmt); err != nil {
 			return fmt.Errorf("drop index: %w", err)
