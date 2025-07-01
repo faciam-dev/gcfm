@@ -41,7 +41,7 @@ func NewListCmd() *cobra.Command {
 			defer db.Close()
 
 			var us []listUser
-			err = db.Table("users").
+			err = db.Table("gcfm_users").
 				Select("id", "username", "role").
 				WhereRaw("COALESCE(is_deleted,false) = :f", map[string]any{
 					"f": false,

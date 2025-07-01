@@ -64,7 +64,7 @@ func TestCLIUserCommands(t *testing.T) {
 		t.Fatalf("create: %v\n%s", err, out)
 	}
 	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE username='bob'`)
+	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_users WHERE username='bob'`)
 	if err := row.Scan(&count); err != nil {
 		t.Fatalf("scan bob: %v", err)
 	}

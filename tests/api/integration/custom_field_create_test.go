@@ -69,7 +69,7 @@ func TestAPI_Create_CF_Integration(t *testing.T) {
 	}
 
 	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
+	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_custom_fields WHERE table_name='posts' AND column_name='title'`)
 	if err := row.Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestAPI_Create_CF_FullPayload(t *testing.T) {
 	if !out.Nullable || out.Unique || !out.HasDefault || out.Default == nil || *out.Default != "n/a" || out.Validator != "uuid" {
 		t.Fatalf("unexpected meta: %+v", out)
 	}
-	row := db.QueryRowContext(ctx, `SELECT nullable, "unique", has_default, default_value, validator FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
+	row := db.QueryRowContext(ctx, `SELECT nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE table_name='posts' AND column_name='title'`)
 	var nullable, unique, hasDef bool
 	var def, validator string
 	if err := row.Scan(&nullable, &unique, &hasDef, &def, &validator); err != nil {

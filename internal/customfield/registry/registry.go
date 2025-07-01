@@ -37,9 +37,9 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 	var query string
 	switch conf.Driver {
 	case "postgres":
-		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM custom_fields ORDER BY table_name, column_name`
+		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name`
 	default:
-		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM custom_fields ORDER BY table_name, column_name"
+		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name"
 	}
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
@@ -89,9 +89,9 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`)
+		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, "INSERT INTO custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
+		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)
@@ -135,9 +135,9 @@ func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `DELETE FROM custom_fields WHERE table_name = $1 AND column_name = $2`)
+		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE table_name = $1 AND column_name = $2`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, `DELETE FROM custom_fields WHERE table_name = ? AND column_name = ?`)
+		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE table_name = ? AND column_name = ?`)
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)

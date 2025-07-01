@@ -24,9 +24,9 @@ func TestApplyHooks(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 	mock.ExpectBegin()
-	mock.ExpectPrepare("INSERT INTO custom_fields").ExpectExec().WithArgs(
+	mock.ExpectPrepare("INSERT INTO gcfm_custom_fields").ExpectExec().WithArgs(
 		"posts", "title", "text",
 		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
@@ -60,7 +60,7 @@ func TestApplyHooksDryRun(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	nt := &stubNotifier{}
 	disable := false

@@ -43,8 +43,8 @@ func NewWithDriver(driver string) *Migrator {
 	}
 }
 
-// ErrNoVersionTable indicates registry_schema_version table is missing.
-var ErrNoVersionTable = errors.New("registry_schema_version table not found")
+// ErrNoVersionTable indicates gcfm_registry_schema_version table is missing.
+var ErrNoVersionTable = errors.New("gcfm_registry_schema_version table not found")
 
 // SemVerToInt converts a semver string to its integer version.
 func (m *Migrator) SemVerToInt(v string) (int, bool) {
@@ -59,7 +59,7 @@ func (m *Migrator) SemVerToInt(v string) (int, bool) {
 // Current returns current version (integer). If the version table doesn't exist
 // ErrNoVersionTable is returned.
 func (m *Migrator) Current(ctx context.Context, db *sql.DB) (int, error) {
-	row := db.QueryRowContext(ctx, `SELECT MAX(version) FROM registry_schema_version`)
+	row := db.QueryRowContext(ctx, `SELECT MAX(version) FROM gcfm_registry_schema_version`)
 	var v sql.NullInt64
 	if err := row.Scan(&v); err != nil {
 		if isTableMissing(err) {
@@ -111,19 +111,19 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 		if err != nil {
 			return err
 		}
-		// first time: if custom_fields table exists treat as initialized
-		if tableExists(ctx, tx, "custom_fields") {
+		// first time: if gcfm_custom_fields table exists treat as initialized
+		if tableExists(ctx, tx, "gcfm_custom_fields") {
 			if err := execAll(ctx, tx, m0001Up); err != nil {
 				tx.Rollback()
 				return err
 			}
 			// insert latest version only
-			if _, err := tx.ExecContext(ctx, `DELETE FROM registry_schema_version`); err != nil {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM gcfm_registry_schema_version`); err != nil {
 				tx.Rollback()
 				return err
 			}
 			last := m.migrations[target-1]
-			if _, err := tx.ExecContext(ctx, `INSERT INTO registry_schema_version(version, semver) VALUES (?, ?)`, last.Version, last.SemVer); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (?, ?)`, last.Version, last.SemVer); err != nil {
 				tx.Rollback()
 				return err
 			}

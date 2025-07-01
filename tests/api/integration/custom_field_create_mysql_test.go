@@ -75,7 +75,7 @@ func TestAPI_Create_CF_MySQL(t *testing.T) {
 	}
 
 	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
+	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_custom_fields WHERE table_name='posts' AND column_name='title'`)
 	if err := row.Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}

@@ -17,7 +17,7 @@ func TestUserRepoList(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "username", "password_hash", "role"}).
 		AddRow(1, "alice", "hash", "admin").
 		AddRow(2, "bob", "hash2", "user")
-	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM users$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM gcfm_users$").WillReturnRows(rows)
 	users, err := repo.List(context.Background())
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -43,7 +43,7 @@ func TestUserRepoListQueryError(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	repo := &UserRepo{DB: db, Driver: "postgres"}
-	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM users$").WillReturnError(errors.New("bad"))
+	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM gcfm_users$").WillReturnError(errors.New("bad"))
 	if _, err := repo.List(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -57,7 +57,7 @@ func TestUserRepoListScanError(t *testing.T) {
 	repo := &UserRepo{DB: db, Driver: "postgres"}
 	rows := sqlmock.NewRows([]string{"id", "username", "password_hash", "role"}).
 		AddRow("bad", "alice", "hash", "admin")
-	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM users$").WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM gcfm_users$").WillReturnRows(rows)
 	if _, err := repo.List(context.Background()); err == nil {
 		t.Fatalf("expected error")
 	}
