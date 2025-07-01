@@ -97,8 +97,9 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.Unique != nil {
 		meta.Unique = *in.Body.Unique
 	}
-	if in.Body.Default != nil {
-		meta.Default = *in.Body.Default
+	meta.HasDefault = in.Body.HasDefault
+	if in.Body.HasDefault {
+		meta.Default = in.Body.DefaultValue
 	}
 	switch h.Driver {
 	case "mongo":
@@ -110,8 +111,12 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		if err != nil {
 			return nil, err
 		}
+		var def *string
+		if in.Body.HasDefault {
+			def = in.Body.DefaultValue
+		}
 		if !exists {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
+			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -224,8 +229,9 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if in.Body.Unique != nil {
 		meta.Unique = *in.Body.Unique
 	}
-	if in.Body.Default != nil {
-		meta.Default = *in.Body.Default
+	meta.HasDefault = in.Body.HasDefault
+	if in.Body.HasDefault {
+		meta.Default = in.Body.DefaultValue
 	}
 	switch h.Driver {
 	case "mongo":
@@ -237,15 +243,19 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		if err != nil {
 			return nil, err
 		}
+		var def *string
+		if in.Body.HasDefault {
+			def = in.Body.DefaultValue
+		}
 		if exists {
-			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
+			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
 				return nil, err
 			}
 		} else {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, in.Body.Default); err != nil {
+			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}

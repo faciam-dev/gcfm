@@ -17,13 +17,14 @@ func TestCustomFieldValidation(t *testing.T) {
 	sch := huma.SchemaFromType(reg, reflect.TypeOf(schema.CustomField{}))
 	pb := huma.NewPathBuffer([]byte(""), 0)
 	cf := schema.CustomField{
-		Table:     "posts",
-		Column:    "id",
-		Type:      "uuid",
-		Nullable:  boolPtr(true),
-		Unique:    boolPtr(false),
-		Default:   strPtr("foo"),
-		Validator: "uuid",
+		Table:        "posts",
+		Column:       "id",
+		Type:         "uuid",
+		Nullable:     boolPtr(true),
+		Unique:       boolPtr(false),
+		HasDefault:   true,
+		DefaultValue: strPtr("foo"),
+		Validator:    "uuid",
 	}
 	b, err := json.Marshal(cf)
 	if err != nil {

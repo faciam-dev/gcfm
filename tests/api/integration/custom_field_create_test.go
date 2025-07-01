@@ -116,7 +116,7 @@ func TestAPI_Create_CF_FullPayload(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"table":"posts","column":"title","type":"text","display":{"labelKey":"test","placeholderKey":"test","widget":"text"},"nullable":true,"unique":false,"default":"n/a","validator":"uuid"}`
+	body := `{"table":"posts","column":"title","type":"text","display":{"labelKey":"test","placeholderKey":"test","widget":"text"},"nullable":true,"unique":false,"hasDefault":true,"defaultValue":"n/a","validator":"uuid"}`
 	resp, err := http.Post(srv.URL+"/v1/custom-fields", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -129,17 +129,16 @@ func TestAPI_Create_CF_FullPayload(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if !out.Nullable || out.Unique || out.Default != "n/a" || out.Validator != "uuid" {
+	if !out.Nullable || out.Unique || !out.HasDefault || out.Default == nil || *out.Default != "n/a" || out.Validator != "uuid" {
 		t.Fatalf("unexpected meta: %+v", out)
 	}
-
-	row := db.QueryRowContext(ctx, `SELECT nullable, "unique", "default", validator FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
-	var nullable, unique bool
+	row := db.QueryRowContext(ctx, `SELECT nullable, "unique", has_default, default_value, validator FROM custom_fields WHERE table_name='posts' AND column_name='title'`)
+	var nullable, unique, hasDef bool
 	var def, validator string
-	if err := row.Scan(&nullable, &unique, &def, &validator); err != nil {
+	if err := row.Scan(&nullable, &unique, &hasDef, &def, &validator); err != nil {
 		t.Fatalf("select: %v", err)
 	}
-	if !nullable || unique || def != "n/a" || validator != "uuid" {
-		t.Fatalf("persisted values mismatch: %v %v %s %s", nullable, unique, def, validator)
+	if !nullable || unique || !hasDef || def != "n/a" || validator != "uuid" {
+		t.Fatalf("persisted values mismatch: %v %v %v %s %s", nullable, unique, hasDef, def, validator)
 	}
 }
