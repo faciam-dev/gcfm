@@ -1,12 +1,12 @@
 package usercmd
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/faciam-dev/goquent/orm"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
 )
@@ -33,7 +33,7 @@ func NewCreateCmd() *cobra.Command {
 				}
 				flags.Driver = d
 			}
-			db, err := sql.Open(flags.Driver, flags.DSN)
+			db, err := orm.OpenWithDriver(flags.Driver, flags.DSN)
 			if err != nil {
 				return err
 			}
@@ -43,14 +43,8 @@ func NewCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var q string
-			switch flags.Driver {
-			case "postgres":
-				q = `INSERT INTO users (username,password_hash,role) VALUES ($1,$2,$3)`
-			default:
-				q = `INSERT INTO users (username,password_hash,role) VALUES (?,?,?)`
-			}
-			_, err = db.ExecContext(context.Background(), q, username, string(hash), role)
+			_, err = db.Table("users").
+				Insert(map[string]any{"username": username, "password_hash": string(hash), "role": role})
 			return err
 		},
 	}

@@ -39,6 +39,7 @@ require (
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/faciam-dev/goquent-query-builder v0.0.0-20250619111145-259bb0c46fca // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -86,7 +87,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
@@ -101,6 +101,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
 	github.com/casbin/casbin/v2 v2.108.0
 	github.com/danielgtaylor/huma/v2 v2.33.0
+	github.com/faciam-dev/goquent v0.1.2
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.1
 	github.com/go-resty/resty/v2 v2.16.5
@@ -116,5 +117,6 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0
 	go.mongodb.org/mongo-driver v1.17.4
 	go.uber.org/zap v1.27.0
+	golang.org/x/crypto v0.39.0
 	gopkg.in/yaml.v3 v3.0.1
 )

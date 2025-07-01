@@ -1,12 +1,12 @@
 package usercmd
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/faciam-dev/goquent/orm"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
 )
@@ -34,30 +34,19 @@ func NewListCmd() *cobra.Command {
 				}
 				flags.Driver = d
 			}
-			db, err := sql.Open(flags.Driver, flags.DSN)
+			db, err := orm.OpenWithDriver(flags.Driver, flags.DSN)
 			if err != nil {
 				return err
 			}
 			defer db.Close()
-			var q string
-			switch flags.Driver {
-			case "postgres":
-				q = `SELECT id, username, role FROM users WHERE COALESCE(is_deleted,false)=false`
-			default:
-				q = `SELECT id, username, role FROM users WHERE COALESCE(is_deleted,0)=0`
-			}
-			rows, err := db.QueryContext(context.Background(), q)
+
+			var us []listUser
+			err = db.Table("users").
+				Select("id", "username", "role").
+				Where("COALESCE(is_deleted,false)", false).
+				Get(&us)
 			if err != nil {
 				return err
-			}
-			defer rows.Close()
-			var us []listUser
-			for rows.Next() {
-				var u listUser
-				if err := rows.Scan(&u.ID, &u.Username, &u.Role); err != nil {
-					return err
-				}
-				us = append(us, u)
 			}
 			b, _ := json.MarshalIndent(us, "", "  ")
 			cmd.OutOrStdout().Write(b)
