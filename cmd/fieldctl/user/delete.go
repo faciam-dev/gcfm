@@ -1,11 +1,11 @@
 package usercmd
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/faciam-dev/goquent/orm"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
 )
@@ -32,19 +32,15 @@ func NewDeleteCmd() *cobra.Command {
 				}
 				flags.Driver = d
 			}
-			db, err := sql.Open(flags.Driver, flags.DSN)
+			db, err := orm.OpenWithDriver(flags.Driver, flags.DSN)
 			if err != nil {
 				return err
 			}
 			defer db.Close()
-			var q string
-			switch flags.Driver {
-			case "postgres":
-				q = `UPDATE users SET is_deleted=true WHERE id=$1`
-			default:
-				q = `UPDATE users SET is_deleted=1 WHERE id=?`
-			}
-			_, err = db.ExecContext(context.Background(), q, id)
+
+			_, err = db.Table("users").
+				Where("id", id).
+				Update(map[string]any{"is_deleted": true})
 			return err
 		},
 	}
