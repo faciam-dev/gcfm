@@ -72,7 +72,8 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 			return fmt.Errorf("add column: %w", err)
 		}
 		if unique != nil && *unique {
-			uq := fmt.Sprintf("ALTER TABLE `%s` ADD UNIQUE (`%s`)", table, column)
+			name := fmt.Sprintf("%s_%s_key", table, column)
+			uq := fmt.Sprintf("ALTER TABLE `%s` ADD CONSTRAINT `%s` UNIQUE (`%s`)", table, name, column)
 			if _, err := db.ExecContext(ctx, uq); err != nil {
 				return fmt.Errorf("add unique: %w", err)
 			}
@@ -128,13 +129,15 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 			return fmt.Errorf("modify column: %w", err)
 		}
 		if unique != nil {
+			name := fmt.Sprintf("%s_%s_key", table, column)
 			if *unique {
-				add := fmt.Sprintf("ALTER TABLE `%s` ADD UNIQUE (`%s`)", table, column)
+				add := fmt.Sprintf("ALTER TABLE `%s` ADD CONSTRAINT `%s` UNIQUE (`%s`)", table, name, column)
 				if _, err := db.ExecContext(ctx, add); err != nil {
 					return fmt.Errorf("add unique: %w", err)
 				}
 			} else {
-				drop := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, column)
+				// MySQL stores the UNIQUE constraint as an index so it must be dropped separately.
+				drop := fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", table, name)
 				if _, err := db.ExecContext(ctx, drop); err != nil {
 					return fmt.Errorf("drop index: %w", err)
 				}
