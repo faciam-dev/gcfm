@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,14 +18,20 @@ import (
 	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"runtime"
 )
 
 func New(db *sql.DB, driver, dsn string) huma.API {
 	r := chi.NewRouter()
+
+	_, file, _, _ := runtime.Caller(0)
+	base := filepath.Join(filepath.Dir(file), "..", "..")
+	reserved.Load(filepath.Join(base, "configs", "default.yaml"))
 	allowed := os.Getenv("ALLOWED_ORIGINS")
 	if allowed == "" {
 		allowed = "http://localhost:5173"

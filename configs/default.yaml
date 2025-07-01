@@ -1,0 +1,5 @@
+reservedTables:
+  - users
+  - audit_logs
+  - registry_schema_version
+  - custom_fields

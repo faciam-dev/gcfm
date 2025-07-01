@@ -81,11 +81,14 @@
           "column": {
             "type": "string"
           },
-          "default": {
+          "defaultValue": {
             "type": "string"
           },
           "display": {
             "$ref": "#/components/schemas/DisplayMeta"
+          },
+          "hasDefault": {
+            "type": "boolean"
           },
           "nullable": {
             "type": "boolean"
@@ -254,9 +257,6 @@
           "DataType": {
             "type": "string"
           },
-          "Default": {
-            "type": "string"
-          },
           "Display": {
             "$ref": "#/components/schemas/DisplayMeta"
           },
@@ -274,6 +274,12 @@
           },
           "Validator": {
             "type": "string"
+          },
+          "defaultValue": {
+            "type": "string"
+          },
+          "hasDefault": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -285,7 +291,7 @@
           "Validator",
           "Nullable",
           "Unique",
-          "Default"
+          "hasDefault"
         ],
         "type": "object"
       },
@@ -338,12 +344,16 @@
           "comment": {
             "type": "string"
           },
+          "reserved": {
+            "type": "boolean"
+          },
           "table": {
             "type": "string"
           }
         },
         "required": [
-          "table"
+          "table",
+          "reserved"
         ],
         "type": "object"
       },
@@ -618,7 +628,7 @@
             },
             "description": "Created"
           },
-          "default": {
+          "409": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -626,7 +636,27 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           }
         },
         "summary": "Create custom field",
@@ -652,7 +682,7 @@
           "204": {
             "description": "No Content"
           },
-          "default": {
+          "409": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -660,7 +690,27 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           }
         },
         "summary": "Delete custom field",
@@ -701,7 +751,7 @@
             },
             "description": "OK"
           },
-          "default": {
+          "409": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -709,7 +759,27 @@
                 }
               }
             },
-            "description": "Error"
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Internal Server Error"
           }
         },
         "summary": "Update custom field",
