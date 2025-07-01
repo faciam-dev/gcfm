@@ -30,6 +30,7 @@ func TestApplyHooks(t *testing.T) {
 		"posts", "title", "text",
 		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+		sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
