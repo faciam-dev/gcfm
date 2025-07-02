@@ -74,7 +74,7 @@ type DiffReport struct {
 ```
 
 <a name="CalculateDiff"></a>
-### func [CalculateDiff](<https://github.com/faciam-dev/gcfm/blob/main/sdk/apply.go#L151>)
+### func [CalculateDiff](<https://github.com/faciam-dev/gcfm/blob/main/sdk/apply.go#L174>)
 
 ```go
 func CalculateDiff(changes []registry.Change) DiffReport
