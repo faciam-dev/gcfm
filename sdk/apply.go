@@ -16,7 +16,12 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/internal/metrics"
 )
+
+func recordApplyError(table string) {
+	metrics.ApplyErrors.WithLabelValues(table, "db").Inc()
+}
 
 // Apply updates the registry with the provided YAML metadata.
 // Possible errors: ErrValidatorNotFound, context.Canceled, or database errors.
@@ -96,9 +101,15 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		}
 		defer db.Close()
 		if err := registry.DeleteSQL(ctx, db, drv, dels); err != nil {
+			if len(dels) > 0 {
+				recordApplyError(dels[0].TableName)
+			}
 			return rep, err
 		}
 		if err := registry.UpsertSQL(ctx, db, drv, upserts); err != nil {
+			if len(upserts) > 0 {
+				recordApplyError(upserts[0].TableName)
+			}
 			return rep, err
 		}
 	case "sqlmock":
@@ -108,9 +119,15 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		}
 		defer db.Close()
 		if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
+			if len(dels) > 0 {
+				recordApplyError(dels[0].TableName)
+			}
 			return rep, err
 		}
 		if err := registry.UpsertSQL(ctx, db, "mysql", upserts); err != nil {
+			if len(upserts) > 0 {
+				recordApplyError(upserts[0].TableName)
+			}
 			return rep, err
 		}
 	case "mongo":
@@ -120,9 +137,15 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		}
 		defer cli.Disconnect(ctx)
 		if err := registry.DeleteMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema}, dels); err != nil {
+			if len(dels) > 0 {
+				recordApplyError(dels[0].TableName)
+			}
 			return rep, err
 		}
 		if err := registry.UpsertMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema}, upserts); err != nil {
+			if len(upserts) > 0 {
+				recordApplyError(upserts[0].TableName)
+			}
 			return rep, err
 		}
 	default:

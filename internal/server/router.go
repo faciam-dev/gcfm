@@ -17,11 +17,14 @@ import (
 	"github.com/faciam-dev/gcfm/internal/api/handler"
 	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/metrics"
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -46,6 +49,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -84,6 +88,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	if err == nil {
 		api.UseMiddleware(middleware.RBAC(e))
 	}
+	api.UseMiddleware(middleware.MetricsMW)
 
 	rec := &audit.Recorder{DB: db, Driver: driver}
 
@@ -108,5 +113,8 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
+	if db != nil {
+		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver})
+	}
 	return api
 }
