@@ -54,25 +54,27 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	for i := range roles {
-		var rpRows *sql.Rows
-		if h.Driver == "postgres" {
-			rpRows, err = h.DB.QueryContext(ctx, "SELECT path, method FROM gcfm_role_policies WHERE role_id=$1", roles[i].ID)
-		} else {
-			rpRows, err = h.DB.QueryContext(ctx, "SELECT path, method FROM gcfm_role_policies WHERE role_id=?", roles[i].ID)
-		}
-		if err != nil {
+	var pRows *sql.Rows
+	pRows, err = h.DB.QueryContext(ctx, "SELECT role_id, path, method FROM gcfm_role_policies")
+	if err != nil {
+		return nil, err
+	}
+	defer pRows.Close()
+
+	byRole := make(map[int64][]schema.Policy)
+	for pRows.Next() {
+		var id int64
+		var p schema.Policy
+		if err := pRows.Scan(&id, &p.Path, &p.Method); err != nil {
 			return nil, err
 		}
-		for rpRows.Next() {
-			var p schema.Policy
-			if err := rpRows.Scan(&p.Path, &p.Method); err != nil {
-				rpRows.Close()
-				return nil, err
-			}
-			roles[i].Policies = append(roles[i].Policies, p)
-		}
-		rpRows.Close()
+		byRole[id] = append(byRole[id], p)
+	}
+	if err := pRows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range roles {
+		roles[i].Policies = byRole[roles[i].ID]
 	}
 	return &listRolesOutput{Body: roles}, nil
 }

@@ -66,7 +66,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		e.AddPolicy("admin", "/v1/*", "PUT")
 		e.AddPolicy("admin", "/v1/*", "DELETE")
 		if db != nil {
-			if err := rbac.Load(context.Background(), db, driver, e); err != nil {
+			if err := rbac.Load(context.Background(), db, e); err != nil {
 				log.Printf("load rbac: %v", err)
 			}
 		}

@@ -9,7 +9,7 @@ import (
 )
 
 // Load fills the Casbin enforcer with policies and groupings from the database.
-func Load(ctx context.Context, db *sql.DB, driver string, e *casbin.Enforcer) error {
+func Load(ctx context.Context, db *sql.DB, e *casbin.Enforcer) error {
 	if db == nil || e == nil {
 		return nil
 	}
