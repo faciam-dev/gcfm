@@ -80,11 +80,14 @@ func (c *Cache) Field(table, column string) (registry.FieldMeta, bool) {
 	defer c.mu.RUnlock()
 	cols, ok := c.byTable[table]
 	if !ok {
+		metrics.CacheMisses.Inc()
 		return registry.FieldMeta{}, false
 	}
 	m, ok := cols[column]
 	if ok {
 		metrics.CacheHits.Inc()
+	} else {
+		metrics.CacheMisses.Inc()
 	}
 	return m, ok
 }
@@ -94,6 +97,7 @@ func (c *Cache) Table(table string) map[string]registry.FieldMeta {
 	defer c.mu.RUnlock()
 	src, ok := c.byTable[table]
 	if !ok {
+		metrics.CacheMisses.Inc()
 		return nil
 	}
 	metrics.CacheHits.Inc()

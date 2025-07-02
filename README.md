@@ -239,7 +239,9 @@ fieldctl user create --db ... --username alice --password s3cr3t --role editor
 | `cf_fields_total` | Number of custom fields |
 | `cf_apply_errors_total` | Apply failures by table |
 | `cf_cache_hits_total` | Runtime cache hits |
+| `cf_cache_misses_total` | Runtime cache misses |
 | `cf_audit_events_total` | Audit log events |
+| `cf_audit_errors_total` | Audit write errors |
 
 ### Quick Start
 

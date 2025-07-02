@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -18,7 +19,14 @@ func MetricsMW(ctx huma.Context, next func(huma.Context)) {
 	m := httpsnoop.CaptureMetricsFn(w, func(w http.ResponseWriter) {
 		next(humachi.NewContext(ctx.Operation(), r, w))
 	})
-	labels := prometheus.Labels{"method": r.Method, "path": r.URL.Path, "status": strconv.Itoa(m.Code)}
+	normalizedPath := normalizePath(r.URL.Path)
+	labels := prometheus.Labels{"method": r.Method, "path": normalizedPath, "status": strconv.Itoa(m.Code)}
 	metrics.APIRequests.With(labels).Inc()
-	metrics.APILatency.WithLabelValues(r.Method, r.URL.Path).Observe(m.Duration.Seconds())
+	metrics.APILatency.WithLabelValues(r.Method, normalizedPath).Observe(m.Duration.Seconds())
+}
+
+var idRe = regexp.MustCompile(`\d+`)
+
+func normalizePath(path string) string {
+	return idRe.ReplaceAllString(path, ":id")
 }

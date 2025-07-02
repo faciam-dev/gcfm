@@ -72,6 +72,8 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 	_, err = r.DB.ExecContext(ctx, q, actor, action, table, column, beforeJSON, afterJSON)
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
+	} else {
+		metrics.AuditErrors.WithLabelValues(action).Inc()
 	}
 	return err
 }

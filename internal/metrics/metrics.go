@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -43,6 +44,12 @@ var (
 			Help: "Runtime cache hits",
 		},
 	)
+	CacheMisses = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cf_cache_misses_total",
+			Help: "Runtime cache misses",
+		},
+	)
 	AuditEvents = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cf_audit_events_total",
@@ -50,10 +57,26 @@ var (
 		},
 		[]string{"action"},
 	)
+	AuditErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cf_audit_errors_total",
+			Help: "Audit write errors",
+		},
+		[]string{"action"},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(APIRequests, APILatency, Fields, ApplyErrors, CacheHits, AuditEvents)
+	prometheus.MustRegister(
+		APIRequests,
+		APILatency,
+		Fields,
+		ApplyErrors,
+		CacheHits,
+		CacheMisses,
+		AuditEvents,
+		AuditErrors,
+	)
 }
 
 // FieldCounter is implemented by repositories able to count fields per table.
@@ -76,6 +99,7 @@ func StartFieldGauge(ctx context.Context, repo FieldCounter) {
 			case <-ticker.C:
 				counts, err := repo.CountFieldsByTable(ctx)
 				if err != nil {
+					log.Printf("Error in CountFieldsByTable: %v", err)
 					continue
 				}
 				for t, n := range counts {
