@@ -13,6 +13,8 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type DBConfig](<#DBConfig>)
 - [type DiffReport](<#DiffReport>)
   - [func CalculateDiff\(changes \[\]registry.Change\) DiffReport](<#CalculateDiff>)
+- [type DisplayMeta](<#DisplayMeta>)
+- [type DisplayOptions](<#DisplayOptions>)
 - [type FieldMeta](<#FieldMeta>)
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
@@ -79,6 +81,24 @@ func CalculateDiff(changes []registry.Change) DiffReport
 ```
 
 CalculateDiff returns counts of added, deleted and updated changes.
+
+<a name="DisplayMeta"></a>
+## type [DisplayMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L7>)
+
+
+
+```go
+type DisplayMeta = registry.DisplayMeta
+```
+
+<a name="DisplayOptions"></a>
+## type [DisplayOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L9>)
+
+
+
+```go
+type DisplayOptions = registry.DisplayOption
+```
 
 <a name="FieldMeta"></a>
 ## type [FieldMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L5>)
