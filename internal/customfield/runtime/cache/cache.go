@@ -9,6 +9,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/metrics"
 )
 
 // scannerFunc wraps a registry.Scanner with its DBConfig
@@ -82,6 +83,9 @@ func (c *Cache) Field(table, column string) (registry.FieldMeta, bool) {
 		return registry.FieldMeta{}, false
 	}
 	m, ok := cols[column]
+	if ok {
+		metrics.CacheHits.Inc()
+	}
 	return m, ok
 }
 
@@ -92,6 +96,7 @@ func (c *Cache) Table(table string) map[string]registry.FieldMeta {
 	if !ok {
 		return nil
 	}
+	metrics.CacheHits.Inc()
 	dst := make(map[string]registry.FieldMeta, len(src))
 	for k, v := range src {
 		dst[k] = v

@@ -1,0 +1,87 @@
+package metrics
+
+import (
+	"context"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+	APIRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cf_api_requests_total",
+			Help: "Number of API requests",
+		},
+		[]string{"method", "path", "status"},
+	)
+	APILatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cf_api_latency_seconds",
+			Help:    "API latency in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "path"},
+	)
+	Fields = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "cf_fields_total",
+			Help: "Number of custom fields by table",
+		},
+		[]string{"table"},
+	)
+	ApplyErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cf_apply_errors_total",
+			Help: "Count of apply errors",
+		},
+		[]string{"table", "error"},
+	)
+	CacheHits = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cf_cache_hits_total",
+			Help: "Runtime cache hits",
+		},
+	)
+	AuditEvents = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cf_audit_events_total",
+			Help: "Audit log events",
+		},
+		[]string{"action"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(APIRequests, APILatency, Fields, ApplyErrors, CacheHits, AuditEvents)
+}
+
+// FieldCounter is implemented by repositories able to count fields per table.
+type FieldCounter interface {
+	CountFieldsByTable(ctx context.Context) (map[string]int, error)
+}
+
+// StartFieldGauge starts a background job that updates the field gauge every 30 seconds.
+func StartFieldGauge(ctx context.Context, repo FieldCounter) {
+	if repo == nil {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				counts, err := repo.CountFieldsByTable(ctx)
+				if err != nil {
+					continue
+				}
+				for t, n := range counts {
+					Fields.WithLabelValues(t).Set(float64(n))
+				}
+			}
+		}
+	}()
+}

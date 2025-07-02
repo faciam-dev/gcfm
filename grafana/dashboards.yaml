@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: cf
+    folder: CustomField
+    options:
+      path: /var/lib/grafana/dashboards

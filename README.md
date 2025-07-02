@@ -230,3 +230,22 @@ fieldctl db migrate --db postgres://user:pass@localhost:5432/app --schema public
 fieldctl user create --db ... --username alice --password s3cr3t --role editor
 ```
 
+## Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `cf_api_requests_total` | REST call counter |
+| `cf_api_latency_seconds` | API latency histogram |
+| `cf_fields_total` | Number of custom fields |
+| `cf_apply_errors_total` | Apply failures by table |
+| `cf_cache_hits_total` | Runtime cache hits |
+| `cf_audit_events_total` | Audit log events |
+
+### Quick Start
+
+```bash
+docker compose up -d prometheus grafana
+```
+
+Open <http://localhost:3000> (admin/admin) and load the **CustomField Overview** dashboard.
+
