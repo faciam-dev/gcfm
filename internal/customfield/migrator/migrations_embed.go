@@ -44,6 +44,18 @@ var m0007Up string
 //go:embed sql/0007_default_flag.down.sql
 var m0007Down string
 
+//go:embed sql/0008_rbac.up.sql
+var m0008Up string
+
+//go:embed sql/0008_rbac.down.sql
+var m0008Down string
+
+//go:embed sql/0009_events_failed.up.sql
+var m0009Up string
+
+//go:embed sql/0009_events_failed.down.sql
+var m0009Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -87,6 +99,18 @@ var pg0007Up string
 
 //go:embed sql/postgres/0007_default_flag.down.sql
 var pg0007Down string
+
+//go:embed sql/postgres/0008_rbac.up.sql
+var pg0008Up string
+
+//go:embed sql/postgres/0008_rbac.down.sql
+var pg0008Down string
+
+//go:embed sql/postgres/0009_events_failed.up.sql
+var pg0009Up string
+
+//go:embed sql/postgres/0009_events_failed.down.sql
+var pg0009Down string
 var defaultMigrations = []Migration{
 	{Version: 1, SemVer: "0.1", UpSQL: m0001Up, DownSQL: m0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: m0002Up, DownSQL: m0002Down},
@@ -95,6 +119,8 @@ var defaultMigrations = []Migration{
 	{Version: 5, SemVer: "0.5", UpSQL: m0005Up, DownSQL: m0005Down},
 	{Version: 6, SemVer: "0.6", UpSQL: m0006Up, DownSQL: m0006Down},
 	{Version: 7, SemVer: "0.7", UpSQL: m0007Up, DownSQL: m0007Down},
+	{Version: 8, SemVer: "0.8", UpSQL: m0008Up, DownSQL: m0008Down},
+	{Version: 9, SemVer: "0.9", UpSQL: m0009Up, DownSQL: m0009Down},
 }
 
 var postgresMigrations = []Migration{
@@ -105,4 +131,6 @@ var postgresMigrations = []Migration{
 	{Version: 5, SemVer: "0.5", UpSQL: pg0005Up, DownSQL: pg0005Down},
 	{Version: 6, SemVer: "0.6", UpSQL: pg0006Up, DownSQL: pg0006Down},
 	{Version: 7, SemVer: "0.7", UpSQL: pg0007Up, DownSQL: pg0007Down},
+	{Version: 8, SemVer: "0.8", UpSQL: pg0008Up, DownSQL: pg0008Down},
+	{Version: 9, SemVer: "0.9", UpSQL: pg0009Up, DownSQL: pg0009Down},
 }

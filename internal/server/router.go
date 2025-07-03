@@ -18,6 +18,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/events"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
@@ -92,6 +93,22 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	rec := &audit.Recorder{DB: db, Driver: driver}
 
+	evtConf, _ := events.LoadConfig(os.Getenv("CF_EVENTS_CONFIG"))
+	var sinks []events.Sink
+	if wh := events.NewWebhookSink(evtConf.Sinks.Webhook); wh != nil {
+		sinks = append(sinks, wh)
+	}
+	if rs, err := events.NewRedisSink(evtConf.Sinks.Redis); err == nil && rs != nil {
+		sinks = append(sinks, rs)
+	} else if err != nil {
+		log.Printf("redis sink: %v", err)
+	}
+	if ks, err := events.NewKafkaSink(evtConf.Sinks.Kafka); err == nil && ks != nil {
+		sinks = append(sinks, ks)
+	} else if err != nil {
+		log.Printf("kafka sink: %v", err)
+	}
+	events.Default = events.NewDispatcher(evtConf, &events.SQLDLQ{DB: db, Driver: driver}, sinks...)
 	var mongoCli *mongo.Client
 	if driver == "mongo" && dsn != "" {
 		cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI(dsn))

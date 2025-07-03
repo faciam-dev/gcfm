@@ -12,10 +12,12 @@ import (
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/events"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"time"
 )
 
 type CustomFieldHandler struct {
@@ -136,6 +138,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	}
 	actor := middleware.UserFromContext(ctx)
 	_ = h.Recorder.Write(ctx, actor, nil, &meta)
+	events.Emit(ctx, events.Event{Name: "cf.field.created", Time: time.Now(), Data: meta, ID: meta.TableName + "." + meta.ColumnName})
 	return &createOutput{Body: meta}, nil
 }
 
@@ -280,6 +283,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if err := h.Recorder.Write(ctx, actor, oldMeta, &meta); err != nil {
 		return nil, fmt.Errorf("failed to write audit log: %w", err)
 	}
+	events.Emit(ctx, events.Event{Name: "cf.field.updated", Time: time.Now(), Data: map[string]any{"before": oldMeta, "after": meta}, ID: table + "." + column})
 	return &createOutput{Body: meta}, nil
 }
 
@@ -313,5 +317,6 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if err := h.Recorder.Write(ctx, actor, oldMeta, nil); err != nil {
 		return nil, fmt.Errorf("failed to write audit log: %w", err)
 	}
+	events.Emit(ctx, events.Event{Name: "cf.field.deleted", Time: time.Now(), Data: map[string]string{"table": table, "column": column}, ID: table + "." + column})
 	return &struct{}{}, nil
 }
