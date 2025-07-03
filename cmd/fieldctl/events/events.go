@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+
 	"github.com/redis/go-redis/v9"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
+	notify "github.com/faciam-dev/gcfm/internal/events"
 	"github.com/spf13/cobra"
 )
 
@@ -66,6 +68,7 @@ func newListFailedCmd() *cobra.Command {
 func newRetryCmd() *cobra.Command {
 	var flags dbcmd.DBFlags
 	var id int64
+	var redisDSN, channel string
 	cmd := &cobra.Command{
 		Use:   "retry",
 		Short: "Retry failed event by id",
@@ -80,22 +83,33 @@ func newRetryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = db.ExecContext(cmd.Context(), "DELETE FROM gcfm_events_failed WHERE id=?", id)
-			if err != nil {
-				return err
-			}
-			var evt map[string]any
+			var evt notify.Event
 			if err := json.Unmarshal([]byte(payload), &evt); err != nil {
 				return err
 			}
-			cmd.Println("re-queued", id)
+			opt, err := redis.ParseURL(redisDSN)
+			if err != nil {
+				return err
+			}
+			cli := redis.NewClient(opt)
+			sink := &notify.RedisSink{Client: cli, Channel: channel}
+			if err := sink.Emit(cmd.Context(), evt); err != nil {
+				return err
+			}
+			if _, err := db.ExecContext(cmd.Context(), "DELETE FROM gcfm_events_failed WHERE id=?", id); err != nil {
+				return err
+			}
+			cmd.Println("re-dispatched", id)
 			return nil
 		},
 	}
 	flags.AddFlags(cmd)
 	cmd.Flags().Int64Var(&id, "id", 0, "event id")
+	cmd.Flags().StringVar(&redisDSN, "redis", "", "redis DSN")
+	cmd.Flags().StringVar(&channel, "channel", "cf-events", "channel name")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("id")
+	cmd.MarkFlagRequired("redis")
 	return cmd
 }
 

@@ -222,8 +222,6 @@ The metadata endpoint `/v1/metadata/tables` marks each table with a `reserved` f
 | `cf.field.created` | Custom field added |
 | `cf.field.updated` | Custom field updated |
 | `cf.field.deleted` | Custom field deleted |
-| `cf.rbac.policy_updated` | RBAC policy change |
-| `cf.user.created` | User created |
 
 
 ## クイックスタート

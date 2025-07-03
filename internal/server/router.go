@@ -93,7 +93,10 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	rec := &audit.Recorder{DB: db, Driver: driver}
 
-	evtConf, _ := events.LoadConfig(os.Getenv("CF_EVENTS_CONFIG"))
+	evtConf, err := events.LoadConfig(os.Getenv("CF_EVENTS_CONFIG"))
+	if err != nil {
+		log.Fatalf("Failed to load events configuration: %v", err)
+	}
 	var sinks []events.Sink
 	if wh := events.NewWebhookSink(evtConf.Sinks.Webhook); wh != nil {
 		sinks = append(sinks, wh)

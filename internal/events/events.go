@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -111,11 +110,12 @@ func (q *SQLDLQ) Store(ctx context.Context, e Event, attempts int, lastErr strin
 	if err != nil {
 		return err
 	}
-	placeholder := "?"
+	var stmt string
 	if q.Driver == "postgres" {
-		placeholder = "$1"
+		stmt = "INSERT INTO gcfm_events_failed(name, payload, attempts, last_error) VALUES ($1, $2, $3, $4)"
+	} else {
+		stmt = "INSERT INTO gcfm_events_failed(name, payload, attempts, last_error) VALUES (?, ?, ?, ?)"
 	}
-	stmt := fmt.Sprintf("INSERT INTO gcfm_events_failed(name, payload, attempts, last_error) VALUES (%s,%s,%s,%s)", placeholder, placeholder, placeholder, placeholder)
 	_, err = q.DB.ExecContext(ctx, stmt, e.Name, string(data), attempts, lastErr)
 	return err
 }

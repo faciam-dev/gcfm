@@ -5,6 +5,7 @@ package events_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -29,7 +30,14 @@ func TestRedisSink(t *testing.T) {
 		t.Fatalf("emit: %v", err)
 	}
 	select {
-	case <-sub.Channel():
+	case msg := <-sub.Channel():
+		var got events.Event
+		if err := json.Unmarshal([]byte(msg.Payload), &got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.Name != evt.Name {
+			t.Fatalf("event mismatch: %#v", got)
+		}
 	case <-time.After(time.Second):
 		t.Fatalf("timeout")
 	}
