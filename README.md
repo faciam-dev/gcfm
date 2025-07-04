@@ -69,6 +69,9 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
    executing **fieldctl diff**. These steps ensure the temporary database schema
    matches the registry file.
 Always run `fieldctl apply` before `fieldctl diff` to ensure baseline tables exist.
+Baseline migrations automatically create `gcfm_custom_fields` and
+`gcfm_registry_schema_version` when missing, so a fresh database can be checked
+without additional setup.
 2. If diff exists, PR is marked ❌ and a sticky comment shows the delta.
 
 #### Local
