@@ -1,5 +1,6 @@
+---
 name: CF Schema Diff
-on:
+'on':
   pull_request:
     paths: ["registry.yaml", "**/*.go", "internal/**"]
 jobs:
@@ -23,7 +24,10 @@ jobs:
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - id: diff
-        run: ./fieldctl diff --db $DB_DSN --schema public --file registry.yaml --fail-on-change >diff.txt || echo "changed=true" >> "$GITHUB_OUTPUT"
+        run: |
+          ./fieldctl diff --db $DB_DSN --schema public --file registry.yaml \
+            --fail-on-change >diff.txt || \
+            echo "changed=true" >> "$GITHUB_OUTPUT"
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - if: steps.diff.outputs.changed == 'true'
