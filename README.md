@@ -67,7 +67,7 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
 
 1. Push PR → GitHub Action runs `fieldctl db migrate` and `fieldctl apply` before
    executing **fieldctl diff**. These steps ensure the temporary database schema
-   matches the registry file.
+   matches the registry YAML.
 Always run `fieldctl apply` before `fieldctl diff` to ensure baseline tables exist.
 Baseline migrations automatically create `gcfm_custom_fields` and
 `gcfm_registry_schema_version` when missing, so a fresh database can be checked
