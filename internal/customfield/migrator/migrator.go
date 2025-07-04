@@ -95,9 +95,23 @@ func execAll(ctx context.Context, tx *sql.Tx, src string) error {
 	return nil
 }
 
-func tableExists(ctx context.Context, db *sql.DB, name string) bool {
-	_, err := db.ExecContext(ctx, fmt.Sprintf("SELECT 1 FROM %s LIMIT 0", name))
-	return err == nil
+func (m *Migrator) tableExists(ctx context.Context, db *sql.DB, name string) bool {
+	switch m.driver {
+	case "postgres":
+		row := db.QueryRowContext(ctx, `SELECT to_regclass($1)`, name)
+		var s sql.NullString
+		if err := row.Scan(&s); err != nil {
+			return false
+		}
+		return s.Valid
+	default:
+		row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?`, name)
+		var n int
+		if err := row.Scan(&n); err != nil {
+			return false
+		}
+		return n > 0
+	}
 }
 
 // Up migrates the schema up to target. target=0 means latest.
@@ -108,7 +122,7 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 
 	cur, err := m.Current(ctx, db)
 	if err == ErrNoVersionTable {
-		if tableExists(ctx, db, "gcfm_custom_fields") {
+		if m.tableExists(ctx, db, "gcfm_custom_fields") {
 			tx, err := db.BeginTx(ctx, nil)
 			if err != nil {
 				return err
