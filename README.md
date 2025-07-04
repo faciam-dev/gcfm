@@ -80,6 +80,7 @@ without additional setup.
 fieldctl db migrate --db $DSN --schema public --driver postgres
 fieldctl apply --db $DSN --schema public --driver postgres --file registry.yaml
 fieldctl diff --db $DSN --schema public --file registry.yaml
+psql $DSN -c '\dt gcfm*' # confirm tables were created
 ```
 
 ## Runtime Cache
