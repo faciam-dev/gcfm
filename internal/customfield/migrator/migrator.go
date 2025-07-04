@@ -94,8 +94,8 @@ func execAll(ctx context.Context, tx *sql.Tx, src string) error {
 	return nil
 }
 
-func tableExists(ctx context.Context, tx *sql.Tx, name string) bool {
-	_, err := tx.ExecContext(ctx, fmt.Sprintf("SELECT 1 FROM %s LIMIT 0", name))
+func tableExists(ctx context.Context, db *sql.DB, name string) bool {
+	_, err := db.ExecContext(ctx, fmt.Sprintf("SELECT 1 FROM %s LIMIT 0", name))
 	return err == nil
 }
 
@@ -107,17 +107,15 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 
 	cur, err := m.Current(ctx, db)
 	if err == ErrNoVersionTable {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		// first time: if gcfm_custom_fields table exists treat as initialized
-		if tableExists(ctx, tx, "gcfm_custom_fields") {
+		if tableExists(ctx, db, "gcfm_custom_fields") {
+			tx, err := db.BeginTx(ctx, nil)
+			if err != nil {
+				return err
+			}
 			if err := execAll(ctx, tx, m0001Up); err != nil {
 				tx.Rollback()
 				return err
 			}
-			// insert latest version only
 			if _, err := tx.ExecContext(ctx, `DELETE FROM gcfm_registry_schema_version`); err != nil {
 				tx.Rollback()
 				return err
@@ -129,7 +127,10 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 			}
 			return tx.Commit()
 		}
-		// new environment: create tables from scratch
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
 		for i := 0; i < target; i++ {
 			if err := execAll(ctx, tx, m.migrations[i].UpSQL); err != nil {
 				tx.Rollback()
