@@ -215,6 +215,14 @@ curl -X POST http://localhost:8080/v1/custom-fields \
 Certain tables are protected from custom field modifications. The default list is stored in `configs/default.yaml` and can be overridden with the `CF_RESERVED_TABLES` environment variable.
 
 The metadata endpoint `/v1/metadata/tables` marks each table with a `reserved` flag so frontends can hide them.
+## Events
+
+| Name | Description |
+|------|-------------|
+| `cf.field.created` | Custom field added |
+| `cf.field.updated` | Custom field updated |
+| `cf.field.deleted` | Custom field deleted |
+
 
 ## クイックスタート
 
