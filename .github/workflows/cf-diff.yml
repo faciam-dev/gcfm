@@ -20,7 +20,7 @@ jobs:
         with:
           go-version: '1.22'
       - run: go build -o fieldctl ./cmd/fieldctl
-      - run: ./fieldctl db migrate --db $DB_DSN --schema public
+      - run: ./fieldctl db migrate --db $DB_DSN --schema public --driver postgres
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - id: diff
