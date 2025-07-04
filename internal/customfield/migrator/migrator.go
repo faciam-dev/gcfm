@@ -26,6 +26,7 @@ type RegistryMigrator interface {
 // Migrator implements RegistryMigrator using embedded SQL.
 type Migrator struct {
 	migrations []Migration
+	driver     string
 }
 
 // New returns a Migrator with MySQL migrations.
@@ -37,9 +38,9 @@ func New() *Migrator {
 func NewWithDriver(driver string) *Migrator {
 	switch driver {
 	case "postgres":
-		return &Migrator{migrations: postgresMigrations}
+		return &Migrator{driver: "postgres", migrations: postgresMigrations}
 	default:
-		return &Migrator{migrations: defaultMigrations}
+		return &Migrator{driver: "mysql", migrations: defaultMigrations}
 	}
 }
 
@@ -121,7 +122,11 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 				return err
 			}
 			last := m.migrations[target-1]
-			if _, err := tx.ExecContext(ctx, `INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (?, ?)`, last.Version, last.SemVer); err != nil {
+			insert := `INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (?, ?)`
+			if m.driver == "postgres" {
+				insert = `INSERT INTO gcfm_registry_schema_version(version, semver) VALUES ($1, $2)`
+			}
+			if _, err := tx.ExecContext(ctx, insert, last.Version, last.SemVer); err != nil {
 				tx.Rollback()
 				return err
 			}
