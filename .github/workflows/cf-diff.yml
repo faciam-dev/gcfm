@@ -21,6 +21,13 @@ jobs:
           go-version: '1.22'
       - name: Clean Go module cache
         run: go clean -modcache
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..10}; do
+            pg_isready -h localhost -p 5432 && exit 0
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432
       - run: go build -o fieldctl ./cmd/fieldctl
       - run: |
           ./fieldctl db migrate \
