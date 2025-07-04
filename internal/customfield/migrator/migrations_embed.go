@@ -2,6 +2,12 @@ package migrator
 
 import _ "embed"
 
+//go:embed sql/0000_baseline.up.sql
+var m0000Up string
+
+//go:embed sql/0000_baseline.down.sql
+var m0000Down string
+
 //go:embed sql/0001_init.up.sql
 var m0001Up string
 
@@ -58,6 +64,12 @@ var m0009Down string
 
 // PostgreSQL migration files
 //
+//go:embed sql/postgres/0000_baseline.up.sql
+var pg0000Up string
+
+//go:embed sql/postgres/0000_baseline.down.sql
+var pg0000Down string
+
 //go:embed sql/postgres/0001_init.up.sql
 var pg0001Up string
 
@@ -112,6 +124,7 @@ var pg0009Up string
 //go:embed sql/postgres/0009_events_failed.down.sql
 var pg0009Down string
 var defaultMigrations = []Migration{
+	{Version: 0, SemVer: "0.0", UpSQL: m0000Up, DownSQL: m0000Down},
 	{Version: 1, SemVer: "0.1", UpSQL: m0001Up, DownSQL: m0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: m0002Up, DownSQL: m0002Down},
 	{Version: 3, SemVer: "0.3", UpSQL: m0003Up, DownSQL: m0003Down},
@@ -124,6 +137,7 @@ var defaultMigrations = []Migration{
 }
 
 var postgresMigrations = []Migration{
+	{Version: 0, SemVer: "0.0", UpSQL: pg0000Up, DownSQL: pg0000Down},
 	{Version: 1, SemVer: "0.1", UpSQL: pg0001Up, DownSQL: pg0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: pg0002Up, DownSQL: pg0002Down},
 	{Version: 3, SemVer: "0.3", UpSQL: pg0003Up, DownSQL: pg0003Down},

@@ -31,6 +31,9 @@ func newDiffCmd() *cobra.Command {
 			if file == "" {
 				return errors.New("--file is required")
 			}
+			if format != "color" && format != "markdown" {
+				return fmt.Errorf("invalid --format %s", format)
+			}
 			data, err := os.ReadFile(file)
 			if err != nil {
 				return err

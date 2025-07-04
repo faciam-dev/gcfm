@@ -18,6 +18,11 @@ import (
 
 func runCmd(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() }
 
+func buildFieldctlCommand(args ...string) *exec.Cmd {
+	base := append([]string{"run", "./cmd/fieldctl"}, args...)
+	return exec.Command("go", base...)
+}
+
 func setupPG(t *testing.T) (context.Context, string, *sql.DB) {
 	ctx := context.Background()
 	container, err := func() (c *postgres.PostgresContainer, err error) {
@@ -48,34 +53,33 @@ func setupPG(t *testing.T) (context.Context, string, *sql.DB) {
 }
 
 func TestCLIDiff_NoChange(t *testing.T) {
-	ctx, dsn, _ := setupPG(t)
+	_, dsn, _ := setupPG(t)
 	file := filepath.Join("tests", "testdata", "generator", "registry.yaml")
-	if out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "db", "migrate", "--db", dsn, "--schema", "public", "--driver", "postgres")); err != nil {
+	if out, err := runCmd(buildFieldctlCommand("db", "migrate", "--db", dsn, "--schema", "public", "--driver", "postgres")); err != nil {
 		t.Fatalf("migrate: %v\n%s", err, out)
 	}
-	if out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
+	if out, err := runCmd(buildFieldctlCommand("apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
 		t.Fatalf("apply: %v\n%s", err, out)
 	}
-	cmd := exec.Command("go", "run", "./cmd/fieldctl", "diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
+	cmd := buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
 	if out, err := runCmd(cmd); err != nil {
 		t.Fatalf("diff: %v\n%s", err, out)
 	}
-	_ = ctx
 }
 
 func TestCLIDiff_Change(t *testing.T) {
 	ctx, dsn, db := setupPG(t)
 	file := filepath.Join("tests", "testdata", "generator", "registry.yaml")
-	if out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "db", "migrate", "--db", dsn, "--schema", "public", "--driver", "postgres")); err != nil {
+	if out, err := runCmd(buildFieldctlCommand("db", "migrate", "--db", dsn, "--schema", "public", "--driver", "postgres")); err != nil {
 		t.Fatalf("migrate: %v\n%s", err, out)
 	}
-	if out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
+	if out, err := runCmd(buildFieldctlCommand("apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
 		t.Fatalf("apply: %v\n%s", err, out)
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_custom_fields(table_name,column_name,data_type) VALUES ('posts','extra','text')`); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	cmd := exec.Command("go", "run", "./cmd/fieldctl", "diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
+	cmd := buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
 	if out, err := runCmd(cmd); err == nil {
 		t.Fatalf("expected exit 2")
 	} else if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 2 {
@@ -86,16 +90,16 @@ func TestCLIDiff_Change(t *testing.T) {
 func TestCLIDiff_MarkdownFormat(t *testing.T) {
 	ctx, dsn, db := setupPG(t)
 	file := filepath.Join("tests", "testdata", "generator", "registry.yaml")
-	if out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "db", "migrate", "--db", dsn, "--schema", "public", "--driver", "postgres")); err != nil {
+	if out, err := runCmd(buildFieldctlCommand("db", "migrate", "--db", dsn, "--schema", "public", "--driver", "postgres")); err != nil {
 		t.Fatalf("migrate: %v\n%s", err, out)
 	}
-	if out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
+	if out, err := runCmd(buildFieldctlCommand("apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
 		t.Fatalf("apply: %v\n%s", err, out)
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_custom_fields(table_name,column_name,data_type) VALUES ('posts','extra','text')`); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	out, err := runCmd(exec.Command("go", "run", "./cmd/fieldctl", "diff", "--db", dsn, "--schema", "public", "--file", file, "--format", "markdown", "--fail-on-change"))
+	out, err := runCmd(buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--format", "markdown", "--fail-on-change"))
 	if err == nil {
 		t.Fatalf("expected non-zero exit")
 	}
