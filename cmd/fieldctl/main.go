@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -64,6 +66,7 @@ func init() {
 	rootCmd.AddCommand(newSnapshotCmd())
 	rootCmd.AddCommand(newNotifierCmd())
 	rootCmd.AddCommand(newEventsCmd())
+	rootCmd.AddCommand(newDiffCmd())
 	scanCmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	scanCmd.Flags().StringVar(&schema, "schema", "", "database schema")
 	scanCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print fields without upsert")
@@ -95,6 +98,9 @@ func detectDriver(dsn string) string {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
+		if errors.Is(err, errDiffDetected) {
+			os.Exit(2)
+		}
 		log.Fatal(err)
 	}
 }

@@ -63,6 +63,16 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
 | PostgreSQL | internal/driver/postgres | postgres:16 |
 | MongoDB | internal/driver/mongo | mongo:7 |
 
+### CI Drift Check
+
+1. Push PR → GitHub Action runs **fieldctl diff**
+2. If diff exists, PR is marked ❌ and sticky comment shows delta.
+
+#### Local
+```bash
+fieldctl diff --db $DSN --schema public --file registry.yaml
+```
+
 ## Runtime Cache
 
 Use the runtime cache to load custom field metadata at startup and reload it periodically:
