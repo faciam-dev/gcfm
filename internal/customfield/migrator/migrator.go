@@ -127,7 +127,7 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 			if err != nil {
 				return err
 			}
-			if err := execAll(ctx, tx, m0001Up); err != nil {
+			if err := execAll(ctx, tx, m0000Up); err != nil {
 				tx.Rollback()
 				return err
 			}
