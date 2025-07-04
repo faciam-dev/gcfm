@@ -29,6 +29,14 @@ jobs:
             --driver postgres
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
+      - run: |
+          ./fieldctl apply \
+            --db $DB_DSN \
+            --schema public \
+            --driver postgres \
+            --file registry.yaml
+        env:
+          DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - id: diff
         run: |
           ./fieldctl diff --db $DB_DSN --schema public --file registry.yaml \

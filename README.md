@@ -65,11 +65,14 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
 
 ### CI Drift Check
 
-1. Push PR → GitHub Action runs **fieldctl diff**
-2. If diff exists, PR is marked ❌ and sticky comment shows delta.
+1. Push PR → GitHub Action runs `fieldctl db migrate` and `fieldctl apply` before
+   executing **fieldctl diff**.
+2. If diff exists, PR is marked ❌ and sticky comment shows the delta.
 
 #### Local
 ```bash
+fieldctl db migrate --db $DSN --schema public --driver postgres
+fieldctl apply --db $DSN --schema public --driver postgres --file registry.yaml
 fieldctl diff --db $DSN --schema public --file registry.yaml
 ```
 
