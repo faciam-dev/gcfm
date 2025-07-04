@@ -1,0 +1,16 @@
+---
+version: 0.3
+fields:
+  - table: posts
+    column: author_email
+    type: varchar(255)
+    display:
+      widget: text
+      placeholderKey: foo@example.com
+    validator: email
+  - table: posts
+    column: rating
+    type: int
+    display:
+      widget: number
+    validator: number
