@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -16,11 +17,24 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
+var fieldctlBin string
+
+func TestMain(m *testing.M) {
+	if out, err := exec.Command("go", "build", "-o", "fieldctl", "../../cmd/fieldctl").CombinedOutput(); err != nil {
+		fmt.Fprintf(os.Stderr, "build fieldctl: %v\n%s", err, out)
+		os.Exit(1)
+	}
+	fieldctlBin = "./fieldctl"
+	code := m.Run()
+	os.Remove(fieldctlBin)
+	os.Exit(code)
+}
+
 func runCmd(cmd *exec.Cmd) ([]byte, error) { return cmd.CombinedOutput() }
 
 func buildFieldctlCommand(args ...string) *exec.Cmd {
-	base := append([]string{"run", "./cmd/fieldctl"}, args...)
-	return exec.Command("go", base...)
+	base := append([]string{fieldctlBin}, args...)
+	return exec.Command(base[0], base[1:]...)
 }
 
 func setupPG(t *testing.T) (context.Context, string, *sql.DB) {
