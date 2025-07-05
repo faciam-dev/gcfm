@@ -65,16 +65,20 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
 
 ### CI Drift Check
 
-1. Push PR → GitHub Action runs `fieldctl db migrate` followed by
-   `fieldctl apply` before executing **fieldctl diff**. These steps ensure the
-   temporary database schema matches the registry YAML. Skipping migrations will
-   result in missing tables and the diff check will fail.
-Always run `fieldctl apply` before `fieldctl diff` so baseline tables exist.
-Baseline migrations automatically create `gcfm_custom_fields` and
-`registry_schema_version` when missing, so a fresh database can be checked
-without additional setup. The diff command always writes a `diff.txt` file; if
-it contains only `✅ No schema drift detected` the schemas match.
-2. If diff exists, PR is marked ❌ and a sticky comment shows the delta.
+The workflow:
+
+1. Waits for PostgreSQL to report healthy.
+2. Runs `fieldctl db migrate --seed` and `fieldctl apply` so the temporary
+   database matches `registry.yaml` and the `registry_schema_version` table
+   exists.
+3. Executes `fieldctl diff --fail-on-change`. Exit codes:
+   - `0` → no drift
+   - `2` → drift detected and the PR will get a sticky comment
+   - `1` → unexpected error
+   The diff command always writes `diff.txt`; if it contains only
+   `✅ No schema drift detected` the schemas match.
+
+If drift is found the job fails and a comment shows the schema delta.
 
 #### Local
 ```bash

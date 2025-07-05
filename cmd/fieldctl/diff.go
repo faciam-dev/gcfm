@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 )
@@ -49,6 +50,15 @@ func newDiffCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
+			mig := migrator.NewWithDriver(drv)
+			if _, err := mig.Current(ctx, db); errors.Is(err, migrator.ErrNoVersionTable) {
+				fmt.Fprintln(cmd.ErrOrStderr(), "registry_schema_version missing; initializing")
+				if err := mig.InitVersionTable(ctx, db); err != nil {
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
 			current, err := registry.LoadSQL(ctx, db, registry.DBConfig{Driver: drv, Schema: schema})
 			if err != nil {
 				return err

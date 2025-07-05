@@ -114,6 +114,27 @@ func (m *Migrator) tableExists(ctx context.Context, db *sql.DB, name string) boo
 	}
 }
 
+// InitVersionTable creates baseline tables and inserts version 0 if missing.
+func (m *Migrator) InitVersionTable(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := execAll(ctx, tx, m0000Up); err != nil {
+		tx.Rollback()
+		return err
+	}
+	insert := `INSERT INTO registry_schema_version(version, semver) VALUES (?, ?)`
+	if m.driver == "postgres" {
+		insert = `INSERT INTO registry_schema_version(version, semver) VALUES ($1, $2)`
+	}
+	if _, err := tx.ExecContext(ctx, insert, 0, "0.0"); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
 // Up migrates the schema up to target. target=0 means latest.
 func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 	if target == 0 {

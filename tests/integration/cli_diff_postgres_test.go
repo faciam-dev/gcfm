@@ -132,3 +132,18 @@ func TestCLIDiff_MarkdownFormat(t *testing.T) {
 		t.Fatalf("unexpected output: %s", out)
 	}
 }
+
+func TestCLIDiff_NoVersionTable(t *testing.T) {
+	_, dsn, _ := setupPG(t)
+	file := filepath.Join("tests", "testdata", "generator", "registry.yaml")
+	cmd := buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
+	out, err := runCmd(cmd)
+	if err == nil {
+		t.Fatalf("expected exit code 2")
+	} else if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 2 {
+		t.Fatalf("exit=%d\n%s", ee.ExitCode(), out)
+	}
+	if len(out) == 0 {
+		t.Fatalf("diff output empty")
+	}
+}

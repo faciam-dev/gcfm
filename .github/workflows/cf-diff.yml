@@ -14,6 +14,8 @@ jobs:
           POSTGRES_DB: app
         ports:
           - "5432:5432"
+        options: >-
+          --health-cmd="pg_isready -U postgres" --health-interval=10s --health-timeout=5s --health-retries=5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -21,13 +23,15 @@ jobs:
           go-version: '1.22'
       - name: Clean Go module cache
         run: go clean -modcache
-      - name: Wait for PostgreSQL
+      - name: Wait for Postgres
         run: |
           for i in {1..30}; do
-            pg_isready -h localhost -p 5432 && exit 0
-            sleep 1
+            pg_isready -h localhost -p 5432 -U postgres && exit 0
+            sleep 2
           done
-          pg_isready -h localhost -p 5432
+          echo "Postgres not ready" && exit 1
+        env:
+          PGPASSWORD: pass
       - name: Install fieldctl
         run: |
           go install ./cmd/fieldctl
@@ -51,10 +55,16 @@ jobs:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - id: diff
         run: |
-          set -eo pipefail
-          fieldctl diff --db "$DB_DSN" --schema public --file registry.yaml \
-            --format markdown --fail-on-change > diff.txt || \
+          fieldctl diff \
+            --db "$DB_DSN" \
+            --schema public \
+            --file registry.yaml \
+            --format markdown --fail-on-change > diff.txt
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          if [ $exit_code -eq 2 ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
           [ -f diff.txt ] || echo "diff command failed" > diff.txt
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
