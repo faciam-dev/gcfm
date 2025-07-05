@@ -28,7 +28,10 @@ jobs:
             sleep 1
           done
           pg_isready -h localhost -p 5432
-      - run: go build -o fieldctl ./cmd/fieldctl
+      - name: Install fieldctl
+        run: |
+          go install ./cmd/fieldctl
+          echo "${GOBIN:-$(go env GOPATH)/bin}" >> "$GITHUB_PATH"
       - name: Migrate DB (registry + user tables)
         run: |
           fieldctl db migrate \
@@ -39,7 +42,7 @@ jobs:
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - run: |
-          ./fieldctl apply \
+          fieldctl apply \
             --db $DB_DSN \
             --schema public \
             --driver postgres \
