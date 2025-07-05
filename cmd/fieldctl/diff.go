@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	_ "github.com/DATA-DOG/go-sqlmock"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 	"github.com/faciam-dev/gcfm/sdk"
@@ -86,6 +85,7 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&fail, "fail-on-change", false, "exit 2 if drift detected")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo|sqlmock)")
 	cmd.MarkFlagRequired("db")
+	cmd.MarkFlagRequired("driver")
 	return cmd
 }
 
