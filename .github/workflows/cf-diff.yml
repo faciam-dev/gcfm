@@ -63,6 +63,6 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: "Custom-Field Schema Diff"
-          path: diff.txt
+          path: ./diff.txt
       - if: steps.diff.outputs.changed == 'true'
         run: exit 1
