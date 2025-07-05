@@ -103,17 +103,27 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	defer stmt.Close()
 
 	for _, m := range metas {
-		var labelKey, widget, placeholderKey string
+		var labelKey, widget, placeholderKey any
 		if m.Display != nil {
-			labelKey = m.Display.LabelKey
-			widget = m.Display.Widget
-			placeholderKey = m.Display.PlaceholderKey
+			if m.Display.LabelKey != "" {
+				labelKey = m.Display.LabelKey
+			}
+			if m.Display.Widget != "" {
+				widget = m.Display.Widget
+			}
+			if m.Display.PlaceholderKey != "" {
+				placeholderKey = m.Display.PlaceholderKey
+			}
 		}
-		var def string
+		var def any
 		if m.Default != nil {
 			def = *m.Default
 		}
-		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
+		var validator any
+		if m.Validator != "" {
+			validator = m.Validator
+		}
+		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, validator); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
 		}
