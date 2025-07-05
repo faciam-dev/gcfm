@@ -38,7 +38,7 @@ func TestDiffCmdNoChange(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("unexpected exit %d", exitCode)
 	}
-	if buf.String() != "✅ No schema drift\n" {
+	if buf.String() != "✅ No schema drift detected.\n" {
 		t.Fatalf("unexpected output: %s", buf.String())
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

@@ -58,7 +58,7 @@ func newDiffCmd() *cobra.Command {
 				}
 			}
 			if !drift {
-				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift")
+				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift detected.")
 				return nil
 			}
 
