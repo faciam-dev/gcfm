@@ -47,6 +47,8 @@ jobs:
       - id: diff
         run: |
           set +e
+          # ensure output file exists so the comment action never fails
+          touch diff.txt
           ./fieldctl diff --db $DB_DSN --schema public --file registry.yaml \
             --fail-on-change >diff.txt
           status=$?
