@@ -21,5 +21,8 @@ CREATE TABLE gcfm_role_policies (
 );
 
 INSERT INTO gcfm_roles(name) VALUES ('admin'),('editor'),('viewer');
-INSERT INTO gcfm_user_roles SELECT id,'admin' FROM gcfm_users WHERE username='admin';
+INSERT INTO gcfm_user_roles(user_id, role_id)
+  SELECT u.id, r.id
+    FROM gcfm_users u, gcfm_roles r
+   WHERE u.username='admin' AND r.name='admin';
 INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (8, '0.8');
