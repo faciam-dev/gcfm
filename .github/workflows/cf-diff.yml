@@ -46,9 +46,15 @@ jobs:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - id: diff
         run: |
+          set +e
           ./fieldctl diff --db $DB_DSN --schema public --file registry.yaml \
-            --fail-on-change >diff.txt || \
+            --fail-on-change >diff.txt
+          status=$?
+          if [ "$status" = 2 ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$status" != 0 ]; then
+            exit "$status"
+          fi
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - if: steps.diff.outputs.changed == 'true'
