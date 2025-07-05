@@ -55,6 +55,22 @@ Apply a YAML file to the database. Use `--dry-run` to see the diff only.
 fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --dry-run
 ```
 
+## fieldctl diff
+
+Show schema drift between a YAML file and the database. Use `--fail-on-change` to exit with code 2 when drift exists.
+
+```
+fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --fail-on-change
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | no drift detected or drift ignored |
+| 1 | command error |
+| 2 | drift detected with `--fail-on-change` |
+
 ## Supported Drivers
 
 | Driver | Package | Test Container |
