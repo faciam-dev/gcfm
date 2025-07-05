@@ -2,5 +2,5 @@
 reservedTables:
   - gcfm_users
   - gcfm_audit_logs
-  - gcfm_registry_schema_version
+  - registry_schema_version
   - gcfm_custom_fields

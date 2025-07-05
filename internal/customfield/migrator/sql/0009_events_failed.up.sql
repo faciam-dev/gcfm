@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS gcfm_events_failed (
   last_error TEXT,
   inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (9, '0.9');
+INSERT INTO registry_schema_version(version, semver) VALUES (9, '0.9');

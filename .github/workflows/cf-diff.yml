@@ -29,11 +29,13 @@ jobs:
           done
           pg_isready -h localhost -p 5432
       - run: go build -o fieldctl ./cmd/fieldctl
-      - run: |
-          ./fieldctl db migrate \
-            --db $DB_DSN \
+      - name: Migrate DB (registry + user tables)
+        run: |
+          fieldctl db migrate \
+            --db "$DB_DSN" \
             --schema public \
-            --driver postgres
+            --driver postgres \
+            --seed
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - run: |
@@ -46,17 +48,11 @@ jobs:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - id: diff
         run: |
-          set +e
-          # ensure output file exists so the comment action never fails
-          touch diff.txt
-          ./fieldctl diff --db $DB_DSN --schema public --file registry.yaml \
-            --fail-on-change >diff.txt
-          status=$?
-          if [ "$status" = 2 ]; then
+          set -eo pipefail
+          fieldctl diff --db "$DB_DSN" --schema public --file registry.yaml \
+            --format markdown --fail-on-change > diff.txt || \
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif [ "$status" != 0 ]; then
-            exit "$status"
-          fi
+          [ -f diff.txt ] || echo "diff command failed" > diff.txt
         env:
           DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
       - if: steps.diff.outputs.changed == 'true'

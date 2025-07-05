@@ -71,8 +71,9 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
    result in missing tables and the diff check will fail.
 Always run `fieldctl apply` before `fieldctl diff` so baseline tables exist.
 Baseline migrations automatically create `gcfm_custom_fields` and
-`gcfm_registry_schema_version` when missing, so a fresh database can be checked
-without additional setup.
+`registry_schema_version` when missing, so a fresh database can be checked
+without additional setup. The diff command always writes a `diff.txt` file; if
+it contains only `✅ No schema drift detected` the schemas match.
 2. If diff exists, PR is marked ❌ and a sticky comment shows the delta.
 
 #### Local

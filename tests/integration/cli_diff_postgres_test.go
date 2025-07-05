@@ -75,9 +75,13 @@ func TestCLIDiff_NoChange(t *testing.T) {
 	if out, err := runCmd(buildFieldctlCommand("apply", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", file)); err != nil {
 		t.Fatalf("apply: %v\n%s", err, out)
 	}
-	cmd := buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
-	if out, err := runCmd(cmd); err != nil {
+	cmd := buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file)
+	out, err := runCmd(cmd)
+	if err != nil {
 		t.Fatalf("diff: %v\n%s", err, out)
+	}
+	if string(out) != "✅ No schema drift detected\n" {
+		t.Fatalf("unexpected output: %s", out)
 	}
 }
 
@@ -94,10 +98,14 @@ func TestCLIDiff_Change(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 	cmd := buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--fail-on-change")
-	if out, err := runCmd(cmd); err == nil {
+	out, err := runCmd(cmd)
+	if err == nil {
 		t.Fatalf("expected exit 2")
 	} else if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 2 {
 		t.Fatalf("code=%d\n%s", ee.ExitCode(), out)
+	}
+	if len(out) == 0 {
+		t.Fatalf("diff output empty")
 	}
 }
 
@@ -116,6 +124,9 @@ func TestCLIDiff_MarkdownFormat(t *testing.T) {
 	out, err := runCmd(buildFieldctlCommand("diff", "--db", dsn, "--schema", "public", "--file", file, "--format", "markdown", "--fail-on-change"))
 	if err == nil {
 		t.Fatalf("expected non-zero exit")
+	}
+	if len(out) == 0 {
+		t.Fatalf("markdown diff empty")
 	}
 	if !strings.HasPrefix(string(out), "- `") {
 		t.Fatalf("unexpected output: %s", out)

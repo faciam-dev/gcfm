@@ -24,4 +24,4 @@ INSERT INTO gcfm_roles(name) VALUES ('admin'),('editor'),('viewer');
 INSERT INTO gcfm_user_roles (user_id, role_id)
 SELECT u.id, r.id FROM gcfm_users u JOIN gcfm_roles r ON r.name='admin'
 WHERE u.username='admin';
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (8, '0.8');
+INSERT INTO registry_schema_version(version, semver) VALUES (8, '0.8');

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS gcfm_custom_fields (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (table_name, column_name)
 );
-CREATE TABLE IF NOT EXISTS gcfm_registry_schema_version (
+CREATE TABLE IF NOT EXISTS registry_schema_version (
     version INT PRIMARY KEY,
     semver VARCHAR(20) NOT NULL,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

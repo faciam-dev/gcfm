@@ -20,7 +20,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("INSERT INTO gcfm_registry_schema_version").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO registry_schema_version").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	if err := m.Up(context.Background(), db, 2); err != nil {
 		t.Fatalf("up: %v", err)

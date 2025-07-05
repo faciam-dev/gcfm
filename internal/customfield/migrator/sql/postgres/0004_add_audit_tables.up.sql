@@ -16,4 +16,4 @@ CREATE TABLE IF NOT EXISTS gcfm_registry_snapshots (
   yaml BYTEA NOT NULL,
   taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (4, '0.4');
+INSERT INTO registry_schema_version(version, semver) VALUES (4, '0.4');
