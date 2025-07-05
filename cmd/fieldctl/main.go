@@ -53,6 +53,7 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(newExportCmd())
 	rootCmd.AddCommand(newApplyCmd())
+	rootCmd.AddCommand(newDiffCmd())
 	rootCmd.AddCommand(newValidateCmd())
 	rootCmd.AddCommand(newMigrateYAMLCmd())
 	rootCmd.AddCommand(newPluginsCmd())
