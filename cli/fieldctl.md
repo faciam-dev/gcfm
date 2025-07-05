@@ -13,6 +13,7 @@
 * [fieldctl apply](fieldctl_apply.md)	 - Apply registry YAML to database
 * [fieldctl completion](fieldctl_completion.md)	 - Generate the autocompletion script for the specified shell
 * [fieldctl db](fieldctl_db.md)	 - Database operations
+* [fieldctl diff](fieldctl_diff.md)	 - Show schema drift between YAML and database
 * [fieldctl events](fieldctl_events.md)	 - 
 * [fieldctl export](fieldctl_export.md)	 - Export registry to YAML
 * [fieldctl generate](fieldctl_generate.md)	 - Generate helper files
