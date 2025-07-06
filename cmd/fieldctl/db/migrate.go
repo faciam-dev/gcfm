@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
 	"github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -18,6 +19,7 @@ func NewMigrateCmd() *cobra.Command {
 	var flags DBFlags
 	var to string
 	var seed bool
+	var verbose bool
 
 	cmd := &cobra.Command{
 		Use:   "migrate",
@@ -43,6 +45,8 @@ func NewMigrateCmd() *cobra.Command {
 			}
 			svc := sdk.New(sdk.ServiceConfig{})
 			ctx := context.Background()
+			migrator.Verbose = verbose
+			migrator.LogWriter = cmd.OutOrStdout()
 			if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: flags.Driver, DSN: flags.DSN, Schema: flags.Schema}, target); err != nil {
 				return err
 			}
@@ -57,6 +61,7 @@ func NewMigrateCmd() *cobra.Command {
 	flags.AddFlags(cmd)
 	cmd.Flags().StringVar(&to, "to", "latest", "target version (number or latest)")
 	cmd.Flags().BoolVar(&seed, "seed", false, "seed admin user")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print SQL statements")
 	cmd.MarkFlagRequired("db")
 	return cmd
 }

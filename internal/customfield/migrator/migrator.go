@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 )
 
@@ -45,6 +47,13 @@ func NewWithDriver(driver string) *Migrator {
 
 // ErrNoVersionTable indicates gcfm_registry_schema_version table is missing.
 var ErrNoVersionTable = errors.New("gcfm_registry_schema_version table not found")
+
+// Verbose controls logging of executed SQL statements.
+// When true, each statement is printed to LogWriter before execution.
+var Verbose bool
+
+// LogWriter specifies where verbose logs are written. Defaults to stdout.
+var LogWriter io.Writer = os.Stdout
 
 // SemVerToInt converts a semver string to its integer version.
 func (m *Migrator) SemVerToInt(v string) (int, bool) {
@@ -87,6 +96,9 @@ func splitSQL(src string) []string {
 
 func execAll(ctx context.Context, tx *sql.Tx, src string) error {
 	for _, stmt := range splitSQL(src) {
+		if Verbose {
+			fmt.Fprintln(LogWriter, stmt+";")
+		}
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("exec %q: %w", stmt, err)
 		}
