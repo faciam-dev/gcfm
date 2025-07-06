@@ -18,12 +18,13 @@ var exitFunc = os.Exit
 
 func newDiffCmd() *cobra.Command {
 	var (
-		dbDSN      string
-		schema     string
-		file       string
-		format     string
-		fail       bool
-		driverFlag string
+		dbDSN       string
+		schema      string
+		file        string
+		format      string
+		fail        bool
+		driverFlag  string
+		tablePrefix string
 	)
 	cmd := &cobra.Command{
 		Use:   "diff",
@@ -45,7 +46,7 @@ func newDiffCmd() *cobra.Command {
 			}
 			ctx := context.Background()
 			svc := sdk.New(sdk.ServiceConfig{})
-			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema})
+			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: tablePrefix})
 			if err != nil {
 				return err
 			}
@@ -84,6 +85,7 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().StringVar(&format, "format", "text", "output format (text|markdown)")
 	cmd.Flags().BoolVar(&fail, "fail-on-change", false, "exit 2 if drift detected")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo|sqlmock)")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", "", "custom field table prefix")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("driver")
 	return cmd
