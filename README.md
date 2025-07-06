@@ -282,7 +282,8 @@ The migrator will auto-create `<prefix>registry_schema_version` on first run.
 
 
 ### 🔄 CI Drift Guard
-1. PR ごとに PostgreSQL コンテナを起動  
+1. PR ごとに PostgreSQL コンテナを起動
 2. `fieldctl db migrate --seed` で最新スキーマに
-3. `fieldctl diff --format markdown --fail-on-change` で registry.yaml と比較
-4. 差分があれば PR に sticky コメント + ジョブ失敗
+3. `fieldctl apply registry.yaml` でフィールドを投入
+4. `fieldctl diff --format markdown --fail-on-change` で registry.yaml と比較
+5. 差分があれば PR に sticky コメント + ジョブ失敗

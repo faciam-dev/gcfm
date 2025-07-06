@@ -52,6 +52,13 @@ jobs:
             --schema public \
             --seed \
             --table-prefix gcfm_
+      - name: Apply registry
+        run: |
+          fieldctl apply \
+            --db "$DB_DSN" \
+            --driver postgres \
+            --schema public \
+            --file registry.yaml
       - name: Schema diff
         id: diff
         run: |
