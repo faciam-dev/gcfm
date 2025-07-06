@@ -45,8 +45,7 @@ jobs:
           fieldctl db migrate \
             --db "$DB_DSN" \
             --schema public \
-            --seed \
-            --table-prefix $TABLE_PREFIX
+            --seed
       - name: Schema diff
         id: diff
         run: |
