@@ -17,6 +17,8 @@ func TestMigratorUpDownTx(t *testing.T) {
 	}
 	m := migrator.New("")
 	mock.ExpectExec("CREATE TABLE IF NOT EXISTS registry_schema_version").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT column_name FROM information_schema.columns").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("ALTER TABLE registry_schema_version ADD COLUMN").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery("SELECT 1 FROM registry_schema_version WHERE version=0").WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec("^INSERT INTO registry_schema_version").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectQuery("SELECT MAX\\(version\\) FROM registry_schema_version").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(0))
@@ -33,6 +35,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 	}
 
 	mock.ExpectExec("CREATE TABLE IF NOT EXISTS registry_schema_version").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT column_name FROM information_schema.columns").WillReturnRows(sqlmock.NewRows([]string{"column_name"}).AddRow("semver"))
 	mock.ExpectQuery("SELECT 1 FROM registry_schema_version WHERE version=0").WillReturnRows(sqlmock.NewRows([]string{"n"}).AddRow(1))
 	mock.ExpectQuery("SELECT MAX\\(version\\) FROM registry_schema_version").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
 	mock.ExpectBegin()
