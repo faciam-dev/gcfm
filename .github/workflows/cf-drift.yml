@@ -5,8 +5,9 @@ name: CF Schema Drift
   pull_request:
     paths:
       - "registry.yaml"
-      - "migrations/**"
       - "**/*.go"
+      - "internal/**"
+      - "migrations/**"
 
 jobs:
   drift:
@@ -27,23 +28,26 @@ jobs:
 
     env:
       DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
-      TABLE_PREFIX: gcfm_
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+      - name: Clean Go module cache
+        run: rm -rf ~/go/pkg/mod
       - name: Install fieldctl
         run: |
           go install ./cmd/fieldctl
           echo "$HOME/go/bin" >> $GITHUB_PATH
       - name: Wait for DB
-        run: bash scripts/ci/wait-for-db.sh
+        run: scripts/ci/wait-for-db.sh
+        shell: bash
       - name: Migrate
         run: |
           fieldctl db migrate \
             --db "$DB_DSN" \
+            --driver postgres \
             --schema public \
             --seed
       - name: Schema diff
@@ -52,9 +56,9 @@ jobs:
           set +e
           fieldctl diff \
             --db "$DB_DSN" \
+            --driver postgres \
             --schema public \
             --file registry.yaml \
-            --table-prefix $TABLE_PREFIX \
             --format markdown \
             --fail-on-change > diff.txt
           ec=$?; echo "exit_code=$ec" >> $GITHUB_OUTPUT

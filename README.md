@@ -278,6 +278,6 @@ Open <http://localhost:3000> (admin/admin) and load the **CustomField Overview**
 
 ### 🔄 CI Drift Guard
 1. PR ごとに PostgreSQL コンテナを起動  
-2. `fieldctl db migrate --seed` で最新スキーマに  
-3. `fieldctl diff --fail-on-change` で registry.yaml と比較  
+2. `fieldctl db migrate --seed` で最新スキーマに
+3. `fieldctl diff --format markdown --fail-on-change` で registry.yaml と比較
 4. 差分があれば PR に sticky コメント + ジョブ失敗
