@@ -26,7 +26,7 @@ func (s *service) MigrateRegistry(ctx context.Context, cfg DBConfig, target int)
 	}
 	defer db.Close()
 
-	m := migrator.NewWithDriver(drv)
+	m := migrator.NewWithDriver(drv, cfg.TablePrefix)
 	cur, err := m.Current(ctx, db)
 	if err != nil && err != migrator.ErrNoVersionTable {
 		return err
@@ -59,6 +59,6 @@ func (s *service) RegistryVersion(ctx context.Context, cfg DBConfig) (int, error
 		return 0, err
 	}
 	defer db.Close()
-	m := migrator.NewWithDriver(drv)
+	m := migrator.NewWithDriver(drv, cfg.TablePrefix)
 	return m.Current(ctx, db)
 }

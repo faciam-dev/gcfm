@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ func NewMigrateCmd() *cobra.Command {
 	var to string
 	var seed bool
 	var verbose bool
+	var tablePrefix string
 
 	cmd := &cobra.Command{
 		Use:   "migrate",
@@ -43,11 +45,14 @@ func NewMigrateCmd() *cobra.Command {
 				}
 				target = v
 			}
+			if tablePrefix == "" {
+				tablePrefix = os.Getenv("CF_TABLE_PREFIX")
+			}
 			svc := sdk.New(sdk.ServiceConfig{})
 			ctx := context.Background()
 			migrator.Verbose = verbose
 			migrator.LogWriter = cmd.OutOrStdout()
-			if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: flags.Driver, DSN: flags.DSN, Schema: flags.Schema}, target); err != nil {
+			if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: flags.Driver, DSN: flags.DSN, Schema: flags.Schema, TablePrefix: tablePrefix}, target); err != nil {
 				return err
 			}
 			if seed {
@@ -62,6 +67,7 @@ func NewMigrateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "latest", "target version (number or latest)")
 	cmd.Flags().BoolVar(&seed, "seed", false, "seed admin user")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print SQL statements")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", "", "custom field table prefix")
 	cmd.MarkFlagRequired("db")
 	return cmd
 }

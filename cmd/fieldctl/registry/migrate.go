@@ -32,7 +32,7 @@ func NewMigrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				m := migrator.NewWithDriver(driver)
+				m := migrator.NewWithDriver(driver, "")
 				target := to
 				if target == 0 {
 					target = len(migrator.DefaultForDriver(driver))

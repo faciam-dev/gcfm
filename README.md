@@ -275,6 +275,11 @@ docker compose up -d prometheus grafana
 
 Open <http://localhost:3000> (admin/admin) and load the **CustomField Overview** dashboard.
 
+### Table prefix
+If you keep your CF tables namespaced (e.g. `gcfm_custom_fields`),
+pass `--table-prefix gcfm_` or set `CF_TABLE_PREFIX=gcfm_` when running `fieldctl db migrate`.
+The migrator will auto-create `<prefix>registry_schema_version` on first run.
+
 
 ### 🔄 CI Drift Guard
 1. PR ごとに PostgreSQL コンテナを起動  

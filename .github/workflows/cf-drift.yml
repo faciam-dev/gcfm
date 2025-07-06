@@ -47,7 +47,8 @@ jobs:
             --db "$DB_DSN" \
             --driver postgres \
             --schema public \
-            --seed
+            --seed \
+            --table-prefix gcfm_
       - name: Schema diff
         id: diff
         run: |

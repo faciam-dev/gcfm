@@ -2,7 +2,7 @@ package unit_test
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -15,8 +15,11 @@ func TestMigratorUpDownTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	m := migrator.New()
-	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnError(fmt.Errorf("no such table"))
+	m := migrator.New("")
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS registry_schema_version").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT 1 FROM registry_schema_version WHERE version=0").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("^INSERT INTO registry_schema_version").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT MAX\\(version\\) FROM registry_schema_version").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(0))
 	mock.ExpectBegin()
 	mock.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -29,7 +32,9 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("unmet: %v", err)
 	}
 
-	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS registry_schema_version").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT 1 FROM registry_schema_version WHERE version=0").WillReturnRows(sqlmock.NewRows([]string{"n"}).AddRow(1))
+	mock.ExpectQuery("SELECT MAX\\(version\\) FROM registry_schema_version").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
 	mock.ExpectBegin()
 	mock.ExpectExec("DROP TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
