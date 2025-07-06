@@ -5,12 +5,11 @@ name: CF Schema Drift
   pull_request:
     paths:
       - "registry.yaml"
-      - "**/*.go"
-      - "internal/**"
       - "migrations/**"
+      - "**/*.go"
 
 jobs:
-  diff:
+  drift:
     runs-on: ubuntu-latest
 
     services:
@@ -28,23 +27,22 @@ jobs:
 
     env:
       DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
+      TABLE_PREFIX: gcfm_
 
     steps:
       - uses: actions/checkout@v4
-      - name: Clean Go module cache
-        run: rm -rf "$(go env GOMODCACHE)"/golang.org/toolchain@
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
-      - name: Install fieldctl
-        run: go install ./cmd/fieldctl
-      - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Wait for DB
-        run: scripts/ci/wait-for-db.sh
-        shell: bash
-      - name: Migrate DB
-        run: fieldctl db migrate --db "$DB_DSN" --schema public --seed
+        run: bash scripts/ci/wait-for-db.sh
+      - name: Migrate
+        run: |
+          fieldctl db migrate \
+            --db "$DB_DSN" \
+            --schema public \
+            --seed \
+            --table-prefix $TABLE_PREFIX
       - name: Schema diff
         id: diff
         run: |
@@ -52,15 +50,12 @@ jobs:
           fieldctl diff \
             --db "$DB_DSN" \
             --schema public \
-            --driver postgres \
             --file registry.yaml \
+            --table-prefix $TABLE_PREFIX \
             --format markdown \
             --fail-on-change > diff.txt
-          exit_code=$?
-          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
-          if [ $exit_code -eq 2 ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
+          ec=$?; echo "exit_code=$ec" >> $GITHUB_OUTPUT
+          if [ $ec -eq 2 ]; then echo "changed=true" >> $GITHUB_OUTPUT; fi
           [ -s diff.txt ] || echo "✅ No schema drift detected." > diff.txt
           exit 0
       - if: steps.diff.outputs.changed == 'true'
