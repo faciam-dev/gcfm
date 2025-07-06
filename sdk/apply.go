@@ -35,7 +35,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		Version string `yaml:"version"`
 	}
 	if err := yaml.Unmarshal(data, &hdr); err == nil {
-		mig := migrator.New("")
+		mig := migrator.New(cfg.TablePrefix)
 		if req, ok := mig.SemVerToInt(hdr.Version); ok {
 			drv := cfg.Driver
 			if drv == "" {

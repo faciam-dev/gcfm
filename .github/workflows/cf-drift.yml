@@ -58,6 +58,7 @@ jobs:
             --db "$DB_DSN" \
             --driver postgres \
             --schema public \
+            --table-prefix gcfm_ \
             --file registry.yaml
       - name: Schema diff
         id: diff

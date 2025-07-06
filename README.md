@@ -278,12 +278,13 @@ Open <http://localhost:3000> (admin/admin) and load the **CustomField Overview**
 ### Table prefix
 If you keep your CF tables namespaced (e.g. `gcfm_custom_fields`),
 pass `--table-prefix gcfm_` or set `CF_TABLE_PREFIX=gcfm_` when running `fieldctl db migrate`.
+Use the same option with `fieldctl apply` to target the prefixed tables.
 The migrator will auto-create `<prefix>registry_schema_version` on first run.
 
 
 ### 🔄 CI Drift Guard
 1. PR ごとに PostgreSQL コンテナを起動
 2. `fieldctl db migrate --seed` で最新スキーマに
-3. `fieldctl apply registry.yaml` でフィールドを投入
+3. `fieldctl apply registry.yaml --table-prefix gcfm_` でフィールドを投入
 4. `fieldctl diff --format markdown --fail-on-change` で registry.yaml と比較
 5. 差分があれば PR に sticky コメント + ジョブ失敗
