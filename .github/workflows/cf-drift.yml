@@ -31,6 +31,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Clean Go module cache
+        run: rm -rf "$(go env GOMODCACHE)"/golang.org/toolchain@
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
@@ -50,6 +52,7 @@ jobs:
           fieldctl diff \
             --db "$DB_DSN" \
             --schema public \
+            --driver postgres \
             --file registry.yaml \
             --format markdown \
             --fail-on-change > diff.txt
