@@ -68,6 +68,7 @@ jobs:
           fieldctl diff \
             --db "$DB_DSN" \
             --driver postgres \
+            --table-prefix $TABLE_PREFIX \
             --schema public \
             --file registry.yaml \
             --format markdown \

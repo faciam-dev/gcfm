@@ -286,5 +286,5 @@ The migrator will auto-create `<prefix>registry_schema_version` on first run.
 1. PR ごとに PostgreSQL コンテナを起動
 2. `fieldctl db migrate --seed` で最新スキーマに
 3. `fieldctl apply registry.yaml --table-prefix gcfm_` でフィールドを投入
-4. `fieldctl diff --format markdown --fail-on-change` で registry.yaml と比較
+4. `fieldctl diff --table-prefix gcfm_ --format markdown --fail-on-change` で registry.yaml と比較
 5. 差分があれば PR に sticky コメント + ジョブ失敗
