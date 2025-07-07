@@ -115,10 +115,6 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 	if target == 0 {
 		target = len(m.migrations)
 	}
-	if err := m.ensureVersionTable(ctx, db); err != nil {
-		return err
-	}
-
 	cur, err := m.Current(ctx, db)
 	if err != nil {
 		return err

@@ -17,8 +17,16 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	// ensure semver column exists; older versions may lack it
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS semver VARCHAR(32);`, tbl))
+	if err != nil {
+		return err
+	}
+
 	// insert the zero row if not present
 	_, _ = db.ExecContext(ctx, fmt.Sprintf(
-		`INSERT INTO %s(version) VALUES(0) ON CONFLICT (version) DO NOTHING;`, tbl))
+		`INSERT INTO %s(version) VALUES(0)
+         ON CONFLICT (version) DO NOTHING;`, tbl))
 	return nil
 }

@@ -15,12 +15,12 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	m := migrator.New()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 3; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
 	mock.ExpectBegin()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectCommit()
