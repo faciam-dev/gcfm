@@ -66,6 +66,7 @@ jobs:
           set +e
           fieldctl diff \
             --db "$DB_DSN" \
+            --driver postgres \
             --schema public \
             --file registry.yaml \
             --table-prefix $TABLE_PREFIX \
