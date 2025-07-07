@@ -1,16 +1,15 @@
 ---
 name: CF Schema Drift
 
-'on':
+on:
   pull_request:
     paths:
       - "registry.yaml"
-      - "**/*.go"
-      - "internal/**"
       - "migrations/**"
+      - "**/*.go"
 
 jobs:
-  diff:
+  drift:
     runs-on: ubuntu-latest
 
     services:
@@ -28,29 +27,24 @@ jobs:
 
     env:
       DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
+      TABLE_PREFIX: gcfm_
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      - name: Set up Go private modules auth
-        run: |
-          token=${{ secrets.GITHUB_TOKEN }}
-          auth_url="https://${token}:x-oauth-basic@github.com/"
-          git config --global \
-            url."$auth_url".insteadOf "https://github.com/"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install fieldctl
-        run: |
-          go install github.com/faciam-dev/fieldctl/cmd/fieldctl@latest
-          echo "$HOME/go/bin" >> $GITHUB_PATH
+        with: { go-version: '1.22' }
+
       - name: Wait for DB
-        run: scripts/ci/wait-for-db.sh
-        shell: bash
-      - name: Migrate DB
-        run: fieldctl db migrate --db "$DB_DSN" --schema public --seed
+        run: bash scripts/ci/wait-for-db.sh
+
+      - name: Migrate
+        run: |
+          fieldctl db migrate \
+            --db "$DB_DSN" \
+            --schema public \
+            --seed \
+            --table-prefix $TABLE_PREFIX
       - name: Schema diff
         id: diff
         run: |
@@ -59,6 +53,7 @@ jobs:
             --db "$DB_DSN" \
             --schema public \
             --file registry.yaml \
+            --table-prefix $TABLE_PREFIX \
             --format markdown \
             --fail-on-change > diff.txt
           exit_code=$?
