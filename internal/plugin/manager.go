@@ -1,7 +1,8 @@
 package plugin
 
 import (
-	"plugin"
+	"fmt"
+	stdplugin "plugin"
 	"sync"
 
 	sdkplugin "github.com/faciam-dev/gcfm/sdk/plugin"
@@ -21,27 +22,31 @@ func New() *Manager {
 }
 
 func (m *Manager) Load(path string) error {
-	p, err := plugin.Open(path)
+	p, err := stdplugin.Open(path)
 	if err != nil {
 		return err
 	}
 	if syms, err := p.Lookup("Validators"); err == nil {
-		if list, ok := syms.(*[]sdkplugin.Validator); ok {
-			m.mu.Lock()
-			for _, v := range *list {
-				m.validators[v.Name()] = v
-			}
-			m.mu.Unlock()
+		list, ok := syms.(*[]sdkplugin.Validator)
+		if !ok {
+			return fmt.Errorf("Validators symbol has wrong type: %T", syms)
 		}
+		m.mu.Lock()
+		for _, v := range *list {
+			m.validators[v.Name()] = v
+		}
+		m.mu.Unlock()
 	}
 	if syms, err := p.Lookup("Widgets"); err == nil {
-		if list, ok := syms.(*[]sdkplugin.Widget); ok {
-			m.mu.Lock()
-			for _, w := range *list {
-				m.widgets[w.Name()] = w
-			}
-			m.mu.Unlock()
+		list, ok := syms.(*[]sdkplugin.Widget)
+		if !ok {
+			return fmt.Errorf("Widgets symbol has wrong type: %T", syms)
 		}
+		m.mu.Lock()
+		for _, w := range *list {
+			m.widgets[w.Name()] = w
+		}
+		m.mu.Unlock()
 	}
 	return nil
 }

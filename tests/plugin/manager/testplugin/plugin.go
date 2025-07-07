@@ -9,14 +9,16 @@ import (
 
 type emailValidator struct{}
 
+var emailRegex = regexp.MustCompile(`^[^@]+@[^@]+$`)
+
 func (emailValidator) Name() string { return "email" }
 func (emailValidator) Validate(v any) error {
 	s, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("not a string")
 	}
-	if !regexp.MustCompile(`^[^@]+@[^@]+$`).MatchString(s) {
-		return fmt.Errorf("invalid")
+	if !emailRegex.MatchString(s) {
+		return fmt.Errorf("invalid email format")
 	}
 	return nil
 }
