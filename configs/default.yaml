@@ -3,6 +3,7 @@ reserved_tables:
   - '^gcfm_audit_logs'
   - '^gcfm_events_failed'
   - '^gcfm_registry_'
+  - '^gcfm_role_'
   - '^gcfm_roles'
   - '^gcfm_user_'
   - '^gcfm_users'
