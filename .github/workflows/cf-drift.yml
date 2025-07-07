@@ -1,7 +1,7 @@
 ---
 name: CF Schema Drift
 
-on:
+"on":
   pull_request:
     paths:
       - "registry.yaml"
