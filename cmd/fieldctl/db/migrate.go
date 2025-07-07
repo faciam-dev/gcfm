@@ -43,7 +43,7 @@ func NewMigrateCmd() *cobra.Command {
 			}
 			svc := sdk.New(sdk.ServiceConfig{})
 			ctx := context.Background()
-			if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: flags.Driver, DSN: flags.DSN, Schema: flags.Schema}, target); err != nil {
+			if err := svc.MigrateRegistry(ctx, sdk.DBConfig{Driver: flags.Driver, DSN: flags.DSN, Schema: flags.Schema, TablePrefix: flags.TablePrefix}, target); err != nil {
 				return err
 			}
 			if seed {

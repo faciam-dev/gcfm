@@ -10,9 +10,10 @@ import (
 
 // DBConfig specifies database connection parameters.
 type DBConfig struct {
-	Driver string // mysql|postgres|mongo
-	DSN    string
-	Schema string
+	Driver      string // mysql|postgres|mongo
+	DSN         string
+	Schema      string
+	TablePrefix string
 }
 
 // ServiceConfig holds optional configuration for Service.

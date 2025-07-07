@@ -11,9 +11,10 @@ import (
 )
 
 type DBConfig struct {
-	DSN    string
-	Schema string
-	Driver string
+	DSN         string
+	Schema      string
+	Driver      string
+	TablePrefix string
 }
 
 type FieldMeta struct {

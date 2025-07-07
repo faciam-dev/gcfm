@@ -6,12 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 	"github.com/faciam-dev/gcfm/sdk"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var exitFunc = os.Exit
@@ -24,6 +28,10 @@ func newDiffCmd() *cobra.Command {
 		format     string
 		fail       bool
 		driverFlag string
+		ignore     []string
+		skipRes    bool
+		prefix     string
+		fallback   bool
 	)
 	cmd := &cobra.Command{
 		Use:   "diff",
@@ -35,21 +43,69 @@ func newDiffCmd() *cobra.Command {
 			if format != "text" && format != "markdown" {
 				return errors.New("--format must be text or markdown")
 			}
+			ctx := context.Background()
+			exported := false
 			data, err := os.ReadFile(file)
 			if err != nil {
-				return err
+				if os.IsNotExist(err) && fallback {
+					svc := sdk.New(sdk.ServiceConfig{})
+					data, err = svc.Export(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: prefix})
+					if err != nil {
+						return err
+					}
+					if err := os.WriteFile(file, data, 0644); err != nil {
+						return err
+					}
+					exported = true
+				} else {
+					return err
+				}
+			}
+			if skipRes {
+				patterns, _ := loadReservedPatterns()
+				ignore = append(ignore, patterns...)
 			}
 			yamlMetas, err := codec.DecodeYAML(data)
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
 			svc := sdk.New(sdk.ServiceConfig{})
-			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema})
+			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: prefix})
 			if err != nil {
 				return err
 			}
 			changes := registry.Diff(dbMetas, yamlMetas)
+			if len(ignore) > 0 {
+				regs := make([]*regexp.Regexp, 0, len(ignore))
+				for _, p := range ignore {
+					r, err := regexp.Compile(p)
+					if err != nil {
+						return fmt.Errorf("invalid ignore regex %s: %w", p, err)
+					}
+					regs = append(regs, r)
+				}
+				filtered := changes[:0]
+				for _, c := range changes {
+					var tbl string
+					if c.New != nil {
+						tbl = c.New.TableName
+					} else if c.Old != nil {
+						tbl = c.Old.TableName
+					}
+					match := false
+					for _, r := range regs {
+						if r.MatchString(tbl) {
+							match = true
+							break
+						}
+					}
+					if match {
+						continue
+					}
+					filtered = append(filtered, c)
+				}
+				changes = filtered
+			}
 			var drift bool
 			for _, c := range changes {
 				if c.Type != registry.ChangeUnchanged {
@@ -58,7 +114,10 @@ func newDiffCmd() *cobra.Command {
 				}
 			}
 			if !drift {
-				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift")
+				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift detected.")
+				if exported {
+					exitFunc(3)
+				}
 				return nil
 			}
 
@@ -74,6 +133,8 @@ func newDiffCmd() *cobra.Command {
 			cmd.Print(b.String())
 			if fail {
 				exitFunc(2)
+			} else if exported {
+				exitFunc(3)
 			}
 			return nil
 		},
@@ -84,6 +145,10 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().StringVar(&format, "format", "text", "output format (text|markdown)")
 	cmd.Flags().BoolVar(&fail, "fail-on-change", false, "exit 2 if drift detected")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo|sqlmock)")
+	cmd.Flags().StringSliceVar(&ignore, "ignore-regex", nil, "regex patterns of tables to ignore")
+	cmd.Flags().StringVar(&prefix, "table-prefix", os.Getenv("CF_TABLE_PREFIX"), "table name prefix")
+	cmd.Flags().BoolVar(&fallback, "fallback-export", false, "export registry if file missing")
+	cmd.Flags().BoolVar(&skipRes, "skip-reserved", true, "exclude reserved tables")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("driver")
 	return cmd
@@ -179,4 +244,30 @@ func equalStringPtr(a, b *string) bool {
 		return false
 	}
 	return *a == *b
+}
+
+func loadReservedPatterns() ([]string, error) {
+	_, f, _, _ := runtime.Caller(0)
+	base := filepath.Join(filepath.Dir(f), "..", "..")
+	data, err := os.ReadFile(filepath.Join(base, "configs", "default.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	var cfg struct {
+		Reserved []string `yaml:"reserved_tables"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	if env := os.Getenv("CF_RESERVED_TABLES"); env != "" {
+		var out []string
+		for _, t := range strings.Split(env, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				out = append(out, t)
+			}
+		}
+		return out, nil
+	}
+	return cfg.Reserved, nil
 }

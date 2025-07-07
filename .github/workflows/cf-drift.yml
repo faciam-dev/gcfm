@@ -1,0 +1,95 @@
+---
+name: CF Schema Drift
+
+"on":
+  pull_request:
+    paths:
+      - "registry.yaml"
+      - "migrations/**"
+      - "**/*.go"
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pass
+          POSTGRES_DB: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_DSN: postgres://postgres:pass@localhost:5432/app?sslmode=disable
+      TABLE_PREFIX: gcfm_
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clean Go module cache
+        run: |
+          rm -rf $HOME/go/pkg/mod
+          rm -rf $HOME/.cache/go-build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Setup auth for private modules
+        run: |
+          git config --global \
+            url."https://${{secrets.GITHUB_TOKEN}}@github.com/".insteadOf \
+            "https://github.com/"
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Install fieldctl
+        run: |
+          go install ./cmd/fieldctl
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Wait for DB
+        run: bash scripts/ci/wait-for-db.sh
+
+      - name: Migrate
+        run: |
+          fieldctl db migrate \
+            --db "$DB_DSN" \
+            --driver postgres \
+            --schema public \
+            --seed \
+            --table-prefix $TABLE_PREFIX
+      - name: Schema diff
+        id: diff
+        run: |
+          set +e
+          fieldctl diff \
+            --db "$DB_DSN" \
+            --driver postgres \
+            --schema public \
+            --file registry.yaml \
+            --table-prefix $TABLE_PREFIX \
+            --skip-reserved \
+            --fallback-export \
+            --format markdown \
+            --fail-on-change > diff.txt
+          exit_code=$?
+          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+          if [ $exit_code -eq 2 ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+          [ -s diff.txt ] || echo "✅ No schema drift detected." > diff.txt
+          exit 0
+      - if: steps.diff.outputs.changed == 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: Custom-Field Schema Diff
+          path: diff.txt
+      - if: steps.diff.outputs.changed == 'true'
+        run: exit 1
