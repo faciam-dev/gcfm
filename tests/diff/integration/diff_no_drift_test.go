@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -56,7 +57,11 @@ func TestDiffNoDrift(t *testing.T) {
 		t.Fatalf("export: %v\n%s", err, out)
 	}
 
-	if out, err := exec.Command("go", "run", "./cmd/fieldctl", "diff", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", yamlPath).CombinedOutput(); err != nil {
+	out, err := exec.Command("go", "run", "./cmd/fieldctl", "diff", "--db", dsn, "--schema", "public", "--driver", "postgres", "--file", yamlPath).CombinedOutput()
+	if err != nil {
 		t.Fatalf("diff: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "✅ No schema drift detected.") {
+		t.Fatalf("unexpected output:\n%s", out)
 	}
 }
