@@ -56,6 +56,7 @@ jobs:
         run: |
           fieldctl db migrate \
             --db "$DB_DSN" \
+            --driver postgres \
             --schema public \
             --seed \
             --table-prefix $TABLE_PREFIX
