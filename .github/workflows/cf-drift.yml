@@ -80,6 +80,12 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "----- diff.txt preview -----"
+          wc -c diff.txt  || true
+          head -n 20 diff.txt || true
+          echo "----------------------------"
+
           [ -s diff.txt ] || echo "✅ No schema drift detected." > diff.txt
           exit 0
       - if: steps.diff.outputs.changed == 'true'
