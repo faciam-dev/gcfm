@@ -72,7 +72,7 @@ jobs:
             --schema public \
             --file registry.yaml \
             --format markdown \
-            --fail-on-change > diff.txt
+            --fail-on-change > diff.txt 2>&1
           ec=$?
           echo "exit_code=$ec" >> "$GITHUB_OUTPUT"
           if [ $ec -eq 2 ]; then
