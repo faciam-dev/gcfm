@@ -45,15 +45,16 @@ type ApplyOptions struct {
 ```
 
 <a name="DBConfig"></a>
-## type [DBConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L12-L16>)
+## type [DBConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L12-L17>)
 
 DBConfig specifies database connection parameters.
 
 ```go
 type DBConfig struct {
-    Driver string // mysql|postgres|mongo
-    DSN    string
-    Schema string
+    Driver      string // mysql|postgres|mongo
+    DSN         string
+    Schema      string
+    TablePrefix string
 }
 ```
 
@@ -188,7 +189,7 @@ func New(cfg ServiceConfig) Service
 New returns a Service initialized with the given configuration. Validator plugins under PluginDir are loaded automatically.
 
 <a name="ServiceConfig"></a>
-## type [ServiceConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L19-L29>)
+## type [ServiceConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L20-L30>)
 
 ServiceConfig holds optional configuration for Service.
 
