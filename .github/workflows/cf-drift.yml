@@ -75,6 +75,7 @@ jobs:
             --schema public \
             --file registry.yaml \
             --table-prefix $TABLE_PREFIX \
+            --skip-reserved \
             --fallback-export \
             --format markdown \
             --fail-on-change > diff.txt
