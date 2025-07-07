@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -16,11 +15,14 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	m := migrator.New()
-	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnError(fmt.Errorf("no such table"))
+	for i := 0; i < 3; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
+	}
+	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
 	mock.ExpectBegin()
-	mock.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("INSERT INTO gcfm_registry_schema_version").WillReturnResult(sqlmock.NewResult(1, 1))
+	for i := 0; i < 4; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
+	}
 	mock.ExpectCommit()
 	if err := m.Up(context.Background(), db, 1); err != nil {
 		t.Fatalf("up: %v", err)
@@ -29,6 +31,9 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("unmet: %v", err)
 	}
 
+	for i := 0; i < 2; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
+	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
 	mock.ExpectBegin()
 	mock.ExpectExec("DROP TABLE").WillReturnResult(sqlmock.NewResult(0, 0))

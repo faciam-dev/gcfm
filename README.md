@@ -60,8 +60,13 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
 Show schema drift between a YAML file and the database. Use `--fail-on-change` to exit with code 2 when drift exists.
 
 ```
-fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --fail-on-change
+fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --table-prefix gcfm_ --fail-on-change
 ```
+If you pass `--fallback-export`, the command will export the current database schema to the given file when it does not exist and exit with code 3.
+
+### Skip reserved tables
+Reserved or system tables are excluded from diffs by default.
+Disable this behavior with `--skip-reserved=false` to include them.
 
 ### Exit Codes
 
@@ -70,6 +75,7 @@ fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public 
 | 0 | no drift detected or drift ignored |
 | 1 | command error |
 | 2 | drift detected with `--fail-on-change` |
+| 3 | registry exported because file was missing |
 
 ## Supported Drivers
 
@@ -228,7 +234,7 @@ curl -X POST http://localhost:8080/v1/custom-fields \
 
 ## Reserved Tables
 
-Certain tables are protected from custom field modifications. The default list is stored in `configs/default.yaml` and can be overridden with the `CF_RESERVED_TABLES` environment variable.
+Certain tables are protected from custom field modifications. Regex patterns are defined in `configs/default.yaml` and can be overridden with the `CF_RESERVED_TABLES` environment variable.
 
 The metadata endpoint `/v1/metadata/tables` marks each table with a `reserved` flag so frontends can hide them.
 ## Events
@@ -274,4 +280,15 @@ docker compose up -d prometheus grafana
 ```
 
 Open <http://localhost:3000> (admin/admin) and load the **CustomField Overview** dashboard.
+
+### Table prefix
+If you keep your CF tables namespaced (e.g. `gcfm_custom_fields`), pass `--table-prefix gcfm_` or set `CF_TABLE_PREFIX=gcfm_`.
+The migrator will automatically create `<prefix>registry_schema_version` on first run.
+
+
+### 🔄 CI Drift Guard
+1. PR ごとに PostgreSQL コンテナを起動  
+2. `fieldctl db migrate --seed` で最新スキーマに  
+3. `fieldctl diff --fail-on-change` で registry.yaml と比較  
+4. 差分があれば PR に sticky コメント + ジョブ失敗
 
