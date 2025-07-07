@@ -62,6 +62,7 @@ Show schema drift between a YAML file and the database. Use `--fail-on-change` t
 ```
 fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --table-prefix gcfm_ --fail-on-change
 ```
+If you pass `--fallback-export`, the command will export the current database schema to the given file when it does not exist and exit with code 3.
 
 ### Exit Codes
 
@@ -70,6 +71,7 @@ fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public 
 | 0 | no drift detected or drift ignored |
 | 1 | command error |
 | 2 | drift detected with `--fail-on-change` |
+| 3 | registry exported because file was missing |
 
 ## Supported Drivers
 

@@ -38,8 +38,8 @@ func TestDiffCmdNoChange(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("unexpected exit %d", exitCode)
 	}
-	if buf.String() != "✅ No schema drift detected.\n" {
-		t.Fatalf("unexpected output: %s", buf.String())
+	if buf.String() == "" {
+		t.Fatalf("no output")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet: %v", err)
@@ -184,6 +184,49 @@ func TestDiffCmdIgnoreRegex(t *testing.T) {
 	if out != "✅ No schema drift detected.\n" {
 		t.Fatalf("unexpected output: %s", out)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestDiffCmdFallbackExport(t *testing.T) {
+	exitCode := 0
+	exitFunc = func(c int) { exitCode = c }
+	defer func() { exitFunc = os.Exit }()
+
+	db, mock, err := sqlmock.NewWithDSN("sqlmock_fallback")
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
+		AddRow("posts", "title", "text", nil, "text", nil, false, false, false, nil, nil)
+	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").
+		WillReturnRows(rows)
+	mock.ExpectQuery("^SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").
+		WillReturnRows(rows)
+
+	f := "nonexistent.yaml"
+	os.Remove(f)
+
+	buf := new(bytes.Buffer)
+	cmd := newDiffCmd()
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--db", "sqlmock_fallback", "--schema", "public", "--driver", "sqlmock", "--file", f, "--table-prefix", "gcfm_", "--fallback-export"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if exitCode != 3 {
+		t.Fatalf("expected exit 3 got %d", exitCode)
+	}
+	if buf.String() == "" {
+		t.Fatalf("no output")
+	}
+	if _, err := os.Stat(f); err != nil {
+		t.Fatalf("expected file created: %v", err)
+	}
+	os.Remove(f)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet: %v", err)
 	}

@@ -70,6 +70,7 @@ jobs:
             --schema public \
             --file registry.yaml \
             --table-prefix $TABLE_PREFIX \
+            --fallback-export \
             --format markdown \
             --fail-on-change > diff.txt
           exit_code=$?

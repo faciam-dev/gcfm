@@ -27,6 +27,7 @@ func newDiffCmd() *cobra.Command {
 		driverFlag string
 		ignore     []string
 		prefix     string
+		fallback   bool
 	)
 	cmd := &cobra.Command{
 		Use:   "diff",
@@ -38,15 +39,28 @@ func newDiffCmd() *cobra.Command {
 			if format != "text" && format != "markdown" {
 				return errors.New("--format must be text or markdown")
 			}
+			ctx := context.Background()
+			exported := false
 			data, err := os.ReadFile(file)
 			if err != nil {
-				return err
+				if os.IsNotExist(err) && fallback {
+					svc := sdk.New(sdk.ServiceConfig{})
+					data, err = svc.Export(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: prefix})
+					if err != nil {
+						return err
+					}
+					if err := os.WriteFile(file, data, 0644); err != nil {
+						return err
+					}
+					exported = true
+				} else {
+					return err
+				}
 			}
 			yamlMetas, err := codec.DecodeYAML(data)
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
 			svc := sdk.New(sdk.ServiceConfig{})
 			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: prefix})
 			if err != nil {
@@ -93,6 +107,9 @@ func newDiffCmd() *cobra.Command {
 			}
 			if !drift {
 				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift detected.")
+				if exported {
+					exitFunc(3)
+				}
 				return nil
 			}
 
@@ -108,6 +125,8 @@ func newDiffCmd() *cobra.Command {
 			cmd.Print(b.String())
 			if fail {
 				exitFunc(2)
+			} else if exported {
+				exitFunc(3)
 			}
 			return nil
 		},
@@ -120,6 +139,7 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo|sqlmock)")
 	cmd.Flags().StringSliceVar(&ignore, "ignore-regex", nil, "regex patterns of tables to ignore")
 	cmd.Flags().StringVar(&prefix, "table-prefix", os.Getenv("CF_TABLE_PREFIX"), "table name prefix")
+	cmd.Flags().BoolVar(&fallback, "fallback-export", false, "export registry if file missing")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("driver")
 	return cmd
