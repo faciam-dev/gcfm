@@ -14,7 +14,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-const prefix = "gcfm_"
+const prefix = "demo_"
 
 func runFieldctl(t *testing.T, args ...string) []byte {
 	t.Helper()

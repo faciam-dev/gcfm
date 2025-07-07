@@ -9,7 +9,7 @@ import (
 // ensureVersionTable creates the version table if it doesn't exist and inserts
 // an initial row with version=0. It is safe to call multiple times.
 func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
-	tbl := fmt.Sprintf("%sregistry_schema_version", m.tablePrefix)
+	tbl := m.versionTable()
 	_, err := db.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
         version INT PRIMARY KEY,
         applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

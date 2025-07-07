@@ -277,6 +277,7 @@ Open <http://localhost:3000> (admin/admin) and load the **CustomField Overview**
 
 ### Table prefix
 If you keep your CF tables namespaced (e.g. `gcfm_custom_fields`), pass `--table-prefix gcfm_` or set `CF_TABLE_PREFIX=gcfm_`.
+You can also configure `migrator.table_prefix: gcfm_` in your YAML config.
 The migrator will automatically create `<prefix>registry_schema_version` on first run.
 
 
