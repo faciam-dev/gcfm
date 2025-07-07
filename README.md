@@ -60,7 +60,7 @@ fieldctl apply --db "postgres://user:pass@localhost:5432/testdb" --schema public
 Show schema drift between a YAML file and the database. Use `--fail-on-change` to exit with code 2 when drift exists.
 
 ```
-fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --fail-on-change
+fieldctl diff --db "postgres://user:pass@localhost:5432/testdb" --schema public --driver postgres --file registry.yaml --table-prefix gcfm_ --fail-on-change
 ```
 
 ### Exit Codes

@@ -26,6 +26,7 @@ func newDiffCmd() *cobra.Command {
 		fail       bool
 		driverFlag string
 		ignore     []string
+		prefix     string
 	)
 	cmd := &cobra.Command{
 		Use:   "diff",
@@ -47,7 +48,7 @@ func newDiffCmd() *cobra.Command {
 			}
 			ctx := context.Background()
 			svc := sdk.New(sdk.ServiceConfig{})
-			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema})
+			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: prefix})
 			if err != nil {
 				return err
 			}
@@ -118,6 +119,7 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&fail, "fail-on-change", false, "exit 2 if drift detected")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo|sqlmock)")
 	cmd.Flags().StringSliceVar(&ignore, "ignore-regex", nil, "regex patterns of tables to ignore")
+	cmd.Flags().StringVar(&prefix, "table-prefix", os.Getenv("CF_TABLE_PREFIX"), "table name prefix")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("driver")
 	return cmd
