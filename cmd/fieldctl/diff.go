@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
@@ -24,6 +25,7 @@ func newDiffCmd() *cobra.Command {
 		format     string
 		fail       bool
 		driverFlag string
+		ignore     []string
 	)
 	cmd := &cobra.Command{
 		Use:   "diff",
@@ -50,6 +52,37 @@ func newDiffCmd() *cobra.Command {
 				return err
 			}
 			changes := registry.Diff(dbMetas, yamlMetas)
+			if len(ignore) > 0 {
+				regs := make([]*regexp.Regexp, 0, len(ignore))
+				for _, p := range ignore {
+					r, err := regexp.Compile(p)
+					if err != nil {
+						return fmt.Errorf("invalid ignore regex %s: %w", p, err)
+					}
+					regs = append(regs, r)
+				}
+				filtered := changes[:0]
+				for _, c := range changes {
+					var tbl string
+					if c.New != nil {
+						tbl = c.New.TableName
+					} else if c.Old != nil {
+						tbl = c.Old.TableName
+					}
+					match := false
+					for _, r := range regs {
+						if r.MatchString(tbl) {
+							match = true
+							break
+						}
+					}
+					if match {
+						continue
+					}
+					filtered = append(filtered, c)
+				}
+				changes = filtered
+			}
 			var drift bool
 			for _, c := range changes {
 				if c.Type != registry.ChangeUnchanged {
@@ -58,7 +91,7 @@ func newDiffCmd() *cobra.Command {
 				}
 			}
 			if !drift {
-				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift")
+				fmt.Fprintln(cmd.OutOrStdout(), "✅ No schema drift detected.")
 				return nil
 			}
 
@@ -84,6 +117,7 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().StringVar(&format, "format", "text", "output format (text|markdown)")
 	cmd.Flags().BoolVar(&fail, "fail-on-change", false, "exit 2 if drift detected")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo|sqlmock)")
+	cmd.Flags().StringSliceVar(&ignore, "ignore-regex", nil, "regex patterns of tables to ignore")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("driver")
 	return cmd
