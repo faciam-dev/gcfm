@@ -25,21 +25,27 @@ type RegistryMigrator interface {
 
 // Migrator implements RegistryMigrator using embedded SQL.
 type Migrator struct {
-	migrations []Migration
+	migrations  []Migration
+	tablePrefix string
 }
 
 // New returns a Migrator with MySQL migrations.
 func New() *Migrator {
-	return NewWithDriver("mysql")
+	return NewWithDriverAndPrefix("mysql", "")
 }
 
 // NewWithDriver returns a Migrator for the specified driver.
 func NewWithDriver(driver string) *Migrator {
+	return NewWithDriverAndPrefix(driver, "")
+}
+
+// NewWithDriverAndPrefix returns a Migrator for the driver with table prefix.
+func NewWithDriverAndPrefix(driver, prefix string) *Migrator {
 	switch driver {
 	case "postgres":
-		return &Migrator{migrations: postgresMigrations}
+		return &Migrator{migrations: postgresMigrations, tablePrefix: prefix}
 	default:
-		return &Migrator{migrations: defaultMigrations}
+		return &Migrator{migrations: defaultMigrations, tablePrefix: prefix}
 	}
 }
 
@@ -59,7 +65,12 @@ func (m *Migrator) SemVerToInt(v string) (int, bool) {
 // Current returns current version (integer). If the version table doesn't exist
 // ErrNoVersionTable is returned.
 func (m *Migrator) Current(ctx context.Context, db *sql.DB) (int, error) {
-	row := db.QueryRowContext(ctx, `SELECT MAX(version) FROM gcfm_registry_schema_version`)
+	if err := m.ensureVersionTable(ctx, db); err != nil {
+		return 0, err
+	}
+	tbl := fmt.Sprintf("%sregistry_schema_version", m.tablePrefix)
+	query := fmt.Sprintf("SELECT MAX(version) FROM %s", tbl)
+	row := db.QueryRowContext(ctx, query)
 	var v sql.NullInt64
 	if err := row.Scan(&v); err != nil {
 		if isTableMissing(err) {
@@ -104,40 +115,12 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 	if target == 0 {
 		target = len(m.migrations)
 	}
+	if err := m.ensureVersionTable(ctx, db); err != nil {
+		return err
+	}
 
 	cur, err := m.Current(ctx, db)
-	if err == ErrNoVersionTable {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		// first time: if gcfm_custom_fields table exists treat as initialized
-		if tableExists(ctx, tx, "gcfm_custom_fields") {
-			if err := execAll(ctx, tx, m0001Up); err != nil {
-				tx.Rollback()
-				return err
-			}
-			// insert latest version only
-			if _, err := tx.ExecContext(ctx, `DELETE FROM gcfm_registry_schema_version`); err != nil {
-				tx.Rollback()
-				return err
-			}
-			last := m.migrations[target-1]
-			if _, err := tx.ExecContext(ctx, `INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (?, ?)`, last.Version, last.SemVer); err != nil {
-				tx.Rollback()
-				return err
-			}
-			return tx.Commit()
-		}
-		// new environment: create tables from scratch
-		for i := 0; i < target; i++ {
-			if err := execAll(ctx, tx, m.migrations[i].UpSQL); err != nil {
-				tx.Rollback()
-				return err
-			}
-		}
-		return tx.Commit()
-	} else if err != nil {
+	if err != nil {
 		return err
 	}
 	if cur >= target {
