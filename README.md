@@ -285,3 +285,4 @@ The migrator will automatically create `<prefix>registry_schema_version` on firs
 2. `fieldctl db migrate --seed` で最新スキーマに  
 3. `fieldctl diff --fail-on-change` で registry.yaml と比較  
 4. 差分があれば PR に sticky コメント + ジョブ失敗
+
