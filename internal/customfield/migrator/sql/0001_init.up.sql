@@ -11,5 +11,5 @@ CREATE TABLE IF NOT EXISTS gcfm_registry_schema_version (
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE gcfm_registry_schema_version
-    ADD COLUMN IF NOT EXISTS semver VARCHAR(32);
+    ADD COLUMN semver VARCHAR(32);
 INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (1, '0.1');
