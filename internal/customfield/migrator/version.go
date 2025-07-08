@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // ensureVersionTable creates the version table if it doesn't exist and inserts
@@ -19,14 +20,20 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 	}
 	// ensure semver column exists; older versions may lack it
 	_, err = db.ExecContext(ctx, fmt.Sprintf(
-		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS semver VARCHAR(32);`, tbl))
+		`ALTER TABLE %s ADD COLUMN semver VARCHAR(32);`, tbl))
 	if err != nil {
-		return err
+		msg := strings.ToLower(err.Error())
+		if !strings.Contains(msg, "duplicate column") && !strings.Contains(msg, "already exists") {
+			return err
+		}
 	}
 
 	// insert the zero row if not present
-	_, _ = db.ExecContext(ctx, fmt.Sprintf(
-		`INSERT INTO %s(version) VALUES(0)
-         ON CONFLICT (version) DO NOTHING;`, tbl))
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s(version) VALUES(0)`, tbl)); err != nil {
+		msg := strings.ToLower(err.Error())
+		if !strings.Contains(msg, "duplicate") && !strings.Contains(msg, "conflict") {
+			return err
+		}
+	}
 	return nil
 }
