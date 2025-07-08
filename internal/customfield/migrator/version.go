@@ -36,7 +36,7 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 	}
 
 	// insert the zero row if not present
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s(version, semver) VALUES(0,'0.0')`, tbl)); err != nil && !isDuplicateEntryErr(err) {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s(version, semver) VALUES(0,'0.0.0')`, tbl)); err != nil && !isDuplicateEntryErr(err) {
 		return err
 	}
 	return nil
@@ -52,8 +52,7 @@ func isSyntaxErr(err error) bool {
 	if pe, ok := err.(*pq.Error); ok {
 		return string(pe.Code) == "42601"
 	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "syntax")
+	return false
 }
 
 func isDuplicateColumnErr(err error) bool {
