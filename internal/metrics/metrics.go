@@ -14,7 +14,7 @@ var (
 			Name: "cf_api_requests_total",
 			Help: "Number of API requests",
 		},
-		[]string{"method", "path", "status"},
+		[]string{"tenant", "method", "path", "status"},
 	)
 	APILatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
