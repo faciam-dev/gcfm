@@ -22,7 +22,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
 	mock.ExpectBegin()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 3; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectCommit()
