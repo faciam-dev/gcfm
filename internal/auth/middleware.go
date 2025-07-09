@@ -8,7 +8,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 // reuse the context key defined in server middleware
@@ -43,8 +42,8 @@ func Middleware(api huma.API, j *JWT) func(huma.Context, func(huma.Context)) {
 func UserFromContext(ctx context.Context) string { return sm.UserFromContext(ctx) }
 
 // ClaimsFromContext returns the JWT claims stored in context, if any.
-func ClaimsFromContext(ctx context.Context) *jwt.RegisteredClaims {
-	if c, ok := ctx.Value(claimsKey).(*jwt.RegisteredClaims); ok {
+func ClaimsFromContext(ctx context.Context) *Claims {
+	if c, ok := ctx.Value(claimsKey).(*Claims); ok {
 		return c
 	}
 	return nil

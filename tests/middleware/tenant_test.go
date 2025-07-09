@@ -71,10 +71,12 @@ func TestExtractTenant_Header(t *testing.T) {
 func TestExtractTenant_JWT(t *testing.T) {
 	secret := "secret"
 	api := newAPI(secret)
-	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Subject:   "u1",
-		ID:        "t2",
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, auth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "u1",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+		TenantID: "t2",
 	}).SignedString([]byte(secret))
 	if err != nil {
 		t.Fatalf("token: %v", err)

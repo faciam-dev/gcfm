@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -60,7 +61,8 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Body.Password)) != nil {
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
-	tok, err := h.JWT.Generate(u.ID)
+	tenantID := tenant.FromContext(ctx)
+	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +77,8 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 	if err != nil || sub == "" {
 		return nil, huma.Error401Unauthorized("unauthorized")
 	}
-	tok, err := h.JWT.Generate(uid)
+	tenantID := tenant.FromContext(ctx)
+	tok, err := h.JWT.GenerateWithTenant(uid, tenantID)
 	if err != nil {
 		return nil, err
 	}
