@@ -61,11 +61,8 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Body.Password)) != nil {
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
-	var tid string
-	if hc, ok := ctx.(huma.Context); ok {
-		tid = hc.Header("X-Tenant-ID")
-	}
-	tok, err := h.JWT.GenerateWithTenant(u.ID, tid)
+	tenantID := tenant.FromContext(ctx)
+	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +77,8 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 	if err != nil || sub == "" {
 		return nil, huma.Error401Unauthorized("unauthorized")
 	}
-	tid := tenant.FromContext(ctx)
-	tok, err := h.JWT.GenerateWithTenant(uid, tid)
+	tenantID := tenant.FromContext(ctx)
+	tok, err := h.JWT.GenerateWithTenant(uid, tenantID)
 	if err != nil {
 		return nil, err
 	}
