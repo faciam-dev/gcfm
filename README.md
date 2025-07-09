@@ -292,3 +292,11 @@ The migrator will automatically create `<prefix>registry_schema_version` on firs
 3. `fieldctl diff --skip-reserved --fail-on-change` で registry.yaml と比較
 4. 差分があれば PR に sticky コメント + ジョブ失敗
 
+
+### マルチテナント
+1. すべてのリクエストに `X-Tenant-ID: <tid>` ヘッダー、または JWT の `tid` クレームを付与してください。
+2. 既存データを移行するには次のコマンドを実行します。
+   ```
+   fieldctl db migrate --seed --tenant default
+   ```
+3. CLI は `--tenant <id>` または環境変数 `CF_TENANT` を受け付けます。

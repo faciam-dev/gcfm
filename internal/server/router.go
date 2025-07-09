@@ -86,6 +86,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	// Apply authentication & RBAC middleware for the remaining endpoints.
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
+	api.UseMiddleware(middleware.ExtractTenant(api))
 	if err == nil {
 		api.UseMiddleware(middleware.RBAC(e))
 	}

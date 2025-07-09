@@ -15,10 +15,16 @@ import (
 // ctxKey is used for storing values in request context.
 type ctxKey string
 
-const userKey ctxKey = "user"
+const (
+	userKey   ctxKey = "user"
+	claimsKey ctxKey = "claims"
+)
 
 // UserKey returns the context key used to store the user subject.
 func UserKey() any { return userKey }
+
+// ClaimsKey returns the context key used to store JWT claims.
+func ClaimsKey() any { return claimsKey }
 
 // JWT returns middleware that validates a bearer token signed with the given secret.
 func JWT(api huma.API, secret string) func(huma.Context, func(huma.Context)) {
