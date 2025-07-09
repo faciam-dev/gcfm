@@ -42,7 +42,9 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	roles := []schema.Role{}
 	for rows.Next() {
 		var r schema.Role
@@ -63,7 +65,9 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	if err != nil {
 		return nil, err
 	}
-	defer pRows.Close()
+	defer func() {
+		_ = pRows.Close()
+	}()
 
 	byRole := make(map[int64][]schema.Policy)
 	for pRows.Next() {
@@ -88,7 +92,9 @@ func (h *RBACHandler) listUsers(ctx context.Context, _ *struct{}) (*listUsersOut
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	m := map[uint64]*schema.User{}
 	for rows.Next() {
 		var id uint64

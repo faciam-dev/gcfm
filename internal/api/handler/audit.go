@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -48,14 +49,54 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var logs []schema.AuditLog
 	for rows.Next() {
 		var l schema.AuditLog
-		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &l.BeforeJSON, &l.AfterJSON, &l.AppliedAt); err != nil {
+		var beforeJSON, afterJSON sql.NullString
+		var appliedAt any
+		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &beforeJSON, &afterJSON, &appliedAt); err != nil {
 			return nil, err
 		}
+		t, err := ParseAuditTime(appliedAt)
+		if err != nil {
+			return nil, err
+		}
+		l.AppliedAt = t
+		l.BeforeJSON = beforeJSON
+		l.AfterJSON = afterJSON
 		logs = append(logs, l)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return &auditOutput{Body: logs}, nil
+}
+
+// ParseAuditTime converts a value returned from the database into a time.Time.
+// Drivers like the MySQL driver may return []byte or string for TIMESTAMP
+// columns when parseTime is disabled.
+func ParseAuditTime(v any) (time.Time, error) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, nil
+	case []byte:
+		return parseAuditTimeString(string(t))
+	case string:
+		return parseAuditTimeString(t)
+	default:
+		return time.Time{}, fmt.Errorf("unsupported time type %T", v)
+	}
+}
+
+func parseAuditTimeString(s string) (time.Time, error) {
+	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05", time.RFC3339}
+	for _, l := range layouts {
+		if ts, err := time.Parse(l, s); err == nil {
+			return ts, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("cannot parse time %q", s)
 }
