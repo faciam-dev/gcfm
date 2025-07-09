@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -58,6 +60,9 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 	u, err := h.Repo.GetByUsername(ctx, in.Body.Username)
 	if err != nil {
 		logger.L.Error("get user", "err", err)
+		if isDatabaseError(err) {
+			return nil, huma.Error500InternalServerError("internal server error")
+		}
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 	if u == nil {
@@ -92,4 +97,14 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 		return nil, err
 	}
 	return &loginOutput{Body: tokenResponse{AccessToken: tok, ExpiresAt: time.Now().Add(h.JWT.exp)}}, nil
+}
+
+// isDatabaseError determines if the provided error likely came from the
+// database layer. Currently any non-nil error is treated as a DB error since
+// GetByUsername hides sql.ErrNoRows.
+func isDatabaseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return !errors.Is(err, sql.ErrNoRows)
 }

@@ -52,5 +52,6 @@ func main() {
 	logger.L.Info("listening", "addr", *addr)
 	if err := http.ListenAndServe(*addr, api.Adapter()); err != nil {
 		logger.L.Error("server error", "err", err)
+		os.Exit(1)
 	}
 }
