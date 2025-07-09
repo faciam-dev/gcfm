@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -12,19 +11,21 @@ import (
 	"github.com/faciam-dev/gcfm/sdk"
 )
 
-func newSnapshotCmd() *cobra.Command {
+func newRevertCmd() *cobra.Command {
 	var (
 		dbDSN      string
 		schema     string
-		tenant     string
-		bump       string
 		driverFlag string
-		message    string
+		tenant     string
+		toVer      string
 	)
 	cmd := &cobra.Command{
-		Use:   "snapshot",
-		Short: "Create registry snapshot",
+		Use:   "revert",
+		Short: "Rollback to a snapshot",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if toVer == "" {
+				return errors.New("--to is required")
+			}
 			if dbDSN == "" {
 				return errors.New("--db is required")
 			}
@@ -40,38 +41,26 @@ func newSnapshotCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
+			rec, err := snapshot.Get(ctx, db, driverFlag, tenant, toVer)
+			if err != nil {
+				return err
+			}
+			data, err := snapshot.Decode(rec.YAML)
+			if err != nil {
+				return err
+			}
 			svc := sdk.New(sdk.ServiceConfig{})
-			data, err := svc.Export(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema})
-			if err != nil {
-				return err
-			}
-			comp, err := snapshot.Encode(data)
-			if err != nil {
-				return err
-			}
-			last, err := snapshot.LatestSemver(ctx, db, driverFlag, tenant)
-			if err != nil {
-				return err
-			}
-			if bump == "" {
-				bump = "patch"
-			}
-			ver := snapshot.NextSemver(last, bump)
-			rec, err := snapshot.Insert(ctx, db, driverFlag, tenant, ver, message, comp)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintln(cmd.OutOrStdout(), rec.Semver)
-			return nil
+			_, err = svc.Apply(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema}, data, sdk.ApplyOptions{})
+			return err
 		},
 	}
 	cmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	cmd.Flags().StringVar(&schema, "schema", "", "database schema")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
 	cmd.Flags().StringVar(&tenant, "tenant", getenv("CF_TENANT", "default"), "tenant id")
-	cmd.Flags().StringVar(&bump, "bump", "patch", "semver bump type")
-	cmd.Flags().StringVar(&message, "message", "", "snapshot message")
+	cmd.Flags().StringVar(&toVer, "to", "", "target snapshot version")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("schema")
+	cmd.MarkFlagRequired("to")
 	return cmd
 }

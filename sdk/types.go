@@ -1,9 +1,14 @@
 package sdk
 
-import "github.com/faciam-dev/gcfm/internal/customfield/registry"
+import (
+	"github.com/faciam-dev/gcfm/internal/api/schema"
+	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+)
 
 type FieldMeta = registry.FieldMeta
 
 type DisplayMeta = registry.DisplayMeta
 
 type DisplayOptions = registry.DisplayOption
+
+type Snapshot = schema.Snapshot

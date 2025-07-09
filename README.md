@@ -300,3 +300,12 @@ The migrator will automatically create `<prefix>registry_schema_version` on firs
    fieldctl db migrate --seed --tenant default
    ```
 3. CLI は `--tenant <id>` または環境変数 `CF_TENANT` を受け付けます。
+
+### Snapshot & Rollback
+
+```bash
+fieldctl snapshot --bump minor
+fieldctl revert --to 1.4.0
+fieldctl diff-snap --from 1.3.0 --to 1.4.0
+```
+Endpoint docs: /docs/api/#tag/Snapshot.

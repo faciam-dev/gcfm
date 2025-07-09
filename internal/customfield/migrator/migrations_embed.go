@@ -62,6 +62,12 @@ var m0010Up string
 //go:embed sql/0010_multitenant.down.sql
 var m0010Down string
 
+//go:embed sql/0011_snapshots.up.sql
+var m0011Up string
+
+//go:embed sql/0011_snapshots.down.sql
+var m0011Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -123,6 +129,12 @@ var pg0010Up string
 
 //go:embed sql/postgres/0010_multitenant.down.sql
 var pg0010Down string
+
+//go:embed sql/postgres/0011_snapshots.up.sql
+var pg0011Up string
+
+//go:embed sql/postgres/0011_snapshots.down.sql
+var pg0011Down string
 var defaultMigrations = []Migration{
 	{Version: 1, SemVer: "0.1", UpSQL: m0001Up, DownSQL: m0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: m0002Up, DownSQL: m0002Down},
@@ -134,6 +146,7 @@ var defaultMigrations = []Migration{
 	{Version: 8, SemVer: "0.8", UpSQL: m0008Up, DownSQL: m0008Down},
 	{Version: 9, SemVer: "0.9", UpSQL: m0009Up, DownSQL: m0009Down},
 	{Version: 10, SemVer: "0.10", UpSQL: m0010Up, DownSQL: m0010Down},
+	{Version: 11, SemVer: "0.11", UpSQL: m0011Up, DownSQL: m0011Down},
 }
 
 var postgresMigrations = []Migration{
@@ -147,4 +160,5 @@ var postgresMigrations = []Migration{
 	{Version: 8, SemVer: "0.8", UpSQL: pg0008Up, DownSQL: pg0008Down},
 	{Version: 9, SemVer: "0.9", UpSQL: pg0009Up, DownSQL: pg0009Down},
 	{Version: 10, SemVer: "0.10", UpSQL: pg0010Up, DownSQL: pg0010Down},
+	{Version: 11, SemVer: "0.11", UpSQL: pg0011Up, DownSQL: pg0011Down},
 }
