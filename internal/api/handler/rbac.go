@@ -46,8 +46,12 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	roles := []schema.Role{}
 	for rows.Next() {
 		var r schema.Role
-		if err := rows.Scan(&r.ID, &r.Name, &r.Comment); err != nil {
+		var comment sql.NullString
+		if err := rows.Scan(&r.ID, &r.Name, &comment); err != nil {
 			return nil, err
+		}
+		if comment.Valid {
+			r.Comment = comment.String
 		}
 		roles = append(roles, r)
 	}
