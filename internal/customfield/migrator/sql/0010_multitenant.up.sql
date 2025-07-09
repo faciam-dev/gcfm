@@ -8,6 +8,6 @@ ALTER TABLE gcfm_audit_logs
   ADD COLUMN tenant_id VARCHAR(64) NOT NULL DEFAULT 'default';
 ALTER TABLE gcfm_audit_logs
   DROP PRIMARY KEY,
-  ADD PRIMARY KEY (tenant_id, id);
+  ADD PRIMARY KEY (id, tenant_id);
 
 INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (10, '0.10');
