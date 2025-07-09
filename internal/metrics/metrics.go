@@ -22,7 +22,7 @@ var (
 			Help:    "API latency in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"method", "path"},
+		[]string{"tenant", "method", "path"},
 	)
 	Fields = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{

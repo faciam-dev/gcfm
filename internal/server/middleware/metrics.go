@@ -24,7 +24,7 @@ func MetricsMW(ctx huma.Context, next func(huma.Context)) {
 	tid := tenant.FromContext(r.Context())
 	labels := prometheus.Labels{"tenant": tid, "method": r.Method, "path": normalizedPath, "status": strconv.Itoa(m.Code)}
 	metrics.APIRequests.With(labels).Inc()
-	metrics.APILatency.WithLabelValues(r.Method, normalizedPath).Observe(m.Duration.Seconds())
+	metrics.APILatency.WithLabelValues(tid, r.Method, normalizedPath).Observe(m.Duration.Seconds())
 }
 
 var idRe = regexp.MustCompile(`\d+`)

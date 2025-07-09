@@ -22,7 +22,7 @@ func ExtractTenant(api huma.API) func(huma.Context, func(huma.Context)) {
 			}
 		}
 		if tid == "" {
-			huma.WriteErr(api, ctx, 400, "tenant_id required")
+			huma.WriteErr(api, ctx, 400, "missing tenant identifier: set X-Tenant-ID header or tid claim")
 			return
 		}
 		r = r.WithContext(tenant.WithTenant(r.Context(), tid))
