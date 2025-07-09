@@ -52,9 +52,12 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 	var logs []schema.AuditLog
 	for rows.Next() {
 		var l schema.AuditLog
-		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &l.BeforeJSON, &l.AfterJSON, &l.AppliedAt); err != nil {
+		var before, after sql.NullString
+		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &before, &after, &l.AppliedAt); err != nil {
 			return nil, err
 		}
+		l.BeforeJSON = before
+		l.AfterJSON = after
 		logs = append(logs, l)
 	}
 	return &auditOutput{Body: logs}, nil
