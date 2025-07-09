@@ -48,17 +48,22 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 	var logs []schema.AuditLog
 	for rows.Next() {
 		var l schema.AuditLog
-		var before, after sql.NullString
-		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &before, &after, &l.AppliedAt); err != nil {
+		var beforeJSON, afterJSON sql.NullString
+		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &beforeJSON, &afterJSON, &l.AppliedAt); err != nil {
 			return nil, err
 		}
-		l.BeforeJSON = before
-		l.AfterJSON = after
+		l.BeforeJSON = beforeJSON
+		l.AfterJSON = afterJSON
 		logs = append(logs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return &auditOutput{Body: logs}, nil
 }
