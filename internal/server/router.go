@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,6 +18,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/events"
+	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
@@ -54,7 +54,8 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		log.Fatal("JWT_SECRET environment variable is not set. Application cannot start.")
+		logger.L.Error("JWT_SECRET environment variable is not set. Application cannot start.")
+		os.Exit(1)
 	}
 	m := model.NewModel()
 	m.AddDef("r", "r", "sub, obj, act")
@@ -64,7 +65,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	m.AddDef("m", "m", "g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && r.act == p.act")
 	e, err := casbin.NewEnforcer(m)
 	if err != nil {
-		log.Printf("casbin enforcer: %v", err)
+		logger.L.Error("casbin enforcer", "err", err)
 	} else {
 		e.AddPolicy("admin", "/v1/*", "GET")
 		e.AddPolicy("admin", "/v1/*", "POST")
@@ -72,7 +73,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		e.AddPolicy("admin", "/v1/*", "DELETE")
 		if db != nil {
 			if err := rbac.Load(context.Background(), db, e); err != nil {
-				log.Printf("load rbac: %v", err)
+				logger.L.Error("load rbac", "err", err)
 			}
 		}
 	}
@@ -96,7 +97,8 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 
 	evtConf, err := events.LoadConfig(os.Getenv("CF_EVENTS_CONFIG"))
 	if err != nil {
-		log.Fatalf("Failed to load events configuration: %v", err)
+		logger.L.Error("Failed to load events configuration", "err", err)
+		os.Exit(1)
 	}
 	var sinks []events.Sink
 	if wh := events.NewWebhookSink(evtConf.Sinks.Webhook); wh != nil {
@@ -105,19 +107,20 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	if rs, err := events.NewRedisSink(evtConf.Sinks.Redis); err == nil && rs != nil {
 		sinks = append(sinks, rs)
 	} else if err != nil {
-		log.Printf("redis sink: %v", err)
+		logger.L.Error("redis sink", "err", err)
 	}
 	if ks, err := events.NewKafkaSink(evtConf.Sinks.Kafka); err == nil && ks != nil {
 		sinks = append(sinks, ks)
 	} else if err != nil {
-		log.Printf("kafka sink: %v", err)
+		logger.L.Error("kafka sink", "err", err)
 	}
 	events.Default = events.NewDispatcher(evtConf, &events.SQLDLQ{DB: db, Driver: driver}, sinks...)
 	var mongoCli *mongo.Client
 	if driver == "mongo" && dsn != "" {
 		cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI(dsn))
 		if err != nil {
-			log.Fatal("Failed to connect to MongoDB: ", err)
+			logger.L.Error("Failed to connect to MongoDB", "err", err)
+			os.Exit(1)
 		}
 		mongoCli = cli
 	}
@@ -125,7 +128,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	schema := "public"
 	if driver == "mysql" {
 		if err := db.QueryRowContext(context.Background(), "SELECT DATABASE()").Scan(&schema); err != nil {
-			log.Printf("get schema: %v", err)
+			logger.L.Error("get schema", "err", err)
 		}
 	}
 

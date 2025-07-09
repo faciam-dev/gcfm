@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/faciam-dev/gcfm/internal/logger"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"golang.org/x/crypto/bcrypt"
@@ -55,17 +56,25 @@ func Register(api huma.API, h *Handler) {
 
 func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, error) {
 	u, err := h.Repo.GetByUsername(ctx, in.Body.Username)
-	if err != nil || u == nil {
+	if err != nil {
+		logger.L.Error("get user", "err", err)
+		return nil, huma.Error401Unauthorized("invalid credentials")
+	}
+	if u == nil {
+		logger.L.Info("user not found", "username", in.Body.Username)
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Body.Password)) != nil {
+		logger.L.Info("password mismatch", "username", in.Body.Username)
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 	tenantID := tenant.FromContext(ctx)
 	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID)
 	if err != nil {
+		logger.L.Error("generate token", "err", err)
 		return nil, err
 	}
+	logger.L.Info("user logged in", "userID", u.ID, "tenant", tenantID)
 	return &loginOutput{Body: tokenResponse{AccessToken: tok, ExpiresAt: time.Now().Add(h.JWT.exp)}}, nil
 }
 
