@@ -21,9 +21,18 @@ func NewJWT(secret string, exp time.Duration) *JWT {
 
 // Generate creates a signed token for the given user ID.
 func (j *JWT) Generate(userID uint64) (string, error) {
+	return j.GenerateWithTenant(userID, "")
+}
+
+// GenerateWithTenant creates a signed token for the given user ID and tenant ID.
+// If tenantID is empty, then the claim will be omitted.
+func (j *JWT) GenerateWithTenant(userID uint64, tenantID string) (string, error) {
 	claims := jwt.RegisteredClaims{
 		Subject:   strconv.FormatUint(userID, 10),
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.exp)),
+	}
+	if tenantID != "" {
+		claims.ID = tenantID
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(j.secret)
 }
