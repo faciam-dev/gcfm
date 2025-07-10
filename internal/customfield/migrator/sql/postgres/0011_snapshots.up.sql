@@ -1,4 +1,5 @@
-CREATE TABLE IF NOT EXISTS gcfm_registry_snapshots (
+DROP TABLE IF EXISTS gcfm_registry_snapshots;
+CREATE TABLE gcfm_registry_snapshots (
   tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
   id BIGSERIAL PRIMARY KEY,
   semver VARCHAR(32) NOT NULL,
