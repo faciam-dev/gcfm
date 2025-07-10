@@ -9,6 +9,7 @@ import "github.com/faciam-dev/gcfm/sdk"
 ## Index
 
 - [Variables](<#variables>)
+- [func UnifiedDiff\(a, b string\) string](<#UnifiedDiff>)
 - [type ApplyOptions](<#ApplyOptions>)
 - [type DBConfig](<#DBConfig>)
 - [type DiffReport](<#DiffReport>)
@@ -19,6 +20,8 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
 - [type ServiceConfig](<#ServiceConfig>)
+- [type Snapshot](<#Snapshot>)
+- [type SnapshotClient](<#SnapshotClient>)
 
 
 ## Variables
@@ -30,6 +33,15 @@ var (
     ErrValidatorNotFound = errors.New("validator not found")
 )
 ```
+
+<a name="UnifiedDiff"></a>
+## func [UnifiedDiff](<https://github.com/faciam-dev/gcfm/blob/main/sdk/diff.go#L6>)
+
+```go
+func UnifiedDiff(a, b string) string
+```
+
+UnifiedDiff returns a unified diff string of two inputs.
 
 <a name="ApplyOptions"></a>
 ## type [ApplyOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L67-L71>)
@@ -84,7 +96,7 @@ func CalculateDiff(changes []registry.Change) DiffReport
 CalculateDiff returns counts of added, deleted and updated changes.
 
 <a name="DisplayMeta"></a>
-## type [DisplayMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L7>)
+## type [DisplayMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L11>)
 
 
 
@@ -93,7 +105,7 @@ type DisplayMeta = registry.DisplayMeta
 ```
 
 <a name="DisplayOptions"></a>
-## type [DisplayOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L9>)
+## type [DisplayOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L13>)
 
 
 
@@ -102,7 +114,7 @@ type DisplayOptions = registry.DisplayOption
 ```
 
 <a name="FieldMeta"></a>
-## type [FieldMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L5>)
+## type [FieldMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L9>)
 
 
 
@@ -204,6 +216,34 @@ type ServiceConfig struct {
     DB              *sql.DB
     Driver          string
     Schema          string
+}
+```
+
+<a name="Snapshot"></a>
+## type [Snapshot](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L16-L21>)
+
+Snapshot describes a stored registry snapshot.
+
+```go
+type Snapshot struct {
+    ID      int64
+    Semver  string
+    TakenAt time.Time
+    Author  string
+}
+```
+
+<a name="SnapshotClient"></a>
+## type [SnapshotClient](<https://github.com/faciam-dev/gcfm/blob/main/sdk/snapshot_client.go#L6-L11>)
+
+SnapshotClient provides snapshot operations.
+
+```go
+type SnapshotClient interface {
+    List(ctx context.Context, tenant string) ([]Snapshot, error)
+    Create(ctx context.Context, tenant, bump, msg string) (Snapshot, error)
+    Apply(ctx context.Context, tenant, ver string) error
+    Diff(ctx context.Context, tenant, from, to string) (string, error)
 }
 ```
 

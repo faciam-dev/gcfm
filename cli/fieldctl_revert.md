@@ -1,9 +1,9 @@
-## fieldctl export
+## fieldctl revert
 
-Export registry to YAML
+Rollback to a snapshot
 
 ```
-fieldctl export [flags]
+fieldctl revert [flags]
 ```
 
 ### Options
@@ -11,10 +11,10 @@ fieldctl export [flags]
 ```
       --db string       database DSN
       --driver string   database driver (mysql|postgres|mongo)
-      --force           overwrite without confirmation
-  -h, --help            help for export
-      --out string      output file (default "registry.yaml")
+  -h, --help            help for revert
       --schema string   database schema
+      --tenant string   tenant id (default "default")
+      --to string       target snapshot version
 ```
 
 ### SEE ALSO

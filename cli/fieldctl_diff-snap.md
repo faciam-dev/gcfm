@@ -1,9 +1,9 @@
-## fieldctl export
+## fieldctl diff-snap
 
-Export registry to YAML
+Diff two snapshots
 
 ```
-fieldctl export [flags]
+fieldctl diff-snap [flags]
 ```
 
 ### Options
@@ -11,10 +11,11 @@ fieldctl export [flags]
 ```
       --db string       database DSN
       --driver string   database driver (mysql|postgres|mongo)
-      --force           overwrite without confirmation
-  -h, --help            help for export
-      --out string      output file (default "registry.yaml")
+      --from string     from version
+  -h, --help            help for diff-snap
       --schema string   database schema
+      --tenant string   tenant id (default "default")
+      --to string       to version
 ```
 
 ### SEE ALSO
