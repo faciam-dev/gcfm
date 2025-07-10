@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	"github.com/faciam-dev/gcfm/internal/auditlog"
 )
 
 type AuditHandler struct {
@@ -93,30 +93,29 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 }
 
 func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOutput, error) {
-	var query string
-	switch h.Driver {
-	case "mysql":
-		query = `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM gcfm_audit_logs WHERE id=?`
-	default:
-		query = `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM gcfm_audit_logs WHERE id=$1`
-	}
-	var rec schema.AuditLog
-	var beforeJSON, afterJSON sql.NullString
-	var appliedAt any
-	if err := h.DB.QueryRowContext(ctx, query, p.ID).Scan(&rec.ID, &rec.Actor, &rec.Action, &rec.TableName, &rec.ColumnName, &beforeJSON, &afterJSON, &appliedAt); err != nil {
+	repo := auditlog.Repo{DB: h.DB, Driver: h.Driver}
+	rec, err := repo.FindByID(ctx, p.ID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("not found")
 		}
 		return nil, err
 	}
-	t, err := ParseAuditTime(appliedAt)
+	t, err := ParseAuditTime(rec.AppliedAt)
 	if err != nil {
 		return nil, err
 	}
-	rec.AppliedAt = t
-	rec.BeforeJSON = beforeJSON
-	rec.AfterJSON = afterJSON
-	return &auditGetOutput{Body: rec}, nil
+	log := schema.AuditLog{
+		ID:         int(rec.ID),
+		Actor:      rec.Actor,
+		Action:     rec.Action,
+		TableName:  rec.TableName,
+		ColumnName: rec.ColumnName,
+		BeforeJSON: rec.BeforeJSON,
+		AfterJSON:  rec.AfterJSON,
+		AppliedAt:  t,
+	}
+	return &auditGetOutput{Body: log}, nil
 }
 
 // ParseAuditTime converts a value returned from the database into a time.Time.
@@ -131,7 +130,7 @@ func ParseAuditTime(v any) (time.Time, error) {
 	case string:
 		return parseAuditTimeString(t)
 	default:
-		return time.Time{}, fmt.Errorf("unsupported time type %T", v)
+		return time.Time{}, errors.New("unsupported time type")
 	}
 }
 
@@ -142,5 +141,5 @@ func parseAuditTimeString(s string) (time.Time, error) {
 			return ts, nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("cannot parse time %q", s)
+	return time.Time{}, errors.New("cannot parse time: " + s)
 }

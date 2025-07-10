@@ -81,6 +81,9 @@ func TestAuditLog_Get(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&log); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+	if log["id"] == nil || log["actor"] == nil || log["action"] == nil || log["tableName"] == nil {
+		t.Fatalf("missing fields in response: %v", log)
+	}
 	if log["beforeJson"] == nil || log["afterJson"] == nil {
 		t.Fatalf("expected beforeJson and afterJson, got %v", log)
 	}
