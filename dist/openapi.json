@@ -35,14 +35,8 @@
           "actor": {
             "type": "string"
           },
-          "afterJson": {
-            "type": "string"
-          },
           "appliedAt": {
             "format": "date-time",
-            "type": "string"
-          },
-          "beforeJson": {
             "type": "string"
           },
           "columnName": {
@@ -320,6 +314,109 @@
         ],
         "type": "object"
       },
+      "Policy": {
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "method"
+        ],
+        "type": "object"
+      },
+      "Role": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/Policy"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/Snapshot.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "semver": {
+            "type": "string"
+          },
+          "takenAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "semver",
+          "takenAt"
+        ],
+        "type": "object"
+      },
+      "SnapshotCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SnapshotCreateRequest.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "bump": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "semver": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SnapshotRequest": {
         "additionalProperties": false,
         "properties": {
@@ -380,6 +477,33 @@
         "required": [
           "access_token",
           "expires_at"
+        ],
+        "type": "object"
+      },
+      "User": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
         ],
         "type": "object"
       }
@@ -835,6 +959,43 @@
         ]
       }
     },
+    "/v1/roles": {
+      "get": {
+        "operationId": "listRoles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Role"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List roles",
+        "tags": [
+          "RBAC"
+        ]
+      }
+    },
     "/v1/snapshot": {
       "post": {
         "operationId": "createSnapshot",
@@ -866,6 +1027,164 @@
         "summary": "Create registry snapshot",
         "tags": [
           "Registry"
+        ]
+      }
+    },
+    "/v1/snapshots": {
+      "get": {
+        "operationId": "listSnapshots",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Snapshot"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List registry snapshots",
+        "tags": [
+          "Snapshot"
+        ]
+      },
+      "post": {
+        "operationId": "createSnapshotV2",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create registry snapshot",
+        "tags": [
+          "Snapshot"
+        ]
+      }
+    },
+    "/v1/snapshots/{ver}/diff/{other}": {
+      "get": {
+        "operationId": "diffSnapshots",
+        "parameters": [
+          {
+            "name": "ver",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "other",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {"text/plain": {"schema": {"type": "string"}}},
+            "description": "OK"
+          },
+          "default": {
+            "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/ErrorModel"}}},
+            "description": "Error"
+          }
+        },
+        "summary": "Diff two snapshots",
+        "tags": ["Snapshot"]
+      }
+    },
+    "/v1/snapshots/{ver}/apply": {
+      "post": {
+        "operationId": "applySnapshot",
+        "parameters": [
+          {"name": "ver", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "204": {"description": "No Content"},
+          "default": {"content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/ErrorModel"}}}, "description": "Error"}
+        },
+        "summary": "Apply registry snapshot",
+        "tags": ["Snapshot"]
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "operationId": "listUsers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List users",
+        "tags": [
+          "RBAC"
         ]
       }
     }

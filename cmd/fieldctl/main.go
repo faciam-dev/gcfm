@@ -63,6 +63,8 @@ func init() {
 	rootCmd.AddCommand(newGenerateCmd())
 	rootCmd.AddCommand(newGenDocsCmd())
 	rootCmd.AddCommand(newSnapshotCmd())
+	rootCmd.AddCommand(newRevertCmd())
+	rootCmd.AddCommand(newDiffSnapCmd())
 	rootCmd.AddCommand(newNotifierCmd())
 	rootCmd.AddCommand(newEventsCmd())
 	scanCmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")

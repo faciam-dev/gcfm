@@ -77,3 +77,24 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 	}
 	return err
 }
+
+// WriteAction inserts a generic audit log entry for high level actions like
+// snapshot creation or rollback. The diffSummary may be any short description
+// such as "+2 -0".
+func (r *Recorder) WriteAction(ctx context.Context, actor, action, targetVer, diffSummary string) error {
+	if r == nil || r.DB == nil {
+		return nil
+	}
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	if r.Driver == "postgres" {
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+	}
+	before := sql.NullString{Valid: diffSummary != "", String: diffSummary}
+	_, err := r.DB.ExecContext(ctx, q, actor, action, "registry", targetVer, before, sql.NullString{Valid: false})
+	if err == nil {
+		metrics.AuditEvents.WithLabelValues(action).Inc()
+	} else {
+		metrics.AuditErrors.WithLabelValues(action).Inc()
+	}
+	return err
+}

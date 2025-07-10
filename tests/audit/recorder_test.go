@@ -25,3 +25,18 @@ func TestRecorderWrite(t *testing.T) {
 		t.Fatalf("unmet: %v", err)
 	}
 }
+
+func TestRecorderWriteAction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	rec := &audit.Recorder{DB: db, Driver: "mysql"}
+	mock.ExpectExec("INSERT INTO gcfm_audit_logs").WithArgs("bob", "snapshot", "registry", "1.0.0", sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+	if err := rec.WriteAction(context.Background(), "bob", "snapshot", "1.0.0", "+1 -0"); err != nil {
+		t.Fatalf("write action: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}

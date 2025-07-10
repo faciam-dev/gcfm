@@ -78,6 +78,51 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 	return metas, nil
 }
 
+// LoadSQLByTenant is like LoadSQL but filters by tenant ID.
+func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant string) ([]FieldMeta, error) {
+	var query string
+	switch conf.Driver {
+	case "postgres":
+		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=$1 ORDER BY table_name, column_name`
+	default:
+		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? ORDER BY table_name, column_name"
+	}
+	rows, err := db.QueryContext(ctx, query, tenant)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	var metas []FieldMeta
+	for rows.Next() {
+		var m FieldMeta
+		var labelKey, widget, placeholderKey sql.NullString
+		var def, validator sql.NullString
+		var hasDefault bool
+		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &hasDefault, &def, &validator); err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		if labelKey.Valid || widget.Valid || placeholderKey.Valid {
+			m.Display = &DisplayMeta{LabelKey: labelKey.String, Widget: widget.String, PlaceholderKey: placeholderKey.String}
+		}
+		m.HasDefault = hasDefault
+		if def.Valid {
+			val := def.String
+			m.Default = &val
+		} else {
+			m.Default = nil
+		}
+		if validator.Valid {
+			m.Validator = validator.String
+		}
+		metas = append(metas, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+	return metas, nil
+}
+
 func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta) error {
 	if len(metas) == 0 {
 		return nil
