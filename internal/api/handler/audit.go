@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,6 +26,14 @@ type auditOutput struct {
 	Body []schema.AuditLog
 }
 
+type auditGetParams struct {
+	ID int64 `path:"id"`
+}
+
+type auditGetOutput struct {
+	Body schema.AuditLog
+}
+
 func RegisterAudit(api huma.API, h *AuditHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listAuditLogs",
@@ -33,6 +42,14 @@ func RegisterAudit(api huma.API, h *AuditHandler) {
 		Summary:     "List audit logs",
 		Tags:        []string{"Audit"},
 	}, h.list)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getAuditLogByID",
+		Method:      http.MethodGet,
+		Path:        "/v1/audit-logs/{id}",
+		Summary:     "Get audit log by ID",
+		Tags:        []string{"Audit"},
+	}, h.get)
 }
 
 func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, error) {
@@ -73,6 +90,33 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 		return nil, err
 	}
 	return &auditOutput{Body: logs}, nil
+}
+
+func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOutput, error) {
+	var query string
+	switch h.Driver {
+	case "mysql":
+		query = `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM gcfm_audit_logs WHERE id=?`
+	default:
+		query = `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM gcfm_audit_logs WHERE id=$1`
+	}
+	var rec schema.AuditLog
+	var beforeJSON, afterJSON sql.NullString
+	var appliedAt any
+	if err := h.DB.QueryRowContext(ctx, query, p.ID).Scan(&rec.ID, &rec.Actor, &rec.Action, &rec.TableName, &rec.ColumnName, &beforeJSON, &afterJSON, &appliedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("not found")
+		}
+		return nil, err
+	}
+	t, err := ParseAuditTime(appliedAt)
+	if err != nil {
+		return nil, err
+	}
+	rec.AppliedAt = t
+	rec.BeforeJSON = beforeJSON
+	rec.AfterJSON = afterJSON
+	return &auditGetOutput{Body: rec}, nil
 }
 
 // ParseAuditTime converts a value returned from the database into a time.Time.
