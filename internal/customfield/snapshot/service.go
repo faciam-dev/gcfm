@@ -12,7 +12,7 @@ import (
 
 // SnapshotYaml dumps registry metadata as YAML using the provided DB connection.
 func SnapshotYaml(ctx context.Context, db *sql.DB, driver, tenant string) ([]byte, error) {
-	metas, err := registry.LoadSQL(ctx, db, registry.DBConfig{Schema: "public", Driver: driver})
+	metas, err := registry.LoadSQLByTenant(ctx, db, registry.DBConfig{Schema: "public", Driver: driver}, tenant)
 	if err != nil {
 		return nil, err
 	}

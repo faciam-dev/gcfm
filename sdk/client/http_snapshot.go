@@ -14,8 +14,12 @@ type snapshotHTTP struct {
 	http *resty.Client
 }
 
+// Option allows customizing the underlying HTTP client.
+// SnapOption allows customizing the underlying HTTP client.
+type SnapOption func(*httpClient)
+
 // NewHTTPSnapshot returns a SnapshotClient for HTTP servers.
-func NewHTTPSnapshot(base string, opts ...Option) sdk.SnapshotClient {
+func NewHTTPSnapshot(base string, opts ...SnapOption) sdk.SnapshotClient {
 	tmp := &httpClient{base: base, http: resty.New()}
 	for _, o := range opts {
 		o(tmp)

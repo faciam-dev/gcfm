@@ -12,6 +12,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -75,7 +76,8 @@ func RegisterSnapshot(api huma.API, h *SnapshotHandler) {
 }
 
 func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*snapshotListOutput, error) {
-	recs, err := snapshot.List(ctx, h.DB, h.Driver, "default", 20)
+	tid := tenant.FromContext(ctx)
+	recs, err := snapshot.List(ctx, h.DB, h.Driver, tid, 20)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +89,7 @@ func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*sna
 }
 
 func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (*snapshotCreateOutput, error) {
+	tid := tenant.FromContext(ctx)
 	svc := sdk.New(sdk.ServiceConfig{Recorder: h.Recorder})
 	data, err := svc.Export(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"})
 	if err != nil {
@@ -96,7 +99,7 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if err != nil {
 		return nil, err
 	}
-	last, err := snapshot.LatestSemver(ctx, h.DB, h.Driver, "default")
+	last, err := snapshot.LatestSemver(ctx, h.DB, h.Driver, tid)
 	if err != nil {
 		return nil, err
 	}
@@ -108,14 +111,14 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if ver == "" {
 		ver = snapshot.NextSemver(last, bump)
 	}
-	rec, err := snapshot.Insert(ctx, h.DB, h.Driver, "default", ver, "", comp)
+	rec, err := snapshot.Insert(ctx, h.DB, h.Driver, tid, ver, "", comp)
 	if err != nil {
 		return nil, err
 	}
 	// audit log diff against previous snapshot
 	var summary string
 	if last != "0.0.0" {
-		prev, err := snapshot.Get(ctx, h.DB, h.Driver, "default", last)
+		prev, err := snapshot.Get(ctx, h.DB, h.Driver, tid, last)
 		if err == nil {
 			prevY, _ := snapshot.Decode(prev.YAML)
 			ch, err := snapshot.DiffYaml(prevY, data)
@@ -131,11 +134,12 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 }
 
 func (h *SnapshotHandler) diff(ctx context.Context, p *snapshotDiffParams) (*snapshotDiffOutput, error) {
-	a, err := snapshot.Get(ctx, h.DB, h.Driver, "default", p.Ver)
+	tid := tenant.FromContext(ctx)
+	a, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
 	if err != nil {
 		return nil, err
 	}
-	b, err := snapshot.Get(ctx, h.DB, h.Driver, "default", p.Other)
+	b, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Other)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +150,8 @@ func (h *SnapshotHandler) diff(ctx context.Context, p *snapshotDiffParams) (*sna
 }
 
 func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*struct{}, error) {
-	rec, err := snapshot.Get(ctx, h.DB, h.Driver, "default", p.Ver)
+	tid := tenant.FromContext(ctx)
+	rec, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +159,7 @@ func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*s
 	if err != nil {
 		return nil, err
 	}
-	current, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, "default")
+	current, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, tid)
 	if err != nil {
 		return nil, err
 	}

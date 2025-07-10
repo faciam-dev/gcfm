@@ -1,7 +1,8 @@
 package sdk
 
 import (
-	"github.com/faciam-dev/gcfm/internal/api/schema"
+	"time"
+
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 )
 
@@ -11,4 +12,10 @@ type DisplayMeta = registry.DisplayMeta
 
 type DisplayOptions = registry.DisplayOption
 
-type Snapshot = schema.Snapshot
+// Snapshot describes a stored registry snapshot.
+type Snapshot struct {
+	ID      int64
+	Semver  string
+	TakenAt time.Time
+	Author  string
+}
