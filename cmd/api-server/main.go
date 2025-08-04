@@ -15,6 +15,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server"
+	"github.com/faciam-dev/gcfm/pkg/crypto"
 	"github.com/go-co-op/gocron"
 )
 
@@ -26,6 +27,11 @@ func main() {
 	flag.Parse()
 
 	logger.Set(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
+	if err := crypto.CheckEnv(); err != nil {
+		logger.L.Error("crypto key", "err", err)
+		os.Exit(1)
+	}
 
 	var db *sql.DB
 	var err error

@@ -4,21 +4,31 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 )
 
+// ErrKeyNotSet is returned when CF_ENC_KEY is missing.
+var ErrKeyNotSet = errors.New("CF_ENC_KEY not set")
+
 func keyBytes() ([]byte, error) {
 	k := os.Getenv("CF_ENC_KEY")
 	if len(k) == 0 {
-		return nil, fmt.Errorf("CF_ENC_KEY not set")
+		return nil, ErrKeyNotSet
 	}
 	b := []byte(k)
 	if l := len(b); l != 16 && l != 24 && l != 32 {
 		return nil, fmt.Errorf("invalid key length %d", l)
 	}
 	return b, nil
+}
+
+// CheckEnv validates that CF_ENC_KEY is set and a valid length.
+func CheckEnv() error {
+	_, err := keyBytes()
+	return err
 }
 
 // Encrypt encrypts plaintext using AES-GCM with key from CF_ENC_KEY.

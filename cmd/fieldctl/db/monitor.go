@@ -16,6 +16,9 @@ func NewAddMonCmd() *cobra.Command {
 	var f DBFlags
 	var name, driver, dsn, tenant string
 	cmd := &cobra.Command{Use: "add", Short: "Add monitored database", RunE: func(cmd *cobra.Command, args []string) error {
+		if err := crypto.CheckEnv(); err != nil {
+			return err
+		}
 		db, err := sql.Open(f.Driver, f.DSN)
 		if err != nil {
 			return err

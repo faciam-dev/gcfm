@@ -21,3 +21,10 @@ func TestEncryptDecrypt(t *testing.T) {
 		t.Fatalf("round trip mismatch: %q != %q", dec, plain)
 	}
 }
+
+func TestCheckEnvMissing(t *testing.T) {
+	os.Unsetenv("CF_ENC_KEY")
+	if err := CheckEnv(); err == nil {
+		t.Fatal("expected error when key missing")
+	}
+}

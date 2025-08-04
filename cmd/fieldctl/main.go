@@ -11,6 +11,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/crypto"
 	"github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -30,6 +31,9 @@ var scanCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 		if scanDBID != 0 {
+			if err := crypto.CheckEnv(); err != nil {
+				return err
+			}
 			db, err := sql.Open(driverFlag, dbDSN)
 			if err != nil {
 				return err

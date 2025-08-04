@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -64,6 +65,9 @@ func (h *DatabaseHandler) create(ctx context.Context, in *createDBInput) (*creat
 	tid := tenant.FromContext(ctx)
 	enc, err := crypto.Encrypt([]byte(in.Body.DSN))
 	if err != nil {
+		if errors.Is(err, crypto.ErrKeyNotSet) {
+			return nil, huma.NewError(http.StatusInternalServerError, err.Error())
+		}
 		return nil, err
 	}
 	id, err := h.Repo.Create(ctx, monitordb.Database{TenantID: tid, Name: in.Body.Name, Driver: in.Body.Driver, DSNEnc: enc})
