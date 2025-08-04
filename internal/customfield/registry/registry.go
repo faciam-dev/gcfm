@@ -170,28 +170,29 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	return nil
 }
 
-// UpsertSQLByTenant inserts or updates fields for a specific tenant.
-func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, metas []FieldMeta) error {
+// UpsertSQLByTenant inserts or updates fields for a specific tenant and
+// returns the number of inserted and updated rows.
+func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, metas []FieldMeta) (inserted, updated int, err error) {
 	if len(metas) == 0 {
-		return nil
+		return 0, 0, nil
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return 0, 0, fmt.Errorf("begin tx: %w", err)
 	}
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`)
+		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`)
 	case "mysql":
 		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
 	default:
 		tx.Rollback()
-		return fmt.Errorf("unsupported driver: %s", driver)
+		return 0, 0, fmt.Errorf("unsupported driver: %s", driver)
 	}
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("prepare: %w", err)
+		return 0, 0, fmt.Errorf("prepare: %w", err)
 	}
 	defer stmt.Close()
 
@@ -206,15 +207,36 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 		if m.Default != nil {
 			def = *m.Default
 		}
-		if _, err := stmt.ExecContext(ctx, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("exec: %w", err)
+		switch driver {
+		case "postgres":
+			var isInsert bool
+			if err := stmt.QueryRowContext(ctx, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator).Scan(&isInsert); err != nil {
+				tx.Rollback()
+				return 0, 0, fmt.Errorf("exec: %w", err)
+			}
+			if isInsert {
+				inserted++
+			} else {
+				updated++
+			}
+		case "mysql":
+			res, err := stmt.ExecContext(ctx, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator)
+			if err != nil {
+				tx.Rollback()
+				return 0, 0, fmt.Errorf("exec: %w", err)
+			}
+			ra, _ := res.RowsAffected()
+			if ra == 1 {
+				inserted++
+			} else {
+				updated++
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
+		return 0, 0, fmt.Errorf("commit: %w", err)
 	}
-	return nil
+	return inserted, updated, nil
 }
 
 func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta) error {

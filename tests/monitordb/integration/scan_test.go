@@ -7,6 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -14,6 +17,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
+	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
 )
 
@@ -62,7 +66,7 @@ func TestAddAndScan(t *testing.T) {
 		t.Fatalf("create repo: %v", err)
 	}
 
-	if err := monitordb.ScanDatabase(ctx, repo, id, "t1"); err != nil {
+	if _, _, _, _, err := monitordb.ScanDatabase(ctx, repo, id, "t1"); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	var cnt int
@@ -71,5 +75,60 @@ func TestAddAndScan(t *testing.T) {
 	}
 	if cnt == 0 {
 		t.Fatalf("expected custom fields")
+	}
+}
+
+func TestScanErrorsAndSkip(t *testing.T) {
+	os.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
+	ctx := context.Background()
+	central, err := postgres.Run(ctx, "postgres:16", postgres.WithDatabase("core"), postgres.WithUsername("user"), postgres.WithPassword("pass"))
+	if err != nil {
+		t.Skipf("central: %v", err)
+	}
+	defer central.Terminate(ctx)
+	remote, err := postgres.Run(ctx, "postgres:16", postgres.WithDatabase("target"), postgres.WithUsername("user"), postgres.WithPassword("pass"))
+	if err != nil {
+		t.Skipf("remote: %v", err)
+	}
+	defer remote.Terminate(ctx)
+	centralDSN, _ := central.ConnectionString(ctx)
+	centralDB, _ := sql.Open("postgres", centralDSN)
+	defer centralDB.Close()
+	mig := migrator.NewWithDriver("postgres")
+	if err := mig.Up(ctx, centralDB, 12); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres"}
+	// permission error
+	remoteDSN, _ := remote.ConnectionString(ctx)
+	wrongDSN := strings.Replace(remoteDSN, "pass", "bad", 1)
+	encWrong, _ := crypto.Encrypt([]byte(wrongDSN))
+	id, err := repo.Create(ctx, monitordb.Database{TenantID: "t1", Name: "bad", Driver: "postgres", DSNEnc: encWrong})
+	if err != nil {
+		t.Fatalf("create bad: %v", err)
+	}
+	if _, _, _, _, err := monitordb.ScanDatabase(ctx, repo, id, "t1"); err == nil {
+		t.Fatalf("expected error for bad credentials")
+	}
+	// reserved table skip
+	remoteDB, _ := sql.Open("postgres", remoteDSN)
+	defer remoteDB.Close()
+	if _, err := remoteDB.ExecContext(ctx, `CREATE TABLE gcfm_users(id SERIAL PRIMARY KEY)`); err != nil {
+		t.Fatalf("create reserved: %v", err)
+	}
+	enc, _ := crypto.Encrypt([]byte(remoteDSN))
+	rid, err := repo.Create(ctx, monitordb.Database{TenantID: "t1", Name: "res", Driver: "postgres", DSNEnc: enc})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	_, file, _, _ := runtime.Caller(0)
+	base := filepath.Join(filepath.Dir(file), "..", "..", "..")
+	reserved.Load(filepath.Join(base, "configs", "default.yaml"))
+	_, ins, _, skipped, err := monitordb.ScanDatabase(ctx, repo, rid, "t1")
+	if err != nil {
+		t.Fatalf("scan reserved: %v", err)
+	}
+	if ins != 0 || len(skipped) == 0 {
+		t.Fatalf("expected skip for reserved table")
 	}
 }

@@ -139,7 +139,7 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
-	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}})
+	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}, Recorder: rec})
 	if db != nil {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver})
 	}

@@ -22,6 +22,13 @@ Use `--dry-run` to print the discovered fields without inserting:
 fieldctl scan --db "user:pass@tcp(localhost:3306)/testdb" --schema testdb --dry-run
 ```
 
+Scan a monitored database by ID with verbose output:
+
+```bash
+fieldctl scan --db-id prod -v --db "postgres://user:pass@localhost:5432/core" --schema public --driver postgres
+# INSERT 8  UPDATE 2  SKIP 3 (reserved)
+```
+
 ## registry YAML
 
 `registry.yaml` describes custom field metadata.
