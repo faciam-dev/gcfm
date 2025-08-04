@@ -36,8 +36,14 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 	}
 
 	// insert the zero row if not present
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s(version, semver) VALUES(0,'0.0.0')`, tbl)); err != nil && !isDuplicateEntryErr(err) {
-		return err
+	stmt := fmt.Sprintf(`INSERT INTO %s(version, semver) VALUES(0,'0.0.0') ON CONFLICT (version) DO NOTHING`, tbl)
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		if isSyntaxErr(err) {
+			_, err = db.ExecContext(ctx, fmt.Sprintf(`INSERT IGNORE INTO %s(version, semver) VALUES(0,'0.0.0')`, tbl))
+		}
+		if err != nil && !isDuplicateEntryErr(err) {
+			return err
+		}
 	}
 	return nil
 }
