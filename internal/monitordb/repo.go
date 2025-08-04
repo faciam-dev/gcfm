@@ -3,6 +3,7 @@ package monitordb
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -61,13 +62,17 @@ func (r *Repo) List(ctx context.Context, tenant string) ([]Database, error) {
 	var res []Database
 	for rows.Next() {
 		var (
-			d Database
-			t sql.NullTime
+			d  Database
+			ct any
 		)
-		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &t); err != nil {
+		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &ct); err != nil {
 			return nil, err
 		}
-		d.CreatedAt = t.Time
+		t, err := parseSQLTime(ct)
+		if err != nil {
+			return nil, fmt.Errorf("parse created_at: %w", err)
+		}
+		d.CreatedAt = t
 		res = append(res, d)
 	}
 	return res, rows.Err()
@@ -83,13 +88,17 @@ func (r *Repo) ListAll(ctx context.Context) ([]Database, error) {
 	var res []Database
 	for rows.Next() {
 		var (
-			d Database
-			t sql.NullTime
+			d  Database
+			ct any
 		)
-		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &t); err != nil {
+		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &ct); err != nil {
 			return nil, err
 		}
-		d.CreatedAt = t.Time
+		t, err := parseSQLTime(ct)
+		if err != nil {
+			return nil, fmt.Errorf("parse created_at: %w", err)
+		}
+		d.CreatedAt = t
 		res = append(res, d)
 	}
 	return res, rows.Err()
@@ -102,13 +111,17 @@ func (r *Repo) Get(ctx context.Context, tenant string, id int64) (Database, erro
 		q = `SELECT id, tenant_id, name, driver, dsn_enc, created_at FROM monitored_databases WHERE tenant_id=$1 AND id=$2`
 	}
 	var (
-		d Database
-		t sql.NullTime
+		d  Database
+		ct any
 	)
-	if err := r.DB.QueryRowContext(ctx, q, tenant, id).Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &t); err != nil {
+	if err := r.DB.QueryRowContext(ctx, q, tenant, id).Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &ct); err != nil {
 		return d, err
 	}
-	d.CreatedAt = t.Time
+	t, err := parseSQLTime(ct)
+	if err != nil {
+		return d, fmt.Errorf("parse created_at: %w", err)
+	}
+	d.CreatedAt = t
 	return d, nil
 }
 
