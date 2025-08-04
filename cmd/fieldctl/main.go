@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -19,6 +21,7 @@ var (
 	schema     string
 	dryRun     bool
 	driverFlag string
+	scanDBID   int64
 )
 
 var scanCmd = &cobra.Command{
@@ -26,6 +29,15 @@ var scanCmd = &cobra.Command{
 	Short: "Scan schema and register metadata",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+		if scanDBID != 0 {
+			db, err := sql.Open(driverFlag, dbDSN)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			repo := &monitordb.Repo{DB: db, Driver: driverFlag}
+			return monitordb.ScanDatabase(ctx, repo, scanDBID, "default")
+		}
 		svc := sdk.New(sdk.ServiceConfig{})
 		metas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema})
 		if err != nil {
@@ -71,6 +83,7 @@ func init() {
 	scanCmd.Flags().StringVar(&schema, "schema", "", "database schema")
 	scanCmd.Flags().BoolVar(&dryRun, "dry-run", false, "print fields without upsert")
 	scanCmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
+	scanCmd.Flags().Int64Var(&scanDBID, "db-id", 0, "monitored database id")
 	scanCmd.MarkFlagRequired("db")
 	scanCmd.MarkFlagRequired("schema")
 }

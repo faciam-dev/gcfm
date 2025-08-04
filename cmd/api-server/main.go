@@ -1,17 +1,21 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"flag"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	_ "github.com/lib/pq"
 
 	"github.com/faciam-dev/gcfm/internal/logger"
+	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server"
+	"github.com/go-co-op/gocron"
 )
 
 func main() {
@@ -35,6 +39,19 @@ func main() {
 	}
 
 	api := server.New(db, *driver, *dsn)
+
+	if db != nil {
+		repo := &monitordb.Repo{DB: db, Driver: *driver}
+		s := gocron.NewScheduler(time.UTC)
+		s.Cron("0 3 * * *").Do(func() {
+			ctx := context.Background()
+			dbs, err := repo.ListAll(ctx)
+			if err == nil {
+				monitordb.ScanAll(ctx, repo, dbs)
+			}
+		})
+		s.StartAsync()
+	}
 
 	if *openapi != "" {
 		data, err := json.MarshalIndent(api.OpenAPI(), "", "  ")
