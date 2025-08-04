@@ -7,3 +7,4 @@ reserved_tables:
   - '^gcfm_roles'
   - '^gcfm_user_'
   - '^gcfm_users'
+  - '^monitored_databases'
