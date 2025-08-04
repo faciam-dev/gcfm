@@ -15,7 +15,7 @@ type stubService struct {
 	deleted bool
 }
 
-func (s *stubService) ListCustomFields(ctx context.Context, table string) ([]sdk.FieldMeta, error) {
+func (s *stubService) ListCustomFields(ctx context.Context, dbID int64, table string) ([]sdk.FieldMeta, error) {
 	s.listed = true
 	return []sdk.FieldMeta{{TableName: "t", ColumnName: "c", DataType: "text"}}, nil
 }
@@ -45,7 +45,7 @@ func TestLocalClientDelegates(t *testing.T) {
 	if c.Mode() != "local" {
 		t.Fatalf("mode %s", c.Mode())
 	}
-	if _, err := c.List(context.Background(), ""); err != nil || !svc.listed {
+	if _, err := c.List(context.Background(), 1, ""); err != nil || !svc.listed {
 		t.Fatalf("list")
 	}
 	if err := c.Create(context.Background(), sdk.FieldMeta{}); err != nil || !svc.created {

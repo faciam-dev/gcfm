@@ -15,6 +15,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/events"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"time"
@@ -37,6 +38,7 @@ type createOutput struct {
 }
 
 type listParams struct {
+	DBID  int64  `query:"db_id,required"`
 	Table string `query:"table"`
 }
 
@@ -94,6 +96,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", in.Body.Table))
 	}
 	meta := registry.FieldMeta{
+		DBID:       1,
 		TableName:  in.Body.Table,
 		ColumnName: in.Body.Column,
 		DataType:   in.Body.Type,
@@ -145,11 +148,12 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 func (h *CustomFieldHandler) list(ctx context.Context, in *listParams) (*listOutput, error) {
 	var metas []registry.FieldMeta
 	var err error
+	tenantID := tenant.FromContext(ctx)
 	switch h.Driver {
 	case "mongo":
 		metas, err = registry.LoadMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema})
 	default:
-		metas, err = registry.LoadSQL(ctx, h.DB, registry.DBConfig{Driver: h.Driver, Schema: h.Schema})
+		metas, err = registry.LoadSQLByDB(ctx, h.DB, registry.DBConfig{Driver: h.Driver, Schema: h.Schema}, tenantID, in.DBID)
 	}
 	if err != nil {
 		return nil, err
@@ -205,9 +209,9 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		var query string
 		switch h.Driver {
 		case "postgres":
-			query = `SELECT data_type FROM gcfm_custom_fields WHERE table_name=$1 AND column_name=$2`
+			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=1 AND table_name=$1 AND column_name=$2`
 		case "mysql":
-			query = `SELECT data_type FROM gcfm_custom_fields WHERE table_name=? AND column_name=?`
+			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=1 AND table_name=? AND column_name=?`
 		default:
 			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
 		}
@@ -235,7 +239,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
+	meta := registry.FieldMeta{DBID: 1, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
@@ -295,7 +299,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	meta := registry.FieldMeta{TableName: table, ColumnName: column}
+	meta := registry.FieldMeta{DBID: 1, TableName: table, ColumnName: column}
 	oldMeta, err := h.getField(ctx, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)

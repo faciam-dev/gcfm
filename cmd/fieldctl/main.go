@@ -27,6 +27,7 @@ func init() {
 	rootCmd.AddCommand(newDiffSnapCmd())
 	rootCmd.AddCommand(newNotifierCmd())
 	rootCmd.AddCommand(newEventsCmd())
+	rootCmd.AddCommand(newListFieldsCmd())
 }
 
 // detectDriver returns the driver name based on the DSN scheme.

@@ -54,6 +54,7 @@ func ScanDatabase(ctx context.Context, repo *Repo, id int64, tenant string) (tab
 				continue
 			}
 		}
+		m.DBID = id
 		filtered = append(filtered, m)
 	}
 	tables = len(tblSet)

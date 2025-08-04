@@ -18,6 +18,7 @@ type DBConfig struct {
 }
 
 type FieldMeta struct {
+	DBID        int64        `yaml:"dbId" json:"dbId"`
 	TableName   string       `yaml:"table"`
 	ColumnName  string       `yaml:"column"`
 	DataType    string       `yaml:"type"`
@@ -38,9 +39,9 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 	var query string
 	switch conf.Driver {
 	case "postgres":
-		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name`
+		query = `SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name`
 	default:
-		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name"
+		query = "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name"
 	}
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
@@ -54,7 +55,7 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 		var labelKey, widget, placeholderKey sql.NullString
 		var def, validator sql.NullString
 		var hasDefault bool
-		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &hasDefault, &def, &validator); err != nil {
+		if err := rows.Scan(&m.DBID, &m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &hasDefault, &def, &validator); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
 		if labelKey.Valid || widget.Valid || placeholderKey.Valid {
@@ -83,9 +84,9 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 	var query string
 	switch conf.Driver {
 	case "postgres":
-		query = `SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=$1 ORDER BY table_name, column_name`
+		query = `SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=$1 ORDER BY table_name, column_name`
 	default:
-		query = "SELECT table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? ORDER BY table_name, column_name"
+		query = "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? ORDER BY table_name, column_name"
 	}
 	rows, err := db.QueryContext(ctx, query, tenant)
 	if err != nil {
@@ -99,7 +100,7 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 		var labelKey, widget, placeholderKey sql.NullString
 		var def, validator sql.NullString
 		var hasDefault bool
-		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &hasDefault, &def, &validator); err != nil {
+		if err := rows.Scan(&m.DBID, &m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &hasDefault, &def, &validator); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
 		if labelKey.Valid || widget.Valid || placeholderKey.Valid {
@@ -111,6 +112,49 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 			m.Default = &val
 		} else {
 			m.Default = nil
+		}
+		if validator.Valid {
+			m.Validator = validator.String
+		}
+		metas = append(metas, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+	return metas, nil
+}
+
+// LoadSQLByDB filters by tenant and database ID.
+func LoadSQLByDB(ctx context.Context, db *sql.DB, conf DBConfig, tenant string, dbID int64) ([]FieldMeta, error) {
+	var query string
+	switch conf.Driver {
+	case "postgres":
+		query = `SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=$1 AND db_id=$2 ORDER BY table_name, column_name`
+	default:
+		query = "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? AND db_id=? ORDER BY table_name, column_name"
+	}
+	rows, err := db.QueryContext(ctx, query, tenant, dbID)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	var metas []FieldMeta
+	for rows.Next() {
+		var m FieldMeta
+		var labelKey, widget, placeholderKey sql.NullString
+		var def, validator sql.NullString
+		var hasDefault bool
+		if err := rows.Scan(&m.DBID, &m.TableName, &m.ColumnName, &m.DataType, &labelKey, &widget, &placeholderKey, &m.Nullable, &m.Unique, &hasDefault, &def, &validator); err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		if labelKey.Valid || widget.Valid || placeholderKey.Valid {
+			m.Display = &DisplayMeta{LabelKey: labelKey.String, Widget: widget.String, PlaceholderKey: placeholderKey.String}
+		}
+		m.HasDefault = hasDefault
+		if def.Valid {
+			val := def.String
+			m.Default = &val
 		}
 		if validator.Valid {
 			m.Validator = validator.String
@@ -135,9 +179,9 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, NOW(), NOW()) ON CONFLICT (table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`)
+		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
+		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)
@@ -159,7 +203,11 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 		if m.Default != nil {
 			def = *m.Default
 		}
-		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
+		dbid := m.DBID
+		if dbid == 0 {
+			dbid = 1
+		}
+		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
 		}
@@ -183,9 +231,9 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`)
+		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
+		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
 	default:
 		tx.Rollback()
 		return 0, 0, fmt.Errorf("unsupported driver: %s", driver)
@@ -207,10 +255,14 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 		if m.Default != nil {
 			def = *m.Default
 		}
+		dbid := m.DBID
+		if dbid == 0 {
+			dbid = 1
+		}
 		switch driver {
 		case "postgres":
 			var isInsert bool
-			if err := stmt.QueryRowContext(ctx, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator).Scan(&isInsert); err != nil {
+			if err := stmt.QueryRowContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator).Scan(&isInsert); err != nil {
 				tx.Rollback()
 				return 0, 0, fmt.Errorf("exec: %w", err)
 			}
@@ -220,7 +272,7 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 				updated++
 			}
 		case "mysql":
-			res, err := stmt.ExecContext(ctx, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator)
+			res, err := stmt.ExecContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator)
 			if err != nil {
 				tx.Rollback()
 				return 0, 0, fmt.Errorf("exec: %w", err)
@@ -250,9 +302,9 @@ func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE table_name = $1 AND column_name = $2`)
+		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE db_id = $1 AND table_name = $2 AND column_name = $3`)
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE table_name = ? AND column_name = ?`)
+		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE db_id = ? AND table_name = ? AND column_name = ?`)
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)
@@ -263,7 +315,11 @@ func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	}
 	defer stmt.Close()
 	for _, m := range metas {
-		if _, err := stmt.ExecContext(ctx, m.TableName, m.ColumnName); err != nil {
+		dbid := m.DBID
+		if dbid == 0 {
+			dbid = 1
+		}
+		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
 		}

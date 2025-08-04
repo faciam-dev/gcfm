@@ -69,6 +69,11 @@ func newDiffCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			for i := range yamlMetas {
+				if yamlMetas[i].DBID == 0 {
+					yamlMetas[i].DBID = 1
+				}
+			}
 			svc := sdk.New(sdk.ServiceConfig{})
 			dbMetas, err := svc.Scan(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: prefix})
 			if err != nil {

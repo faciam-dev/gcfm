@@ -19,6 +19,10 @@ func TestHTTPClient(t *testing.T) {
 	mux.HandleFunc("/v1/custom-fields", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
+			if r.URL.Query().Get("db_id") == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 			_ = json.NewEncoder(w).Encode([]sdk.FieldMeta{{TableName: "t", ColumnName: "c"}})
 		case http.MethodPost:
 			rec.create = true
@@ -41,7 +45,7 @@ func TestHTTPClient(t *testing.T) {
 	if c.Mode() != "http" {
 		t.Fatalf("mode %s", c.Mode())
 	}
-	if _, err := c.List(context.Background(), ""); err != nil {
+	if _, err := c.List(context.Background(), 1, ""); err != nil {
 		t.Fatalf("list %v", err)
 	}
 	if err := c.Create(context.Background(), sdk.FieldMeta{TableName: "t", ColumnName: "c"}); err != nil {

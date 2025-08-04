@@ -690,6 +690,15 @@
           {
             "explode": false,
             "in": "query",
+            "name": "db_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
             "name": "table",
             "schema": {
               "type": "string"

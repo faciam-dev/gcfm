@@ -48,7 +48,7 @@ func TestAddAndScan(t *testing.T) {
 	defer remoteDB.Close()
 
 	mig := migrator.NewWithDriver("postgres")
-	if err := mig.Up(ctx, centralDB, 12); err != nil {
+	if err := mig.Up(ctx, centralDB, 13); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -70,7 +70,7 @@ func TestAddAndScan(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 	var cnt int
-	if err := centralDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id='t1'`).Scan(&cnt); err != nil {
+	if err := centralDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id='t1' AND db_id=$1`, id).Scan(&cnt); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if cnt == 0 {
@@ -95,7 +95,7 @@ func TestScanErrorsAndSkip(t *testing.T) {
 	centralDB, _ := sql.Open("postgres", centralDSN)
 	defer centralDB.Close()
 	mig := migrator.NewWithDriver("postgres")
-	if err := mig.Up(ctx, centralDB, 12); err != nil {
+	if err := mig.Up(ctx, centralDB, 13); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres"}
