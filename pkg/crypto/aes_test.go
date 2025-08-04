@@ -2,12 +2,11 @@ package crypto
 
 import (
 	"bytes"
-	"os"
 	"testing"
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-	os.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
 	plain := []byte("secret dsn")
 	enc, err := Encrypt(plain)
 	if err != nil {
@@ -23,7 +22,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestCheckEnvMissing(t *testing.T) {
-	os.Unsetenv("CF_ENC_KEY")
+	t.Setenv("CF_ENC_KEY", "")
 	if err := CheckEnv(); err == nil {
 		t.Fatal("expected error when key missing")
 	}

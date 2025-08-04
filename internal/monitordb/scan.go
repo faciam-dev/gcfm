@@ -2,6 +2,7 @@ package monitordb
 
 import (
 	"context"
+	"log"
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 
@@ -47,6 +48,8 @@ func schemaFromDSN(driver, dsn string) string {
 // helper for scanning multiple databases
 func ScanAll(ctx context.Context, repo *Repo, dbs []Database) {
 	for _, d := range dbs {
-		_ = ScanDatabase(ctx, repo, d.ID, d.TenantID)
+		if err := ScanDatabase(ctx, repo, d.ID, d.TenantID); err != nil {
+			log.Printf("ScanDatabase failed for ID %d (tenant %s): %v", d.ID, d.TenantID, err)
+		}
 	}
 }
