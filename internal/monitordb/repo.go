@@ -60,10 +60,14 @@ func (r *Repo) List(ctx context.Context, tenant string) ([]Database, error) {
 	defer rows.Close()
 	var res []Database
 	for rows.Next() {
-		var d Database
-		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &d.CreatedAt); err != nil {
+		var (
+			d Database
+			t sql.NullTime
+		)
+		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &t); err != nil {
 			return nil, err
 		}
+		d.CreatedAt = t.Time
 		res = append(res, d)
 	}
 	return res, rows.Err()
@@ -78,10 +82,14 @@ func (r *Repo) ListAll(ctx context.Context) ([]Database, error) {
 	defer rows.Close()
 	var res []Database
 	for rows.Next() {
-		var d Database
-		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &d.CreatedAt); err != nil {
+		var (
+			d Database
+			t sql.NullTime
+		)
+		if err := rows.Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &t); err != nil {
 			return nil, err
 		}
+		d.CreatedAt = t.Time
 		res = append(res, d)
 	}
 	return res, rows.Err()
@@ -93,10 +101,14 @@ func (r *Repo) Get(ctx context.Context, tenant string, id int64) (Database, erro
 	if r.Driver == "postgres" {
 		q = `SELECT id, tenant_id, name, driver, dsn_enc, created_at FROM monitored_databases WHERE tenant_id=$1 AND id=$2`
 	}
-	var d Database
-	if err := r.DB.QueryRowContext(ctx, q, tenant, id).Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &d.CreatedAt); err != nil {
+	var (
+		d Database
+		t sql.NullTime
+	)
+	if err := r.DB.QueryRowContext(ctx, q, tenant, id).Scan(&d.ID, &d.TenantID, &d.Name, &d.Driver, &d.DSNEnc, &t); err != nil {
 		return d, err
 	}
+	d.CreatedAt = t.Time
 	return d, nil
 }
 
