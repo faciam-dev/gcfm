@@ -28,18 +28,22 @@ func Load(ctx context.Context, db *sql.DB, e *casbin.Enforcer) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	rows2, err := db.QueryContext(ctx, `SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id`)
+	return loadGroupPolicies(ctx, db, e)
+}
+
+func loadGroupPolicies(ctx context.Context, db *sql.DB, e *casbin.Enforcer) error {
+	rows, err := db.QueryContext(ctx, `SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id`)
 	if err != nil {
 		return err
 	}
-	defer rows2.Close()
-	for rows2.Next() {
+	defer rows.Close()
+	for rows.Next() {
 		var uid int64
 		var role string
-		if err := rows2.Scan(&uid, &role); err != nil {
+		if err := rows.Scan(&uid, &role); err != nil {
 			return err
 		}
 		e.AddGroupingPolicy(fmt.Sprint(uid), role)
 	}
-	return rows2.Err()
+	return rows.Err()
 }

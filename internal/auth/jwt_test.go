@@ -7,7 +7,7 @@ import (
 
 func TestGenerateWithTenant(t *testing.T) {
 	j := NewJWT("secret", time.Minute)
-	tok, err := j.GenerateWithTenant(1, "t1")
+	tok, err := j.GenerateWithTenant(1, "t1", []string{"admin"})
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -17,6 +17,9 @@ func TestGenerateWithTenant(t *testing.T) {
 	}
 	if claims.TenantID != "t1" {
 		t.Fatalf("tenant id=%s", claims.TenantID)
+	}
+	if len(claims.Roles) != 1 || claims.Roles[0] != "admin" {
+		t.Fatalf("roles=%v", claims.Roles)
 	}
 }
 
