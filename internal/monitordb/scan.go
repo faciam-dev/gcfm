@@ -79,8 +79,11 @@ func schemaFromDSN(driver, dsn string) string {
 // helper for scanning multiple databases
 func ScanAll(ctx context.Context, repo *Repo, dbs []Database) {
 	for _, d := range dbs {
-		if _, _, _, _, err := ScanDatabase(ctx, repo, d.ID, d.TenantID); err != nil {
+		tables, inserted, updated, skipped, err := ScanDatabase(ctx, repo, d.ID, d.TenantID)
+		if err != nil {
 			log.Printf("ScanDatabase failed for ID %d (tenant %s): %v", d.ID, d.TenantID, err)
+			continue
 		}
+		log.Printf("ScanDatabase success for ID %d: tables=%d inserted=%d updated=%d skipped=%d", d.ID, tables, inserted, updated, len(skipped))
 	}
 }

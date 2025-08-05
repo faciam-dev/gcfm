@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
@@ -16,9 +17,9 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/monitordb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"time"
 )
 
 type CustomFieldHandler struct {
@@ -96,7 +97,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", in.Body.Table))
 	}
 	meta := registry.FieldMeta{
-		DBID:       1,
+		DBID:       monitordb.DefaultDBID,
 		TableName:  in.Body.Table,
 		ColumnName: in.Body.Column,
 		DataType:   in.Body.Type,
@@ -206,17 +207,22 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		}
 		return &m, nil
 	default:
-		var query string
+		var (
+			query string
+			args  []any
+		)
 		switch h.Driver {
 		case "postgres":
-			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=1 AND table_name=$1 AND column_name=$2`
+			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=$1 AND table_name=$2 AND column_name=$3`
+			args = []any{monitordb.DefaultDBID, table, column}
 		case "mysql":
-			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=1 AND table_name=? AND column_name=?`
+			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=? AND table_name=? AND column_name=?`
+			args = []any{monitordb.DefaultDBID, table, column}
 		default:
 			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
 		}
 		var typ string
-		err := h.DB.QueryRowContext(ctx, query, table, column).Scan(&typ)
+		err := h.DB.QueryRowContext(ctx, query, args...).Scan(&typ)
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -239,7 +245,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{DBID: 1, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
+	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
@@ -299,7 +305,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	meta := registry.FieldMeta{DBID: 1, TableName: table, ColumnName: column}
+	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
 	oldMeta, err := h.getField(ctx, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)

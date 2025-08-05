@@ -27,6 +27,7 @@ type RegistryMigrator interface {
 type Migrator struct {
 	migrations  []Migration
 	TablePrefix string
+	Driver      string
 }
 
 func (m *Migrator) versionTable() string {
@@ -56,7 +57,7 @@ func NewWithDriverAndPrefix(driver, prefix string) *Migrator {
 		migs = defaultMigrations
 	}
 	migs = withPrefix(migs, prefix)
-	return &Migrator{migrations: migs, TablePrefix: prefix}
+	return &Migrator{migrations: migs, TablePrefix: prefix, Driver: driver}
 }
 
 func withPrefix(migs []Migration, prefix string) []Migration {

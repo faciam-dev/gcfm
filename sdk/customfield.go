@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/monitordb"
 )
 
 // ListCustomFields returns custom field metadata filtered by database and table.
@@ -56,7 +57,7 @@ func (s *service) CreateCustomField(ctx context.Context, fm registry.FieldMeta) 
 			return err
 		}
 	}
-	fm.DBID = 1
+	fm.DBID = monitordb.DefaultDBID
 	return registry.UpsertSQL(ctx, s.db, s.driver, []registry.FieldMeta{fm})
 }
 
@@ -77,7 +78,7 @@ func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) 
 			return err
 		}
 	}
-	fm.DBID = 1
+	fm.DBID = monitordb.DefaultDBID
 	return registry.UpsertSQL(ctx, s.db, s.driver, []registry.FieldMeta{fm})
 }
 
@@ -88,6 +89,6 @@ func (s *service) DeleteCustomField(ctx context.Context, table, column string) e
 	if err := registry.DropColumnSQL(ctx, s.db, s.driver, table, column); err != nil {
 		return err
 	}
-	fm := registry.FieldMeta{DBID: 1, TableName: table, ColumnName: column}
+	fm := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
 	return registry.DeleteSQL(ctx, s.db, s.driver, []registry.FieldMeta{fm})
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/monitordb"
 	"github.com/faciam-dev/gcfm/sdk"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -71,7 +72,7 @@ func newDiffCmd() *cobra.Command {
 			}
 			for i := range yamlMetas {
 				if yamlMetas[i].DBID == 0 {
-					yamlMetas[i].DBID = 1
+					yamlMetas[i].DBID = monitordb.DefaultDBID
 				}
 			}
 			svc := sdk.New(sdk.ServiceConfig{})

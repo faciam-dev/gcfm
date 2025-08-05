@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/faciam-dev/gcfm/pkg/monitordb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -203,10 +204,7 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 		if m.Default != nil {
 			def = *m.Default
 		}
-		dbid := m.DBID
-		if dbid == 0 {
-			dbid = 1
-		}
+		dbid := monitordb.NormalizeDBID(m.DBID)
 		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
@@ -255,10 +253,7 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 		if m.Default != nil {
 			def = *m.Default
 		}
-		dbid := m.DBID
-		if dbid == 0 {
-			dbid = 1
-		}
+		dbid := monitordb.NormalizeDBID(m.DBID)
 		switch driver {
 		case "postgres":
 			var isInsert bool
@@ -315,10 +310,7 @@ func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	}
 	defer stmt.Close()
 	for _, m := range metas {
-		dbid := m.DBID
-		if dbid == 0 {
-			dbid = 1
-		}
+		dbid := monitordb.NormalizeDBID(m.DBID)
 		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
