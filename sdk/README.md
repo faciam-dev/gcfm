@@ -35,7 +35,7 @@ var (
 ```
 
 <a name="UnifiedDiff"></a>
-## func [UnifiedDiff](<https://github.com/faciam-dev/gcfm/blob/main/sdk/diff.go#L6>)
+## func UnifiedDiff
 
 ```go
 func UnifiedDiff(a, b string) string
@@ -44,7 +44,7 @@ func UnifiedDiff(a, b string) string
 UnifiedDiff returns a unified diff string of two inputs.
 
 <a name="ApplyOptions"></a>
-## type [ApplyOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L67-L71>)
+## type ApplyOptions
 
 
 
@@ -57,7 +57,7 @@ type ApplyOptions struct {
 ```
 
 <a name="DBConfig"></a>
-## type [DBConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L12-L17>)
+## type DBConfig
 
 DBConfig specifies database connection parameters.
 
@@ -71,7 +71,7 @@ type DBConfig struct {
 ```
 
 <a name="DiffReport"></a>
-## type [DiffReport](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L73-L80>)
+## type DiffReport
 
 
 
@@ -87,7 +87,7 @@ type DiffReport struct {
 ```
 
 <a name="CalculateDiff"></a>
-### func [CalculateDiff](<https://github.com/faciam-dev/gcfm/blob/main/sdk/apply.go#L174>)
+### func CalculateDiff
 
 ```go
 func CalculateDiff(changes []registry.Change) DiffReport
@@ -96,7 +96,7 @@ func CalculateDiff(changes []registry.Change) DiffReport
 CalculateDiff returns counts of added, deleted and updated changes.
 
 <a name="DisplayMeta"></a>
-## type [DisplayMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L11>)
+## type DisplayMeta
 
 
 
@@ -105,7 +105,7 @@ type DisplayMeta = registry.DisplayMeta
 ```
 
 <a name="DisplayOptions"></a>
-## type [DisplayOptions](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L13>)
+## type DisplayOptions
 
 
 
@@ -114,7 +114,7 @@ type DisplayOptions = registry.DisplayOption
 ```
 
 <a name="FieldMeta"></a>
-## type [FieldMeta](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L9>)
+## type FieldMeta
 
 
 
@@ -123,7 +123,7 @@ type FieldMeta = registry.FieldMeta
 ```
 
 <a name="Service"></a>
-## type [Service](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L17-L36>)
+## type Service
 
 Service exposes high level operations for custom field registry. Service provides database operations for custom field registry.
 
@@ -140,7 +140,7 @@ type Service interface {
     // RegistryVersion returns the current registry schema version.
     RegistryVersion(ctx context.Context, cfg DBConfig) (int, error)
     // ListCustomFields returns custom field metadata.
-    ListCustomFields(ctx context.Context, table string) ([]registry.FieldMeta, error)
+    ListCustomFields(ctx context.Context, dbID int64, table string) ([]registry.FieldMeta, error)
     // CreateCustomField inserts a new field into the registry.
     CreateCustomField(ctx context.Context, fm registry.FieldMeta) error
     // UpdateCustomField modifies an existing field.
@@ -192,7 +192,7 @@ func main() {
 </details>
 
 <a name="New"></a>
-### func [New](<https://github.com/faciam-dev/gcfm/blob/main/sdk/service.go#L40>)
+### func New
 
 ```go
 func New(cfg ServiceConfig) Service
@@ -201,7 +201,7 @@ func New(cfg ServiceConfig) Service
 New returns a Service initialized with the given configuration. Validator plugins under PluginDir are loaded automatically.
 
 <a name="ServiceConfig"></a>
-## type [ServiceConfig](<https://github.com/faciam-dev/gcfm/blob/main/sdk/config.go#L20-L30>)
+## type ServiceConfig
 
 ServiceConfig holds optional configuration for Service.
 
@@ -220,7 +220,7 @@ type ServiceConfig struct {
 ```
 
 <a name="Snapshot"></a>
-## type [Snapshot](<https://github.com/faciam-dev/gcfm/blob/main/sdk/types.go#L16-L21>)
+## type Snapshot
 
 Snapshot describes a stored registry snapshot.
 
@@ -234,7 +234,7 @@ type Snapshot struct {
 ```
 
 <a name="SnapshotClient"></a>
-## type [SnapshotClient](<https://github.com/faciam-dev/gcfm/blob/main/sdk/snapshot_client.go#L6-L11>)
+## type SnapshotClient
 
 SnapshotClient provides snapshot operations.
 
