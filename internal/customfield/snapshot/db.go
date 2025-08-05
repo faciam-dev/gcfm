@@ -58,7 +58,16 @@ func Insert(ctx context.Context, db *sql.DB, driver, tenant, semver, author stri
 		}
 		id, _ := r.LastInsertId()
 		res.ID = id
-		_ = db.QueryRowContext(ctx, "SELECT taken_at FROM gcfm_registry_snapshots WHERE id=?", id).Scan(&res.TakenAt)
+		var t any
+		if err := db.QueryRowContext(ctx, "SELECT taken_at FROM gcfm_registry_snapshots WHERE id=?", id).Scan(&t); err == nil {
+			if ts, err := parseDBTime(t); err == nil {
+				res.TakenAt = ts
+			} else {
+				return Record{}, err
+			}
+		} else {
+			return Record{}, err
+		}
 	}
 	return res, nil
 }
@@ -69,7 +78,12 @@ func Get(ctx context.Context, db *sql.DB, driver, tenant, ver string) (Record, e
 		q = "SELECT id, semver, yaml, taken_at, author FROM gcfm_registry_snapshots WHERE tenant_id=? AND semver=?"
 	}
 	var r Record
-	err := db.QueryRowContext(ctx, q, tenant, ver).Scan(&r.ID, &r.Semver, &r.YAML, &r.TakenAt, &r.Author)
+	var t any
+	err := db.QueryRowContext(ctx, q, tenant, ver).Scan(&r.ID, &r.Semver, &r.YAML, &t, &r.Author)
+	if err != nil {
+		return r, err
+	}
+	r.TakenAt, err = parseDBTime(t)
 	return r, err
 }
 
@@ -89,9 +103,15 @@ func List(ctx context.Context, db *sql.DB, driver, tenant string, limit int) ([]
 	var out []Record
 	for rows.Next() {
 		var r Record
-		if err := rows.Scan(&r.ID, &r.Semver, &r.TakenAt, &r.Author); err != nil {
+		var t any
+		if err := rows.Scan(&r.ID, &r.Semver, &t, &r.Author); err != nil {
 			return nil, err
 		}
+		ts, err := parseDBTime(t)
+		if err != nil {
+			return nil, err
+		}
+		r.TakenAt = ts
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -141,4 +161,27 @@ func ParsePatch(ver string) int {
 func NextPatch(prev string) string {
 	n := ParsePatch(prev)
 	return "0.0." + strconv.Itoa(n+1)
+}
+
+func parseDBTime(v any) (time.Time, error) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, nil
+	case []byte:
+		return parseTimeString(string(t))
+	case string:
+		return parseTimeString(t)
+	default:
+		return time.Time{}, errors.New("unsupported time type")
+	}
+}
+
+func parseTimeString(s string) (time.Time, error) {
+	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05", time.RFC3339}
+	for _, l := range layouts {
+		if ts, err := time.Parse(l, s); err == nil {
+			return ts, nil
+		}
+	}
+	return time.Time{}, errors.New("cannot parse time: " + s)
 }
