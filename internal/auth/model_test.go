@@ -70,7 +70,7 @@ func TestUserRepoGetRoles(t *testing.T) {
 	}
 	repo := &UserRepo{DB: db, Driver: "postgres"}
 	mock.ExpectQuery("^SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id=\\$1$").WithArgs(1).
-		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("Admin").AddRow("Viewer"))
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin").AddRow("viewer"))
 	roles, err := repo.GetRoles(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("get roles: %v", err)
