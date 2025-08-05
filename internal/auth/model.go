@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // User represents an application user.
@@ -69,4 +70,32 @@ func (r *UserRepo) List(ctx context.Context) ([]User, error) {
 		users = append(users, u)
 	}
 	return users, rows.Err()
+}
+
+// GetRoles returns all role names associated with the given user ID.
+func (r *UserRepo) GetRoles(ctx context.Context, userID uint64) ([]string, error) {
+	if r == nil || r.DB == nil {
+		return nil, fmt.Errorf("repo not initialized")
+	}
+	var q string
+	switch r.Driver {
+	case "postgres":
+		q = `SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id=$1`
+	default:
+		q = `SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id=?`
+	}
+	rows, err := r.DB.QueryContext(ctx, q, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var roles []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		roles = append(roles, strings.ToLower(name))
+	}
+	return roles, rows.Err()
 }

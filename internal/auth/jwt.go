@@ -18,7 +18,8 @@ type JWT struct {
 // separately from the standard registered claims so that it is explicit.
 type Claims struct {
 	jwt.RegisteredClaims
-	TenantID string `json:"tid,omitempty"`
+	TenantID string   `json:"tid,omitempty"`
+	Roles    []string `json:"roles,omitempty"`
 }
 
 // GetTenantID returns the tenant ID claim.
@@ -31,12 +32,12 @@ func NewJWT(secret string, exp time.Duration) *JWT {
 
 // Generate creates a signed token for the given user ID.
 func (j *JWT) Generate(userID uint64) (string, error) {
-	return j.GenerateWithTenant(userID, "")
+	return j.GenerateWithTenant(userID, "", nil)
 }
 
 // GenerateWithTenant creates a signed token for the given user ID and tenant ID.
 // If tenantID is empty, then the claim will be omitted.
-func (j *JWT) GenerateWithTenant(userID uint64, tenantID string) (string, error) {
+func (j *JWT) GenerateWithTenant(userID uint64, tenantID string, roles []string) (string, error) {
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   strconv.FormatUint(userID, 10),
@@ -45,6 +46,9 @@ func (j *JWT) GenerateWithTenant(userID uint64, tenantID string) (string, error)
 	}
 	if tenantID != "" {
 		claims.TenantID = tenantID
+	}
+	if len(roles) > 0 {
+		claims.Roles = roles
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(j.secret)
 }

@@ -62,3 +62,23 @@ func TestUserRepoListScanError(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 }
+
+func TestUserRepoGetRoles(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	repo := &UserRepo{DB: db, Driver: "postgres"}
+	mock.ExpectQuery("^SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id=\\$1$").WithArgs(1).
+		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin").AddRow("viewer"))
+	roles, err := repo.GetRoles(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("get roles: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+	if len(roles) != 2 || roles[0] != "admin" || roles[1] != "viewer" {
+		t.Fatalf("unexpected roles: %v", roles)
+	}
+}

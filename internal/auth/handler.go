@@ -74,7 +74,15 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
 	tenantID := tenant.FromContext(ctx)
-	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID)
+	roles, err := h.Repo.GetRoles(ctx, u.ID)
+	if err != nil {
+		logger.L.Error("get roles", "err", err)
+		if isDatabaseError(err) {
+			return nil, huma.Error500InternalServerError("internal server error")
+		}
+		return nil, err
+	}
+	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID, roles)
 	if err != nil {
 		logger.L.Error("generate token", "err", err)
 		return nil, err
@@ -92,7 +100,15 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 		return nil, huma.Error401Unauthorized("unauthorized")
 	}
 	tenantID := tenant.FromContext(ctx)
-	tok, err := h.JWT.GenerateWithTenant(uid, tenantID)
+	roles, err := h.Repo.GetRoles(ctx, uid)
+	if err != nil {
+		logger.L.Error("get roles", "err", err)
+		if isDatabaseError(err) {
+			return nil, huma.Error500InternalServerError("internal server error")
+		}
+		return nil, err
+	}
+	tok, err := h.JWT.GenerateWithTenant(uid, tenantID, roles)
 	if err != nil {
 		return nil, err
 	}
