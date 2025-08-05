@@ -1,5 +1,18 @@
-ALTER TABLE gcfm_custom_fields
-  ADD COLUMN IF NOT EXISTS db_id BIGINT NOT NULL REFERENCES monitored_databases(id);
+SET @stmt := (
+  SELECT IF(
+    EXISTS (
+      SELECT 1 FROM information_schema.COLUMNS
+      WHERE table_schema = DATABASE()
+        AND table_name = 'gcfm_custom_fields'
+        AND column_name = 'db_id'
+    ),
+    'SELECT 1',
+    'ALTER TABLE gcfm_custom_fields ADD COLUMN db_id BIGINT NOT NULL, ADD CONSTRAINT fk_gcfm_custom_fields_db FOREIGN KEY (db_id) REFERENCES monitored_databases(id)'
+  )
+);
+PREPARE s FROM @stmt;
+EXECUTE s;
+DEALLOCATE PREPARE s;
 
 UPDATE gcfm_custom_fields SET db_id = 1 WHERE db_id IS NULL;
 
