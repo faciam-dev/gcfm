@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -163,6 +164,9 @@ func NextPatch(prev string) string {
 	return "0.0." + strconv.Itoa(n+1)
 }
 
+// parseDBTime attempts to convert a database time value to time.Time.
+// Supported input types are: time.Time, []byte, and string.
+// Returns an error if the input type is not supported or cannot be parsed.
 func parseDBTime(v any) (time.Time, error) {
 	switch t := v.(type) {
 	case time.Time:
@@ -172,7 +176,7 @@ func parseDBTime(v any) (time.Time, error) {
 	case string:
 		return parseTimeString(t)
 	default:
-		return time.Time{}, errors.New("unsupported time type")
+		return time.Time{}, fmt.Errorf("unsupported time type: %T", v)
 	}
 }
 
@@ -183,5 +187,5 @@ func parseTimeString(s string) (time.Time, error) {
 			return ts, nil
 		}
 	}
-	return time.Time{}, errors.New("cannot parse time: " + s)
+	return time.Time{}, fmt.Errorf("cannot parse time %q using any of the supported layouts: [%s]", s, strings.Join(layouts, ", "))
 }
