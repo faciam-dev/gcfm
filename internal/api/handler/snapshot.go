@@ -89,13 +89,13 @@ func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*sna
 }
 
 func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (*snapshotCreateOutput, error) {
-        tid := tenant.FromContext(ctx)
-        // generate YAML from registry DB for snapshot
-        data, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, tid)
-        if err != nil {
-                return nil, err
-        }
-        comp, err := snapshot.Encode(data)
+	tid := tenant.FromContext(ctx)
+	// generate YAML from registry DB for snapshot
+	data, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, tid)
+	if err != nil {
+		return nil, err
+	}
+	comp, err := snapshot.Encode(data)
 	if err != nil {
 		return nil, err
 	}
