@@ -23,7 +23,7 @@ import (
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 
-func TestAPI_ListCustomFieldsByDBID(t *testing.T) {
+func TestAPI_ListTablesAndCustomFieldsByDBID(t *testing.T) {
 	os.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
 	ctx := context.Background()
 	central, err := postgres.Run(ctx, "postgres:16", postgres.WithDatabase("core"), postgres.WithUsername("user"), postgres.WithPassword("pass"))
@@ -67,19 +67,46 @@ func TestAPI_ListCustomFieldsByDBID(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/v1/custom-fields?db_id=%d", srv.URL, id), nil)
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/v1/metadata/tables?db_id=%d", srv.URL, id), nil)
 	req.Header.Set("X-Tenant-ID", "t1")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("tables get: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status %d", resp.StatusCode)
+		t.Fatalf("tables status %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+	var tables []struct {
+		Table string `json:"table"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tables); err != nil {
+		t.Fatalf("tables decode: %v", err)
+	}
+	found := false
+	for _, tbl := range tables {
+		if tbl.Table == "posts" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected posts table")
+	}
+
+	req, _ = http.NewRequest(http.MethodGet, fmt.Sprintf("%s/v1/custom-fields?db_id=%d", srv.URL, id), nil)
+	req.Header.Set("X-Tenant-ID", "t1")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("fields get: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("fields status %d", resp.StatusCode)
 	}
 	defer resp.Body.Close()
 	var metas []sdk.FieldMeta
 	if err := json.NewDecoder(resp.Body).Decode(&metas); err != nil {
-		t.Fatalf("decode: %v", err)
+		t.Fatalf("fields decode: %v", err)
 	}
 	if len(metas) == 0 {
 		t.Fatalf("expected fields")

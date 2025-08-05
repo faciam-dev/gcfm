@@ -243,7 +243,7 @@ curl -X POST http://localhost:8080/v1/custom-fields \
 
 Certain tables are protected from custom field modifications. Regex patterns are defined in `configs/default.yaml` and can be overridden with the `CF_RESERVED_TABLES` environment variable.
 
-The metadata endpoint `/v1/metadata/tables` marks each table with a `reserved` flag so frontends can hide them.
+The metadata endpoint `/v1/metadata/tables?db_id=1` marks each table with a `reserved` flag so frontends can hide them.
 ## Events
 
 | Name | Description |
