@@ -7,10 +7,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
-	"github.com/faciam-dev/gcfm/internal/driver/mysql"
-	"github.com/faciam-dev/gcfm/internal/driver/postgres"
-	"github.com/faciam-dev/gcfm/internal/metadata"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
 // MetadataHandler handles metadata endpoints.
@@ -21,7 +19,7 @@ type MetadataHandler struct {
 
 // tablesParams is the query parameters for list tables.
 type tablesParams struct {
-	Schema string `query:"schema"`
+	DBID int64 `query:"db_id" required:"true"`
 }
 
 type tablesOutput struct{ Body []schema.TableMeta }
@@ -38,35 +36,29 @@ func RegisterMetadata(api huma.API, h *MetadataHandler) {
 }
 
 func (h *MetadataHandler) listTables(ctx context.Context, p *tablesParams) (*tablesOutput, error) {
-	schemaName := p.Schema
-	if schemaName == "" {
-		switch h.Driver {
-		case "postgres":
-			schemaName = "public"
-		case "mysql":
-			if err := h.DB.QueryRowContext(ctx, "SELECT DATABASE()").Scan(&schemaName); err != nil {
-				return nil, err
-			}
-		default:
-			return nil, huma.Error400BadRequest("unsupported driver")
-		}
-	}
-	var tables []metadata.Table
-	var err error
+	tenantID := tenant.FromContext(ctx)
+	var query string
 	switch h.Driver {
 	case "postgres":
-		tables, err = postgres.ListTables(ctx, h.DB, schemaName)
-	case "mysql":
-		tables, err = mysql.ListTables(ctx, h.DB, schemaName)
+		query = `SELECT DISTINCT table_name FROM gcfm_custom_fields WHERE db_id=$1 AND tenant_id=$2 ORDER BY table_name`
 	default:
-		return nil, huma.Error400BadRequest("unsupported driver")
+		query = "SELECT DISTINCT table_name FROM gcfm_custom_fields WHERE db_id=? AND tenant_id=? ORDER BY table_name"
 	}
+	rows, err := h.DB.QueryContext(ctx, query, p.DBID, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]schema.TableMeta, 0, len(tables))
-	for _, t := range tables {
-		out = append(out, schema.TableMeta{Table: t.Name, Comment: t.Comment, Reserved: reserved.Is(t.Name)})
+	defer rows.Close()
+	var out []schema.TableMeta
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, schema.TableMeta{Table: name, Reserved: reserved.Is(name)})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return &tablesOutput{Body: out}, nil
 }

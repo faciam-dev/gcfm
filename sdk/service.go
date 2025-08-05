@@ -26,7 +26,7 @@ type Service interface {
 	// RegistryVersion returns the current registry schema version.
 	RegistryVersion(ctx context.Context, cfg DBConfig) (int, error)
 	// ListCustomFields returns custom field metadata.
-	ListCustomFields(ctx context.Context, table string) ([]registry.FieldMeta, error)
+	ListCustomFields(ctx context.Context, dbID int64, table string) ([]registry.FieldMeta, error)
 	// CreateCustomField inserts a new field into the registry.
 	CreateCustomField(ctx context.Context, fm registry.FieldMeta) error
 	// UpdateCustomField modifies an existing field.

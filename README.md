@@ -22,6 +22,13 @@ Use `--dry-run` to print the discovered fields without inserting:
 fieldctl scan --db "user:pass@tcp(localhost:3306)/testdb" --schema testdb --dry-run
 ```
 
+Scan a monitored database by ID with verbose output:
+
+```bash
+fieldctl scan --db-id prod -v --db "postgres://user:pass@localhost:5432/core" --schema public --driver postgres
+# INSERT 8  UPDATE 2  SKIP 3 (reserved)
+```
+
 ## registry YAML
 
 `registry.yaml` describes custom field metadata.
@@ -236,7 +243,7 @@ curl -X POST http://localhost:8080/v1/custom-fields \
 
 Certain tables are protected from custom field modifications. Regex patterns are defined in `configs/default.yaml` and can be overridden with the `CF_RESERVED_TABLES` environment variable.
 
-The metadata endpoint `/v1/metadata/tables` marks each table with a `reserved` flag so frontends can hide them.
+The metadata endpoint `/v1/metadata/tables?db_id=1` marks each table with a `reserved` flag so frontends can hide them.
 ## Events
 
 | Name | Description |

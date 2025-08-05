@@ -10,7 +10,7 @@ import (
 
 // Client provides REST access to the CustomField API.
 type Client interface {
-	List(ctx context.Context, table string) ([]sdk.FieldMeta, error)
+	List(ctx context.Context, dbID int64, table string) ([]sdk.FieldMeta, error)
 	Create(ctx context.Context, fm sdk.FieldMeta) error
 	Update(ctx context.Context, fm sdk.FieldMeta) error
 	Delete(ctx context.Context, table, column string) error
@@ -40,9 +40,9 @@ func NewHTTP(base string, opts ...Option) Client {
 	return c
 }
 
-func (c *httpClient) List(ctx context.Context, table string) ([]sdk.FieldMeta, error) {
+func (c *httpClient) List(ctx context.Context, dbID int64, table string) ([]sdk.FieldMeta, error) {
 	var out []sdk.FieldMeta
-	resp, err := c.http.R().SetContext(ctx).SetQueryParam("table", table).SetResult(&out).Get(c.base + "/v1/custom-fields")
+	resp, err := c.http.R().SetContext(ctx).SetQueryParam("db_id", fmt.Sprintf("%d", dbID)).SetQueryParam("table", table).SetResult(&out).Get(c.base + "/v1/custom-fields")
 	if err != nil {
 		return nil, err
 	}

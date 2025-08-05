@@ -22,37 +22,27 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	// ensure semver column exists; older versions may lack it
-	_, err = db.ExecContext(ctx, fmt.Sprintf(
-		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS semver VARCHAR(32);`, tbl))
-	if err != nil {
-		if isSyntaxErr(err) {
-			// MySQL <8 does not support IF NOT EXISTS
-			_, err = db.ExecContext(ctx, fmt.Sprintf(
-				`ALTER TABLE %s ADD COLUMN semver VARCHAR(32);`, tbl))
-		}
-		if err != nil && !isDuplicateColumnErr(err) {
-			return err
-		}
+	var alter string
+	if m.Driver == "postgres" {
+		alter = fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS semver VARCHAR(32);`, tbl)
+	} else {
+		alter = fmt.Sprintf(`ALTER TABLE %s ADD COLUMN semver VARCHAR(32);`, tbl)
+	}
+	if _, err = db.ExecContext(ctx, alter); err != nil && !isDuplicateColumnErr(err) {
+		return err
 	}
 
 	// insert the zero row if not present
-	if _, err := db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s(version, semver) VALUES(0,'0.0.0')`, tbl)); err != nil && !isDuplicateEntryErr(err) {
+	var stmt string
+	if m.Driver == "postgres" {
+		stmt = fmt.Sprintf(`INSERT INTO %s(version, semver) VALUES(0,'0.0.0') ON CONFLICT (version) DO NOTHING`, tbl)
+	} else {
+		stmt = fmt.Sprintf(`INSERT IGNORE INTO %s(version, semver) VALUES(0,'0.0.0')`, tbl)
+	}
+	if _, err := db.ExecContext(ctx, stmt); err != nil && !isDuplicateEntryErr(err) {
 		return err
 	}
 	return nil
-}
-
-func isSyntaxErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	if me, ok := err.(*mysql.MySQLError); ok {
-		return me.Number == 1064
-	}
-	if pe, ok := err.(*pq.Error); ok {
-		return string(pe.Code) == "42601"
-	}
-	return false
 }
 
 func isDuplicateColumnErr(err error) bool {

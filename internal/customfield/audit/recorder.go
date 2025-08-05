@@ -98,3 +98,25 @@ func (r *Recorder) WriteAction(ctx context.Context, actor, action, targetVer, di
 	}
 	return err
 }
+
+// WriteJSON writes an audit log entry with arbitrary JSON payload.
+func (r *Recorder) WriteJSON(ctx context.Context, actor, action string, payload any) error {
+	if r == nil || r.DB == nil {
+		return nil
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	if r.Driver == "postgres" {
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+	}
+	_, err = r.DB.ExecContext(ctx, q, actor, action, sql.NullString{Valid: false}, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data))
+	if err == nil {
+		metrics.AuditEvents.WithLabelValues(action).Inc()
+	} else {
+		metrics.AuditErrors.WithLabelValues(action).Inc()
+	}
+	return err
+}
