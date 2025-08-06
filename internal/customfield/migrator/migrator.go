@@ -200,13 +200,3 @@ func (m *Migrator) SQLForRange(from, to int) []string {
 	}
 	return res
 }
-
-// SemVer returns the semver string for version v.
-func (m *Migrator) SemVer(v int) string {
-	for _, mig := range m.migrations {
-		if mig.Version == v {
-			return mig.SemVer
-		}
-	}
-	return ""
-}

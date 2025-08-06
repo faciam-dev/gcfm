@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -59,7 +60,8 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			}
 			curSem := mig.SemVer(cur)
 			if curSem == "" {
-				curSem = "0.0.0"
+				slog.Warn("unexpected empty semver", "cur", cur)
+				return DiffReport{}, fmt.Errorf("cannot map registry version %d to semver", cur)
 			}
 			ok, err := semverLT(curSem, hdr.Version)
 			if err != nil {

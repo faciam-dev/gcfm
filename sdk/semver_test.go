@@ -7,8 +7,8 @@ func TestSemverLT(t *testing.T) {
 		a, b string
 		want bool
 	}{
-		{"0.3", "0.13", true},
-		{"0.13", "0.3", false},
+		{"0.3.0", "0.13.0", true},
+		{"0.13.0", "0.3.0", false},
 		{"0.1.0", "0.1.1", true},
 	}
 	for _, c := range cases {
