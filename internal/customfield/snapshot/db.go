@@ -152,8 +152,13 @@ func NextSemver(prev, bump string) string {
 	return fmt.Sprintf("%d.%d.%d", maj, min, patch)
 }
 
-// Encode marshals the given data to YAML if necessary and compresses it.
-func Encode(v any) ([]byte, error) {
+// Encode compresses the given []byte data.
+func Encode(b []byte) ([]byte, error) {
+	return compress(b)
+}
+
+// EncodeAny marshals the given data to YAML if necessary and compresses it.
+func EncodeAny(v any) ([]byte, error) {
 	var b []byte
 	switch t := v.(type) {
 	case []byte:

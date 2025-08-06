@@ -14,6 +14,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/faciam-dev/gcfm/sdk"
+	"gopkg.in/yaml.v3"
 )
 
 // SnapshotHandler provides snapshot endpoints.
@@ -98,7 +99,14 @@ func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*sna
 
 func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (*snapshotCreateOutput, error) {
 	tid := tenant.FromContext(ctx)
-	data, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, tid)
+	reg, err := snapshot.ExportRegistry(ctx, h.DB, h.Driver, tid)
+	if err != nil {
+		return nil, err
+	}
+	if len(reg.Fields) == 0 {
+		return nil, fmt.Errorf("registry is empty; run scan first")
+	}
+	data, err := yaml.Marshal(reg)
 	if err != nil {
 		return nil, err
 	}
@@ -127,11 +135,13 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if last != "0.0.0" {
 		prev, err := snapshot.Get(ctx, h.DB, h.Driver, tid, last)
 		if err == nil {
-			prevY, _ := snapshot.Decode(prev.YAML)
-			ch, err := snapshot.DiffYaml(prevY, data)
+			prevY, err := snapshot.Decode(prev.YAML)
 			if err == nil {
-				rep := sdk.CalculateDiff(ch)
-				summary = fmt.Sprintf("+%d -%d", rep.Added, rep.Deleted)
+				ch, err := snapshot.DiffYaml(prevY, data)
+				if err == nil {
+					rep := sdk.CalculateDiff(ch)
+					summary = fmt.Sprintf("+%d -%d", rep.Added, rep.Deleted)
+				}
 			}
 		}
 	}
@@ -145,7 +155,10 @@ func (h *SnapshotHandler) get(ctx context.Context, p *snapshotDetailParams) (*sn
 	if err != nil {
 		return nil, err
 	}
-	y, _ := snapshot.Decode(rec.YAML)
+	y, err := snapshot.Decode(rec.YAML)
+	if err != nil {
+		return nil, err
+	}
 	return &snapshotDetailOutput{ContentType: "text/yaml", Body: y}, nil
 }
 

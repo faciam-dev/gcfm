@@ -7,6 +7,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 )
 
+const registryVersion = "0.3"
+
 // Registry represents a minimal registry YAML structure.
 type Registry struct {
 	Version string         `yaml:"version"`
@@ -39,5 +41,5 @@ func ExportRegistry(ctx context.Context, db *sql.DB, drv, tid string) (*Registry
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return &Registry{Version: "0.3", Fields: f}, nil
+	return &Registry{Version: registryVersion, Fields: f}, nil
 }
