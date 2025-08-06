@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Record struct {
@@ -150,7 +152,21 @@ func NextSemver(prev, bump string) string {
 	return fmt.Sprintf("%d.%d.%d", maj, min, patch)
 }
 
-func Encode(data []byte) ([]byte, error) { return compress(data) }
+// Encode marshals the given data to YAML if necessary and compresses it.
+func Encode(v any) ([]byte, error) {
+	var b []byte
+	switch t := v.(type) {
+	case []byte:
+		b = t
+	default:
+		var err error
+		b, err = yaml.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return compress(b)
+}
 func Decode(data []byte) ([]byte, error) { return decompress(data) }
 
 func ParsePatch(ver string) int {
