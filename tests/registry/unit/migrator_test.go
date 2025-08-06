@@ -16,7 +16,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	m := migrator.New()
+	m := migrator.NewWithDriver("mysql")
 	for i := 0; i < expectedExecCalls; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}

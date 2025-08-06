@@ -63,7 +63,7 @@ func TestAPI_ListTablesAndCustomFieldsByDBID(t *testing.T) {
 	}
 
 	t.Setenv("JWT_SECRET", "testsecret")
-	api := server.New(centralDB, "postgres", centralDSN)
+	api := server.New(centralDB, server.DBConfig{Driver: "postgres", DSN: centralDSN, TablePrefix: "gcfm_"})
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 

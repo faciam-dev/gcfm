@@ -31,7 +31,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func New(db *sql.DB, driver, dsn string) huma.API {
+func New(db *sql.DB, cfg DBConfig) huma.API {
 	r := chi.NewRouter()
 
 	_, file, _, _ := runtime.Caller(0)
@@ -53,6 +53,8 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 	}))
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
+	driver := cfg.Driver
+	dsn := cfg.DSN
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		logger.L.Error("JWT_SECRET environment variable is not set. Application cannot start.")
@@ -133,12 +135,12 @@ func New(db *sql.DB, driver, dsn string) huma.API {
 		}
 	}
 
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema})
-	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
-	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec})
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix})
+	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
+	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver})
-	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver})
+	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}, Recorder: rec})
 	if db != nil {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver})

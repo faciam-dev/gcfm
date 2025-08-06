@@ -53,7 +53,7 @@ func TestCreateCustomFieldOnReservedTable(t *testing.T) {
 	}
 
 	t.Setenv("JWT_SECRET", "testsecret")
-	api := server.New(db, "postgres", dsn)
+	api := server.New(db, server.DBConfig{Driver: "postgres", DSN: dsn, TablePrefix: "gcfm_"})
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
@@ -101,7 +101,7 @@ func TestUpdateCustomFieldOnReservedTable(t *testing.T) {
 	}
 
 	t.Setenv("JWT_SECRET", "testsecret")
-	api := server.New(db, "postgres", dsn)
+	api := server.New(db, server.DBConfig{Driver: "postgres", DSN: dsn, TablePrefix: "gcfm_"})
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
@@ -154,7 +154,7 @@ func TestDeleteCustomFieldOnReservedTable(t *testing.T) {
 	}
 
 	t.Setenv("JWT_SECRET", "testsecret")
-	api := server.New(db, "postgres", dsn)
+	api := server.New(db, server.DBConfig{Driver: "postgres", DSN: dsn, TablePrefix: "gcfm_"})
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 

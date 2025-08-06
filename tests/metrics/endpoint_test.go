@@ -11,7 +11,7 @@ import (
 
 func TestMetricsEndpoint(t *testing.T) {
 	os.Setenv("JWT_SECRET", "test")
-	api := server.New(nil, "", "")
+	api := server.New(nil, server.DBConfig{Driver: "", DSN: "", TablePrefix: "gcfm_"})
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	w := httptest.NewRecorder()
 	api.Adapter().ServeHTTP(w, req)

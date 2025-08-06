@@ -20,10 +20,11 @@ import (
 const snapshotBaseDir = "./snapshots"
 
 type RegistryHandler struct {
-	DB       *sql.DB
-	Driver   string
-	DSN      string
-	Recorder *audit.Recorder
+	DB          *sql.DB
+	Driver      string
+	DSN         string
+	Recorder    *audit.Recorder
+	TablePrefix string
 }
 
 type applyInput struct {
@@ -58,7 +59,7 @@ func RegisterRegistry(api huma.API, h *RegistryHandler) {
 func (h *RegistryHandler) apply(ctx context.Context, in *applyInput) (*applyOutput, error) {
 	svc := sdk.New(sdk.ServiceConfig{Recorder: h.Recorder})
 	actor := middleware.UserFromContext(ctx)
-	rep, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"}, []byte(in.Body.YAML), sdk.ApplyOptions{DryRun: in.Body.DryRun, Actor: actor})
+	rep, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public", TablePrefix: h.TablePrefix}, []byte(in.Body.YAML), sdk.ApplyOptions{DryRun: in.Body.DryRun, Actor: actor})
 	if err != nil {
 		return nil, err
 	}

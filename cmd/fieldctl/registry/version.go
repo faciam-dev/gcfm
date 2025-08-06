@@ -29,7 +29,7 @@ func NewVersionCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			m := migrator.New()
+			m := migrator.NewWithDriverAndPrefix(driver, "gcfm_")
 			fmt.Fprintln(cmd.OutOrStdout(), m.SemVer(cur))
 			return nil
 		},

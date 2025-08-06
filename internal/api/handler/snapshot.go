@@ -19,10 +19,11 @@ import (
 
 // SnapshotHandler provides snapshot endpoints.
 type SnapshotHandler struct {
-	DB       *sql.DB
-	Driver   string
-	DSN      string
-	Recorder *audit.Recorder
+	DB          *sql.DB
+	Driver      string
+	DSN         string
+	Recorder    *audit.Recorder
+	TablePrefix string
 }
 
 type snapshotListOutput struct{ Body []schema.Snapshot }
@@ -178,7 +179,7 @@ func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*s
 	}
 	svc := sdk.New(sdk.ServiceConfig{Recorder: h.Recorder})
 	actor := middleware.UserFromContext(ctx)
-	if _, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"}, data, sdk.ApplyOptions{Actor: actor}); err != nil {
+	if _, err := svc.Apply(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public", TablePrefix: h.TablePrefix}, data, sdk.ApplyOptions{Actor: actor}); err != nil {
 		return nil, err
 	}
 	ch, err := snapshot.DiffYaml(current, data)

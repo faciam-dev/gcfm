@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"flag"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,6 +23,7 @@ import (
 func main() {
 	dsn := flag.String("dsn", "", "database DSN")
 	driver := flag.String("driver", "postgres", "database driver")
+	tblPrefix := flag.String("table-prefix", getenv("TABLE_PREFIX", "gcfm_"), "registry table prefix (default gcfm_)")
 	addr := flag.String("addr", ":8080", "listen address")
 	openapi := flag.String("openapi", "", "write OpenAPI JSON and exit")
 	flag.Parse()
@@ -44,10 +46,13 @@ func main() {
 		defer db.Close()
 	}
 
-	api := server.New(db, *driver, *dsn)
+	cfg := server.DBConfig{Driver: *driver, DSN: *dsn, TablePrefix: *tblPrefix}
+	log.Printf("table prefix: %q", cfg.TablePrefix)
+
+	api := server.New(db, cfg)
 
 	if db != nil {
-		repo := &monitordb.Repo{DB: db, Driver: *driver}
+		repo := &monitordb.Repo{DB: db, Driver: cfg.Driver}
 		s := gocron.NewScheduler(time.UTC)
 		s.Cron("0 3 * * *").Do(func() {
 			ctx := context.Background()
@@ -77,4 +82,11 @@ func main() {
 		logger.L.Error("server error", "err", err)
 		os.Exit(1)
 	}
+}
+
+func getenv(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
 }

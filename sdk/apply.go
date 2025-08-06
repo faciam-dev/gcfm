@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -34,30 +35,44 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 	var hdr struct {
 		Version string `yaml:"version"`
 	}
-	if err := yaml.Unmarshal(data, &hdr); err == nil {
-		mig := migrator.New()
-		if req, ok := mig.SemVerToInt(hdr.Version); ok {
-			drv := cfg.Driver
-			if drv == "" {
-				var derr error
-				drv, derr = detectDriver(cfg.DSN)
-				if derr != nil {
-					return DiffReport{}, derr
-				}
+	if err := yaml.Unmarshal(data, &hdr); err != nil {
+		return DiffReport{}, err
+	}
+	if hdr.Version != "" {
+		prefix := cfg.TablePrefix
+		if prefix == "" {
+			prefix = "gcfm_"
+		}
+		drv := cfg.Driver
+		if drv == "" {
+			var derr error
+			drv, derr = detectDriver(cfg.DSN)
+			if derr != nil {
+				return DiffReport{}, derr
 			}
-			if drv == "mysql" || drv == "postgres" {
-				db, err := sql.Open(drv, cfg.DSN)
-				if err != nil {
-					return DiffReport{}, err
-				}
-				defer db.Close()
-				cur, err := mig.Current(ctx, db)
-				if err != nil && err != migrator.ErrNoVersionTable {
-					return DiffReport{}, err
-				}
-				if cur < req {
-					return DiffReport{}, fmt.Errorf("registry schema %s required, current %s", hdr.Version, mig.SemVer(cur))
-				}
+		}
+		mig := migrator.NewWithDriverAndPrefix(drv, prefix)
+		if drv == "mysql" || drv == "postgres" {
+			db, err := sql.Open(drv, cfg.DSN)
+			if err != nil {
+				return DiffReport{}, err
+			}
+			defer db.Close()
+			cur, err := mig.Current(ctx, db)
+			if err != nil && err != migrator.ErrNoVersionTable {
+				return DiffReport{}, err
+			}
+			curSem := mig.SemVer(cur)
+			if curSem == "" {
+				slog.Warn("unexpected empty semver: registry version could not be mapped to a semantic version. This may indicate a missing or corrupted version table, and migration cannot proceed safely. Please check the database schema and ensure migrations have been applied.", "cur", cur)
+				return DiffReport{}, fmt.Errorf("cannot map registry version %d to semver", cur)
+			}
+			ok, err := semverLT(curSem, hdr.Version)
+			if err != nil {
+				return DiffReport{}, err
+			}
+			if ok {
+				return DiffReport{}, fmt.Errorf("registry schema %s required, current %s", hdr.Version, curSem)
 			}
 		}
 	}
@@ -136,13 +151,13 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			return rep, err
 		}
 		defer cli.Disconnect(ctx)
-		if err := registry.DeleteMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema}, dels); err != nil {
+		if err := registry.DeleteMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema, TablePrefix: cfg.TablePrefix}, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
 			}
 			return rep, err
 		}
-		if err := registry.UpsertMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema}, upserts); err != nil {
+		if err := registry.UpsertMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema, TablePrefix: cfg.TablePrefix}, upserts); err != nil {
 			if len(upserts) > 0 {
 				recordApplyError(upserts[0].TableName)
 			}

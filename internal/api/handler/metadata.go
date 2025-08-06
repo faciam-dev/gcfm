@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
@@ -13,8 +14,9 @@ import (
 
 // MetadataHandler handles metadata endpoints.
 type MetadataHandler struct {
-	DB     *sql.DB
-	Driver string
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
 }
 
 // tablesParams is the query parameters for list tables.
@@ -44,6 +46,7 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *tablesParams) (*tab
 	default:
 		query = "SELECT DISTINCT table_name FROM gcfm_custom_fields WHERE db_id=? AND tenant_id=? ORDER BY table_name"
 	}
+	query = strings.ReplaceAll(query, "gcfm_", h.TablePrefix)
 	rows, err := h.DB.QueryContext(ctx, query, p.DBID, tenantID)
 	if err != nil {
 		return nil, err

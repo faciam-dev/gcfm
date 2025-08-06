@@ -23,11 +23,12 @@ import (
 )
 
 type CustomFieldHandler struct {
-	DB       *sql.DB
-	Mongo    *mongo.Client
-	Driver   string
-	Recorder *audit.Recorder
-	Schema   string
+	DB          *sql.DB
+	Mongo       *mongo.Client
+	Driver      string
+	Recorder    *audit.Recorder
+	Schema      string
+	TablePrefix string
 }
 
 type createInput struct {
@@ -116,7 +117,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	}
 	switch h.Driver {
 	case "mongo":
-		if err := registry.UpsertMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema}, []registry.FieldMeta{meta}); err != nil {
+		if err := registry.UpsertMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema, TablePrefix: h.TablePrefix}, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	default:
@@ -152,9 +153,9 @@ func (h *CustomFieldHandler) list(ctx context.Context, in *listParams) (*listOut
 	tenantID := tenant.FromContext(ctx)
 	switch h.Driver {
 	case "mongo":
-		metas, err = registry.LoadMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema})
+		metas, err = registry.LoadMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema, TablePrefix: h.TablePrefix})
 	default:
-		metas, err = registry.LoadSQLByDB(ctx, h.DB, registry.DBConfig{Driver: h.Driver, Schema: h.Schema}, tenantID, in.DBID)
+		metas, err = registry.LoadSQLByDB(ctx, h.DB, registry.DBConfig{Driver: h.Driver, Schema: h.Schema, TablePrefix: h.TablePrefix}, tenantID, in.DBID)
 	}
 	if err != nil {
 		return nil, err
@@ -258,7 +259,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	}
 	switch h.Driver {
 	case "mongo":
-		if err := registry.UpsertMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema}, []registry.FieldMeta{meta}); err != nil {
+		if err := registry.UpsertMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema, TablePrefix: h.TablePrefix}, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	default:
@@ -312,7 +313,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	}
 	switch h.Driver {
 	case "mongo":
-		if err := registry.DeleteMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema}, []registry.FieldMeta{meta}); err != nil {
+		if err := registry.DeleteMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema, TablePrefix: h.TablePrefix}, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	default:

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -38,9 +39,10 @@ func (m *Migrator) customFieldsTable() string {
 	return m.TablePrefix + "custom_fields"
 }
 
-// New returns a Migrator with MySQL migrations.
+// Deprecated: use NewWithDriverAndPrefix(driver, prefix) to avoid implicit prefix errors.
 func New() *Migrator {
-	return NewWithDriverAndPrefix("mysql", "")
+	log.Println("WARNING: migrator.New() is deprecated; use NewWithDriverAndPrefix")
+	return nil
 }
 
 // NewWithDriver returns a Migrator for the specified driver.
@@ -199,14 +201,4 @@ func (m *Migrator) SQLForRange(from, to int) []string {
 		}
 	}
 	return res
-}
-
-// SemVer returns the semver string for version v.
-func (m *Migrator) SemVer(v int) string {
-	for _, mig := range m.migrations {
-		if mig.Version == v {
-			return mig.SemVer
-		}
-	}
-	return ""
 }
