@@ -125,6 +125,16 @@ func (r *Repo) Get(ctx context.Context, tenant string, id int64) (Database, erro
 	return d, nil
 }
 
+// Update modifies an existing monitored database's name and DSN.
+func (r *Repo) Update(ctx context.Context, tenant string, id int64, name string, dsnEnc []byte) error {
+	q := `UPDATE monitored_databases SET name=?, dsn_enc=? WHERE tenant_id=? AND id=?`
+	if r.Driver == "postgres" {
+		q = `UPDATE monitored_databases SET name=$1, dsn_enc=$2 WHERE tenant_id=$3 AND id=$4`
+	}
+	_, err := r.DB.ExecContext(ctx, q, name, dsnEnc, tenant, id)
+	return err
+}
+
 // Delete removes a monitored database.
 func (r *Repo) Delete(ctx context.Context, tenant string, id int64) error {
 	q := `DELETE FROM monitored_databases WHERE tenant_id=? AND id=?`
