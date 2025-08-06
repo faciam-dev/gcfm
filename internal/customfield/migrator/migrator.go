@@ -38,9 +38,9 @@ func (m *Migrator) customFieldsTable() string {
 	return m.TablePrefix + "custom_fields"
 }
 
-// New returns a Migrator with MySQL migrations.
+// Deprecated: use NewWithDriverAndPrefix(driver, prefix) to avoid implicit prefix errors.
 func New() *Migrator {
-	return NewWithDriverAndPrefix("mysql", "")
+	panic("migrator.New() is deprecated; use NewWithDriverAndPrefix")
 }
 
 // NewWithDriver returns a Migrator for the specified driver.

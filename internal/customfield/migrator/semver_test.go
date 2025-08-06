@@ -3,7 +3,7 @@ package migrator
 import "testing"
 
 func TestSemVer(t *testing.T) {
-	m := New()
+	m := NewWithDriver("mysql")
 	cases := []struct {
 		in  int
 		out string

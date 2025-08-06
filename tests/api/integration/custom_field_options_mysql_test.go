@@ -61,7 +61,7 @@ func TestAPI_Create_CF_Options_MySQL(t *testing.T) {
 	}
 
 	t.Setenv("JWT_SECRET", "testsecret")
-	api := server.New(db, "mysql", dsn)
+	api := server.New(db, server.DBConfig{Driver: "mysql", DSN: dsn, TablePrefix: "gcfm_"})
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 

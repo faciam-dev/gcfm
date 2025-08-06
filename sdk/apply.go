@@ -39,7 +39,10 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		return DiffReport{}, err
 	}
 	if hdr.Version != "" {
-		mig := migrator.New()
+		prefix := cfg.TablePrefix
+		if prefix == "" {
+			prefix = "gcfm_"
+		}
 		drv := cfg.Driver
 		if drv == "" {
 			var derr error
@@ -48,6 +51,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 				return DiffReport{}, derr
 			}
 		}
+		mig := migrator.NewWithDriverAndPrefix(drv, prefix)
 		if drv == "mysql" || drv == "postgres" {
 			db, err := sql.Open(drv, cfg.DSN)
 			if err != nil {
@@ -147,13 +151,13 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			return rep, err
 		}
 		defer cli.Disconnect(ctx)
-		if err := registry.DeleteMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema}, dels); err != nil {
+		if err := registry.DeleteMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema, TablePrefix: cfg.TablePrefix}, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
 			}
 			return rep, err
 		}
-		if err := registry.UpsertMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema}, upserts); err != nil {
+		if err := registry.UpsertMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema, TablePrefix: cfg.TablePrefix}, upserts); err != nil {
 			if len(upserts) > 0 {
 				recordApplyError(upserts[0].TableName)
 			}
