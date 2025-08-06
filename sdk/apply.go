@@ -64,7 +64,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			}
 			curSem := mig.SemVer(cur)
 			if curSem == "" {
-				slog.Warn("unexpected empty semver", "cur", cur)
+				slog.Warn("unexpected empty semver: registry version could not be mapped to a semantic version. This may indicate a missing or corrupted version table, and migration cannot proceed safely. Please check the database schema and ensure migrations have been applied.", "cur", cur)
 				return DiffReport{}, fmt.Errorf("cannot map registry version %d to semver", cur)
 			}
 			ok, err := semverLT(curSem, hdr.Version)

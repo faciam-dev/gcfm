@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -40,7 +41,8 @@ func (m *Migrator) customFieldsTable() string {
 
 // Deprecated: use NewWithDriverAndPrefix(driver, prefix) to avoid implicit prefix errors.
 func New() *Migrator {
-	panic("migrator.New() is deprecated; use NewWithDriverAndPrefix")
+	log.Println("WARNING: migrator.New() is deprecated; use NewWithDriverAndPrefix")
+	return nil
 }
 
 // NewWithDriver returns a Migrator for the specified driver.
