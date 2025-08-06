@@ -34,30 +34,32 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 	var hdr struct {
 		Version string `yaml:"version"`
 	}
-	if err := yaml.Unmarshal(data, &hdr); err == nil {
+	if err := yaml.Unmarshal(data, &hdr); err == nil && hdr.Version != "" {
 		mig := migrator.New()
-		if req, ok := mig.SemVerToInt(hdr.Version); ok {
-			drv := cfg.Driver
-			if drv == "" {
-				var derr error
-				drv, derr = detectDriver(cfg.DSN)
-				if derr != nil {
-					return DiffReport{}, derr
-				}
+		drv := cfg.Driver
+		if drv == "" {
+			var derr error
+			drv, derr = detectDriver(cfg.DSN)
+			if derr != nil {
+				return DiffReport{}, derr
 			}
-			if drv == "mysql" || drv == "postgres" {
-				db, err := sql.Open(drv, cfg.DSN)
-				if err != nil {
-					return DiffReport{}, err
-				}
-				defer db.Close()
-				cur, err := mig.Current(ctx, db)
-				if err != nil && err != migrator.ErrNoVersionTable {
-					return DiffReport{}, err
-				}
-				if cur < req {
-					return DiffReport{}, fmt.Errorf("registry schema %s required, current %s", hdr.Version, mig.SemVer(cur))
-				}
+		}
+		if drv == "mysql" || drv == "postgres" {
+			db, err := sql.Open(drv, cfg.DSN)
+			if err != nil {
+				return DiffReport{}, err
+			}
+			defer db.Close()
+			cur, err := mig.Current(ctx, db)
+			if err != nil && err != migrator.ErrNoVersionTable {
+				return DiffReport{}, err
+			}
+			curSem := mig.SemVer(cur)
+			if curSem == "" {
+				curSem = "0.0.0"
+			}
+			if semverLT(curSem, hdr.Version) {
+				return DiffReport{}, fmt.Errorf("registry schema %s required, current %s", hdr.Version, curSem)
 			}
 		}
 	}
