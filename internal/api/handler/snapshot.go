@@ -39,13 +39,6 @@ type snapshotDetailOutput struct {
 	Body        []byte
 }
 
-type snapshotDiffParams struct {
-	Ver   string `path:"ver"`
-	Other string `path:"other"`
-}
-
-type snapshotDiffOutput struct{ Body string }
-
 type snapshotApplyParams struct {
 	Ver string `path:"ver"`
 }
@@ -80,14 +73,6 @@ func RegisterSnapshot(api huma.API, h *SnapshotHandler) {
 			},
 		},
 	}, h.get)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "diffSnapshots",
-		Method:      http.MethodGet,
-		Path:        "/v1/snapshots/{ver}/diff/{other}",
-		Summary:     "Diff two snapshots",
-		Tags:        []string{"Snapshot"},
-	}, h.diff)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "applySnapshot",
@@ -162,22 +147,6 @@ func (h *SnapshotHandler) get(ctx context.Context, p *snapshotDetailParams) (*sn
 	}
 	y, _ := snapshot.Decode(rec.YAML)
 	return &snapshotDetailOutput{ContentType: "text/yaml", Body: y}, nil
-}
-
-func (h *SnapshotHandler) diff(ctx context.Context, p *snapshotDiffParams) (*snapshotDiffOutput, error) {
-	tid := tenant.FromContext(ctx)
-	a, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
-	if err != nil {
-		return nil, err
-	}
-	b, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Other)
-	if err != nil {
-		return nil, err
-	}
-	ya, _ := snapshot.Decode(a.YAML)
-	yb, _ := snapshot.Decode(b.YAML)
-	diff := sdk.UnifiedDiff(string(ya), string(yb))
-	return &snapshotDiffOutput{Body: diff}, nil
 }
 
 func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*struct{}, error) {

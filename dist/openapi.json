@@ -1464,6 +1464,54 @@
         ]
       }
     },
+    "/v1/snapshots/{ver}": {
+      "get": {
+        "operationId": "getSnapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ver",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Content-Type": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get snapshot YAML",
+        "tags": [
+          "Snapshot"
+        ]
+      }
+    },
     "/v1/snapshots/{ver}/apply": {
       "post": {
         "operationId": "applySnapshot",
@@ -1493,55 +1541,6 @@
           }
         },
         "summary": "Apply registry snapshot",
-        "tags": [
-          "Snapshot"
-        ]
-      }
-    },
-    "/v1/snapshots/{ver}/diff/{other}": {
-      "get": {
-        "operationId": "diffSnapshots",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "ver",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "other",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "Diff two snapshots",
         "tags": [
           "Snapshot"
         ]
