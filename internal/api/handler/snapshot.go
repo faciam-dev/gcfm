@@ -34,9 +34,9 @@ type snapshotCreateOutput struct{ Body schema.Snapshot }
 type snapshotDetailParams struct {
 	Ver string `path:"ver"`
 }
-
 type snapshotDetailOutput struct {
-	Body string `yaml:"-" json:"yaml"`
+	ContentType string `header:"Content-Type"`
+	Body        []byte
 }
 
 type snapshotDiffParams struct {
@@ -72,10 +72,13 @@ func RegisterSnapshot(api huma.API, h *SnapshotHandler) {
 		Path:        "/v1/snapshots/{ver}",
 		Summary:     "Get snapshot YAML",
 		Tags:        []string{"Snapshot"},
-		// content-type を明示したい場合:
-		// Responses: map[int]huma.Response{
-		//         200: {ContentType: "text/yaml"},
-		// },
+		Responses: map[string]*huma.Response{
+			"200": {
+				Content: map[string]*huma.MediaType{
+					"text/yaml": {Schema: &huma.Schema{Type: "string"}},
+				},
+			},
+		},
 	}, h.get)
 
 	huma.Register(api, huma.Operation{
@@ -157,8 +160,8 @@ func (h *SnapshotHandler) get(ctx context.Context, p *snapshotDetailParams) (*sn
 	if err != nil {
 		return nil, err
 	}
-	yamlBytes, _ := snapshot.Decode(rec.YAML)
-	return &snapshotDetailOutput{Body: string(yamlBytes)}, nil
+	y, _ := snapshot.Decode(rec.YAML)
+	return &snapshotDetailOutput{ContentType: "text/yaml", Body: y}, nil
 }
 
 func (h *SnapshotHandler) diff(ctx context.Context, p *snapshotDiffParams) (*snapshotDiffOutput, error) {
