@@ -14,6 +14,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/faciam-dev/gcfm/sdk"
+	"gopkg.in/yaml.v3"
 )
 
 // SnapshotHandler provides snapshot endpoints.
@@ -31,12 +32,13 @@ type snapshotCreateInput struct{ Body schema.SnapshotCreateRequest }
 
 type snapshotCreateOutput struct{ Body schema.Snapshot }
 
-type snapshotDiffParams struct {
-	Ver   string `path:"ver"`
-	Other string `path:"other"`
+type snapshotDetailParams struct {
+	Ver string `path:"ver"`
 }
-
-type snapshotDiffOutput struct{ Body string }
+type snapshotDetailOutput struct {
+	ContentType string `header:"Content-Type"`
+	Body        []byte
+}
 
 type snapshotApplyParams struct {
 	Ver string `path:"ver"`
@@ -59,12 +61,19 @@ func RegisterSnapshot(api huma.API, h *SnapshotHandler) {
 	}, h.create)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "diffSnapshots",
+		OperationID: "getSnapshot",
 		Method:      http.MethodGet,
-		Path:        "/v1/snapshots/{ver}/diff/{other}",
-		Summary:     "Diff two snapshots",
+		Path:        "/v1/snapshots/{ver}",
+		Summary:     "Get snapshot YAML",
 		Tags:        []string{"Snapshot"},
-	}, h.diff)
+		Responses: map[string]*huma.Response{
+			"200": {
+				Content: map[string]*huma.MediaType{
+					"text/yaml": {Schema: &huma.Schema{Type: "string"}},
+				},
+			},
+		},
+	}, h.get)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "applySnapshot",
@@ -90,8 +99,14 @@ func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*sna
 
 func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (*snapshotCreateOutput, error) {
 	tid := tenant.FromContext(ctx)
-	svc := sdk.New(sdk.ServiceConfig{Recorder: h.Recorder})
-	data, err := svc.Export(ctx, sdk.DBConfig{Driver: h.Driver, DSN: h.DSN, Schema: "public"})
+	reg, err := snapshot.ExportRegistry(ctx, h.DB, h.Driver, tid)
+	if err != nil {
+		return nil, err
+	}
+	if len(reg.Fields) == 0 {
+		return nil, fmt.Errorf("registry is empty; run scan first")
+	}
+	data, err := yaml.Marshal(reg)
 	if err != nil {
 		return nil, err
 	}
@@ -120,11 +135,13 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if last != "0.0.0" {
 		prev, err := snapshot.Get(ctx, h.DB, h.Driver, tid, last)
 		if err == nil {
-			prevY, _ := snapshot.Decode(prev.YAML)
-			ch, err := snapshot.DiffYaml(prevY, data)
+			prevY, err := snapshot.Decode(prev.YAML)
 			if err == nil {
-				rep := sdk.CalculateDiff(ch)
-				summary = fmt.Sprintf("+%d -%d", rep.Added, rep.Deleted)
+				ch, err := snapshot.DiffYaml(prevY, data)
+				if err == nil {
+					rep := sdk.CalculateDiff(ch)
+					summary = fmt.Sprintf("+%d -%d", rep.Added, rep.Deleted)
+				}
 			}
 		}
 	}
@@ -132,21 +149,17 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	_ = h.Recorder.WriteAction(ctx, actor, "snapshot", rec.Semver, summary)
 	return &snapshotCreateOutput{Body: schema.Snapshot{ID: rec.ID, Semver: rec.Semver, TakenAt: rec.TakenAt}}, nil
 }
-
-func (h *SnapshotHandler) diff(ctx context.Context, p *snapshotDiffParams) (*snapshotDiffOutput, error) {
+func (h *SnapshotHandler) get(ctx context.Context, p *snapshotDetailParams) (*snapshotDetailOutput, error) {
 	tid := tenant.FromContext(ctx)
-	a, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
+	rec, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
 	if err != nil {
 		return nil, err
 	}
-	b, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Other)
+	y, err := snapshot.Decode(rec.YAML)
 	if err != nil {
 		return nil, err
 	}
-	ya, _ := snapshot.Decode(a.YAML)
-	yb, _ := snapshot.Decode(b.YAML)
-	diff := sdk.UnifiedDiff(string(ya), string(yb))
-	return &snapshotDiffOutput{Body: diff}, nil
+	return &snapshotDetailOutput{ContentType: "text/yaml", Body: y}, nil
 }
 
 func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*struct{}, error) {
