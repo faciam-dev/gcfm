@@ -34,7 +34,10 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 	var hdr struct {
 		Version string `yaml:"version"`
 	}
-	if err := yaml.Unmarshal(data, &hdr); err == nil && hdr.Version != "" {
+	if err := yaml.Unmarshal(data, &hdr); err != nil {
+		return DiffReport{}, err
+	}
+	if hdr.Version != "" {
 		mig := migrator.New()
 		drv := cfg.Driver
 		if drv == "" {
@@ -58,7 +61,11 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			if curSem == "" {
 				curSem = "0.0.0"
 			}
-			if semverLT(curSem, hdr.Version) {
+			ok, err := semverLT(curSem, hdr.Version)
+			if err != nil {
+				return DiffReport{}, err
+			}
+			if ok {
 				return DiffReport{}, fmt.Errorf("registry schema %s required, current %s", hdr.Version, curSem)
 			}
 		}

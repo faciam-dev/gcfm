@@ -12,8 +12,15 @@ func TestSemverLT(t *testing.T) {
 		{"0.1.0", "0.1.1", true},
 	}
 	for _, c := range cases {
-		if got := semverLT(c.a, c.b); got != c.want {
+		got, err := semverLT(c.a, c.b)
+		if err != nil {
+			t.Fatalf("semverLT(%s,%s) error: %v", c.a, c.b, err)
+		}
+		if got != c.want {
 			t.Errorf("semverLT(%s,%s)=%v want %v", c.a, c.b, got, c.want)
 		}
+	}
+	if _, err := semverLT("invalid", "1.0.0"); err == nil {
+		t.Error("expected error for invalid version")
 	}
 }

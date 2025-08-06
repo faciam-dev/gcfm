@@ -6,13 +6,16 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-func semverLT(a, b string) bool {
-	va, err1 := semver.NewVersion(normalize(a))
-	vb, err2 := semver.NewVersion(normalize(b))
-	if err1 != nil || err2 != nil {
-		return false
+func semverLT(a, b string) (bool, error) {
+	va, err := semver.NewVersion(normalize(a))
+	if err != nil {
+		return false, err
 	}
-	return va.LessThan(vb)
+	vb, err := semver.NewVersion(normalize(b))
+	if err != nil {
+		return false, err
+	}
+	return va.LessThan(vb), nil
 }
 
 func normalize(s string) string {
