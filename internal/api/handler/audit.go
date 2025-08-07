@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -39,7 +40,9 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 
 	prettify := func(js string) string {
 		var buf bytes.Buffer
-		_ = json.Indent(&buf, []byte(js), "", "  ")
+		if err := json.Indent(&buf, []byte(js), "", "  "); err != nil {
+			return js
+		}
 		return buf.String()
 	}
 	left := prettify(before.String)
@@ -52,10 +55,15 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		ToFile:   "after",
 		Context:  3,
 	}
-	text, _ := difflib.GetUnifiedDiffString(ud)
+	text, err := difflib.GetUnifiedDiffString(ud)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to generate diff: " + err.Error())
+	}
 	return &huma.StreamResponse{Body: func(hctx huma.Context) {
 		hctx.SetHeader("Content-Type", "text/plain")
-		_, _ = hctx.BodyWriter().Write([]byte(text))
+		if _, err := hctx.BodyWriter().Write([]byte(text)); err != nil {
+			log.Printf("error writing diff response: %v", err)
+		}
 	}}, nil
 }
 
