@@ -6,4 +6,4 @@ ALTER TABLE gcfm_custom_fields
       FOREIGN KEY (db_id) REFERENCES monitored_databases(id)
       ON DELETE CASCADE;
 
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (15, '0.15');
+INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (14, '0.14');

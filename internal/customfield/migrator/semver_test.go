@@ -11,7 +11,6 @@ func TestSemVer(t *testing.T) {
 		{0, "0.0.0"},
 		{3, "0.3.0"},
 		{14, "0.14.0"},
-		{15, "0.15.0"},
 	}
 	for _, c := range cases {
 		if got := m.SemVer(c.in); got != c.out {
