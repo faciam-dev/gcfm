@@ -20,22 +20,20 @@ type AuditHandler struct {
 	Driver string
 }
 
-// diffOutput wraps the diff text
-type diffOutput struct {
-	Body string `content:"text/plain"`
-}
-
 // getDiff returns unified diff for an audit record
 func (h *AuditHandler) getDiff(ctx context.Context,
 	p *struct {
 		ID int64 `path:"id"`
-	}) (*diffOutput, error) {
+	}) (*huma.StreamResponse, error) {
 	var before, after sql.NullString
 	query := `SELECT COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM gcfm_audit_logs WHERE id = $1`
 	if h.Driver == "mysql" {
 		query = `SELECT COALESCE(JSON_UNQUOTE(before_json), '{}'), COALESCE(JSON_UNQUOTE(after_json), '{}') FROM gcfm_audit_logs WHERE id = ?`
 	}
 	if err := h.DB.QueryRowContext(ctx, query, p.ID).Scan(&before, &after); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("not found")
+		}
 		return nil, err
 	}
 
@@ -55,7 +53,10 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		Context:  3,
 	}
 	text, _ := difflib.GetUnifiedDiffString(ud)
-	return &diffOutput{Body: text}, nil
+	return &huma.StreamResponse{Body: func(hctx huma.Context) {
+		hctx.SetHeader("Content-Type", "text/plain")
+		_, _ = hctx.BodyWriter().Write([]byte(text))
+	}}, nil
 }
 
 type auditParams struct {
