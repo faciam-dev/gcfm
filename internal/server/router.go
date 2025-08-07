@@ -74,9 +74,6 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		e.AddPolicy("admin", "/v1/*", "POST")
 		e.AddPolicy("admin", "/v1/*", "PUT")
 		e.AddPolicy("admin", "/v1/*", "DELETE")
-		e.AddPolicy("admin", "/v1/databases/*", "POST")
-		e.AddPolicy("admin", "/v1/databases/*", "PUT")
-		e.AddPolicy("admin", "/v1/databases/*", "DELETE")
 		if db != nil {
 			if err := rbac.Load(context.Background(), db, e); err != nil {
 				logger.L.Error("load rbac", "err", err)

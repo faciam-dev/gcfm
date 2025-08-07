@@ -34,10 +34,9 @@ type updateDBInput struct {
 }
 
 type updateDBBody struct {
-	Name    string `json:"name"`
-	Driver  string `json:"driver"`
-	DSN     string `json:"dsn"`
-	Comment string `json:"comment,omitempty"`
+	Name   string `json:"name"`
+	Driver string `json:"driver"`
+	DSN    string `json:"dsn"`
 }
 
 type dbOutput struct{ Body schema.Database }

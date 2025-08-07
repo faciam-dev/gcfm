@@ -636,9 +636,6 @@
             "readOnly": true,
             "type": "string"
           },
-          "comment": {
-            "type": "string"
-          },
           "driver": {
             "type": "string"
           },
