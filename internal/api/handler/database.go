@@ -28,6 +28,19 @@ type createDBOutput struct{ Body schema.Database }
 
 type listDBOutput struct{ Body []schema.Database }
 
+type updateDBInput struct {
+	ID   int64 `path:"id"`
+	Body updateDBBody
+}
+
+type updateDBBody struct {
+	Name   string `json:"name"`
+	Driver string `json:"driver"`
+	DSN    string `json:"dsn"`
+}
+
+type dbOutput struct{ Body schema.Database }
+
 type idParam struct {
 	ID int64 `path:"id"`
 }
@@ -56,6 +69,13 @@ func RegisterDatabase(api huma.API, h *DatabaseHandler) {
 		Tags:          []string{"Database"},
 		DefaultStatus: http.StatusCreated,
 	}, h.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "updateDatabase",
+		Method:      http.MethodPut,
+		Path:        "/v1/databases/{id}",
+		Summary:     "Update monitored database",
+		Tags:        []string{"Database"},
+	}, h.update)
 	huma.Register(api, huma.Operation{
 		OperationID:   "deleteDatabase",
 		Method:        http.MethodDelete,
@@ -109,6 +129,26 @@ func (h *DatabaseHandler) delete(ctx context.Context, in *idParam) (*struct{}, e
 		return nil, err
 	}
 	return &struct{}{}, nil
+}
+
+func (h *DatabaseHandler) update(ctx context.Context, in *updateDBInput) (*dbOutput, error) {
+	tid := tenant.FromContext(ctx)
+	enc, err := crypto.Encrypt([]byte(in.Body.DSN))
+	if err != nil {
+		if errors.Is(err, crypto.ErrKeyNotSet) {
+			return nil, huma.NewError(http.StatusInternalServerError, err.Error())
+		}
+		return nil, err
+	}
+	if err := h.Repo.Update(ctx, tid, in.ID, in.Body.Name, in.Body.Driver, enc); err != nil {
+		return nil, err
+	}
+	d, err := h.Repo.Get(ctx, tid, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	res := schema.Database{ID: d.ID, Name: d.Name, Driver: d.Driver, CreatedAt: d.CreatedAt}
+	return &dbOutput{Body: res}, nil
 }
 
 func (h *DatabaseHandler) scan(ctx context.Context, in *scanParams) (*scanOutput, error) {
