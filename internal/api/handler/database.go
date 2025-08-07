@@ -35,6 +35,7 @@ type updateDBInput struct {
 
 type updateDBBody struct {
 	Name    string `json:"name"`
+	Driver  string `json:"driver"`
 	DSN     string `json:"dsn"`
 	Comment string `json:"comment,omitempty"`
 }
@@ -140,7 +141,7 @@ func (h *DatabaseHandler) update(ctx context.Context, in *updateDBInput) (*dbOut
 		}
 		return nil, err
 	}
-	if err := h.Repo.Update(ctx, tid, in.ID, in.Body.Name, enc); err != nil {
+	if err := h.Repo.Update(ctx, tid, in.ID, in.Body.Name, in.Body.Driver, enc); err != nil {
 		return nil, err
 	}
 	d, err := h.Repo.Get(ctx, tid, in.ID)

@@ -639,6 +639,9 @@
           "comment": {
             "type": "string"
           },
+          "driver": {
+            "type": "string"
+          },
           "dsn": {
             "type": "string"
           },
@@ -648,6 +651,7 @@
         },
         "required": [
           "name",
+          "driver",
           "dsn"
         ],
         "type": "object"

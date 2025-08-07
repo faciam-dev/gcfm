@@ -125,13 +125,13 @@ func (r *Repo) Get(ctx context.Context, tenant string, id int64) (Database, erro
 	return d, nil
 }
 
-// Update modifies an existing monitored database's name and DSN.
-func (r *Repo) Update(ctx context.Context, tenant string, id int64, name string, dsnEnc []byte) error {
-	q := `UPDATE monitored_databases SET name=?, dsn_enc=? WHERE tenant_id=? AND id=?`
+// Update modifies an existing monitored database's attributes.
+func (r *Repo) Update(ctx context.Context, tenant string, id int64, name, driver string, dsnEnc []byte) error {
+	q := `UPDATE monitored_databases SET name=?, driver=?, dsn_enc=? WHERE tenant_id=? AND id=?`
 	if r.Driver == "postgres" {
-		q = `UPDATE monitored_databases SET name=$1, dsn_enc=$2 WHERE tenant_id=$3 AND id=$4`
+		q = `UPDATE monitored_databases SET name=$1, driver=$2, dsn_enc=$3 WHERE tenant_id=$4 AND id=$5`
 	}
-	_, err := r.DB.ExecContext(ctx, q, name, dsnEnc, tenant, id)
+	_, err := r.DB.ExecContext(ctx, q, name, driver, dsnEnc, tenant, id)
 	return err
 }
 
