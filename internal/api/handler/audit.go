@@ -10,11 +10,29 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/auditlog"
+	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 )
 
 type AuditHandler struct {
 	DB     *sql.DB
 	Driver string
+}
+
+// diffOutput wraps the diff text
+type diffOutput struct {
+	Body string `content:"text/plain"`
+}
+
+// getDiff returns unified diff for an audit record
+func (h *AuditHandler) getDiff(ctx context.Context,
+	p *struct {
+		ID int64 `path:"id"`
+	}) (*diffOutput, error) {
+	rec, err := audit.Get(ctx, h.DB, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &diffOutput{Body: rec.Diff}, nil
 }
 
 type auditParams struct {
@@ -50,6 +68,22 @@ func RegisterAudit(api huma.API, h *AuditHandler) {
 		Summary:     "Get audit log by ID",
 		Tags:        []string{"Audit"},
 	}, h.get)
+
+	// Register diff endpoint
+	huma.Register(api, huma.Operation{
+		OperationID: "getAuditDiff",
+		Method:      http.MethodGet,
+		Path:        "/v1/audit-logs/{id}/diff",
+		Summary:     "Get unified diff for an audit log",
+		Tags:        []string{"Audit"},
+		Responses: map[string]*huma.Response{
+			"200": {
+				Content: map[string]*huma.MediaType{
+					"text/plain": {Schema: &huma.Schema{Type: "string"}},
+				},
+			},
+		},
+	}, h.getDiff)
 }
 
 func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, error) {

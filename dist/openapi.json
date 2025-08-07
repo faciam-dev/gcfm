@@ -826,6 +826,48 @@
         ]
       }
     },
+    "/v1/audit-logs/{id}/diff": {
+      "get": {
+        "operationId": "getAuditDiff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get unified diff for an audit log",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
     "/v1/auth/login": {
       "post": {
         "operationId": "login",
