@@ -17,6 +17,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/auditlog"
+	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/pmezard/go-difflib/difflib"
 )
@@ -239,6 +240,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (*auditList
 
 	rows, err := h.DB.QueryContext(ctx, query, args...)
 	if err != nil {
+		logger.L.Error("query audit logs", "err", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -251,10 +253,12 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (*auditList
 		var bj, aj sql.RawBytes
 		var applied any
 		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &applied); err != nil {
+			logger.L.Error("scan audit row", "err", err)
 			return nil, err
 		}
 		t, err := ParseAuditTime(applied)
 		if err != nil {
+			logger.L.Error("parse audit time", "err", err, "value", applied)
 			return nil, err
 		}
 		it.AppliedAt = t
@@ -263,6 +267,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (*auditList
 		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {
+		logger.L.Error("iterate audit rows", "err", err)
 		return nil, err
 	}
 
