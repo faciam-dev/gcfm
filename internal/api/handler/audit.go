@@ -249,9 +249,15 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (*auditList
 	for rows.Next() {
 		var it AuditDTO
 		var bj, aj sql.RawBytes
-		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &it.AppliedAt); err != nil {
+		var applied any
+		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &applied); err != nil {
 			return nil, err
 		}
+		t, err := ParseAuditTime(applied)
+		if err != nil {
+			return nil, err
+		}
+		it.AppliedAt = t
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
 		items = append(items, it)
