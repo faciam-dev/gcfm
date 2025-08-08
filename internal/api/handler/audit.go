@@ -97,8 +97,10 @@ type AuditDTO struct {
 }
 
 type auditListOutput struct {
-	Items      []AuditDTO `json:"items"`
-	NextCursor *string    `json:"nextCursor,omitempty"`
+	Body struct {
+		Items      []AuditDTO `json:"items"`
+		NextCursor *string    `json:"nextCursor,omitempty"`
+	}
 }
 
 type auditGetParams struct {
@@ -284,7 +286,15 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		items = items[:limit]
 	}
 
-	return &auditListOutput{Items: items, NextCursor: nextCursor}, nil
+	return &auditListOutput{
+		Body: struct {
+			Items      []AuditDTO `json:"items"`
+			NextCursor *string    `json:"nextCursor,omitempty"`
+		}{
+			Items:      items,
+			NextCursor: nextCursor,
+		},
+	}, nil
 }
 
 func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOutput, error) {
