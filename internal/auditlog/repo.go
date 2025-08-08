@@ -24,14 +24,18 @@ type Repo struct {
 }
 
 const findByIDQueryPg = `
-SELECT id, actor, action, table_name, column_name,
-       before_json, after_json, applied_at
-FROM gcfm_audit_logs WHERE id=$1`
+SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
+       l.before_json, l.after_json, l.applied_at
+FROM gcfm_audit_logs l
+LEFT JOIN gcfm_users u ON u.id::text = l.actor
+WHERE l.id=$1`
 
 const findByIDQueryMy = `
-SELECT id, actor, action, table_name, column_name,
-       before_json, after_json, applied_at
-FROM gcfm_audit_logs WHERE id=?`
+SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
+       l.before_json, l.after_json, l.applied_at
+FROM gcfm_audit_logs l
+LEFT JOIN gcfm_users u ON CAST(u.id AS CHAR) = l.actor
+WHERE l.id=?`
 
 // FindByID returns a record by its ID.
 func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
