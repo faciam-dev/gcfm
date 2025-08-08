@@ -151,23 +151,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 			return nil, err
 		}
 		l.AppliedAt = t
-		switch l.Action {
-		case "snapshot", "rollback":
-			if beforeJSON.Valid {
-				l.Summary = beforeJSON.String
-			}
-		default:
-			var addCnt, delCnt int
-			if l.Action == "add" {
-				addCnt = 1
-			} else if l.Action == "delete" {
-				delCnt = 1
-			}
-			l.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
-			l.BeforeJSON = beforeJSON
-			l.AfterJSON = afterJSON
-		}
-		l.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", l.ID)
+		enrichAuditLog(&l, beforeJSON, afterJSON)
 		logs = append(logs, l)
 	}
 	if err := rows.Err(); err != nil {
@@ -197,23 +181,7 @@ func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOut
 		ColumnName: rec.ColumnName,
 		AppliedAt:  t,
 	}
-	switch rec.Action {
-	case "snapshot", "rollback":
-		if rec.BeforeJSON.Valid {
-			log.Summary = rec.BeforeJSON.String
-		}
-	default:
-		var addCnt, delCnt int
-		if rec.Action == "add" {
-			addCnt = 1
-		} else if rec.Action == "delete" {
-			delCnt = 1
-		}
-		log.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
-		log.BeforeJSON = rec.BeforeJSON
-		log.AfterJSON = rec.AfterJSON
-	}
-	log.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", log.ID)
+	enrichAuditLog(&log, rec.BeforeJSON, rec.AfterJSON)
 	return &auditGetOutput{Body: log}, nil
 }
 
@@ -241,4 +209,24 @@ func parseAuditTimeString(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, errors.New("cannot parse time: " + s)
+}
+
+func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
+	switch l.Action {
+	case "snapshot", "rollback":
+		if beforeJSON.Valid {
+			l.Summary = beforeJSON.String
+		}
+	default:
+		var addCnt, delCnt int
+		if l.Action == "add" {
+			addCnt = 1
+		} else if l.Action == "delete" {
+			delCnt = 1
+		}
+		l.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
+	}
+	l.BeforeJSON = beforeJSON
+	l.AfterJSON = afterJSON
+	l.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", l.ID)
 }
