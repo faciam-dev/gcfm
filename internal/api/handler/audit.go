@@ -4,16 +4,20 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/auditlog"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/pmezard/go-difflib/difflib"
 )
 
@@ -68,13 +72,32 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 	}}, nil
 }
 
-type auditParams struct {
-	Limit int       `query:"limit"`
-	Since time.Time `query:"since"`
+type auditListParams struct {
+	Limit  int    `query:"limit"`
+	Cursor string `query:"cursor"` // base64("RFC3339Nano:id")
+	Action string `query:"action"` // "add,update" など
+	Actor  string `query:"actor"`
+	Table  string `query:"table"`
+	Column string `query:"column"`
+	From   string `query:"from"` // ISO
+	To     string `query:"to"`   // ISO (閉区間上端は < To+1day にします)
 }
 
-type auditOutput struct {
-	Body []schema.AuditLog
+type AuditDTO struct {
+	ID         int64           `json:"id"`
+	Actor      string          `json:"actor"`
+	Action     string          `json:"action"`
+	TableName  string          `json:"tableName"`
+	ColumnName string          `json:"columnName"`
+	AppliedAt  time.Time       `json:"appliedAt"`
+	BeforeJson json.RawMessage `json:"beforeJson"`
+	AfterJson  json.RawMessage `json:"afterJson"`
+	Summary    string          `json:"summary,omitempty"` // 将来サーバ側計算
+}
+
+type auditListOutput struct {
+	Items      []AuditDTO `json:"items"`
+	NextCursor *string    `json:"nextCursor,omitempty"`
 }
 
 type auditGetParams struct {
@@ -119,45 +142,132 @@ func RegisterAudit(api huma.API, h *AuditHandler) {
 	}, h.getDiff)
 }
 
-func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, error) {
+func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (*auditListOutput, error) {
+	tid := tenant.FromContext(ctx)
+
 	limit := p.Limit
-	if limit == 0 {
-		limit = 100
+	if limit <= 0 {
+		limit = 50
 	}
-	placeholder := "$1"
-	joinCond := "u.id::text = l.actor"
-	if h.Driver == "mysql" {
-		placeholder = "?"
-		joinCond = "u.id = CAST(l.actor AS UNSIGNED)"
+	if limit > 200 {
+		limit = 200
 	}
-	query := `SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name, l.before_json, l.after_json, l.applied_at FROM gcfm_audit_logs l LEFT JOIN gcfm_users u ON ` + joinCond + ` ORDER BY l.id DESC LIMIT ` + placeholder
-	rows, err := h.DB.QueryContext(ctx, query, limit)
+
+	args := []any{}
+	next := func() string {
+		if h.Driver == "postgres" {
+			return fmt.Sprintf("$%d", len(args)+1)
+		}
+		return "?"
+	}
+
+	wh := []string{"tenant_id = " + next()}
+	args = append(args, tid)
+
+	if p.Actor != "" {
+		wh = append(wh, "actor = "+next())
+		args = append(args, p.Actor)
+	}
+	if p.Table != "" {
+		wh = append(wh, "table_name = "+next())
+		args = append(args, p.Table)
+	}
+	if p.Column != "" {
+		wh = append(wh, "column_name = "+next())
+		args = append(args, p.Column)
+	}
+	if p.Action != "" {
+		acts := strings.Split(p.Action, ",")
+		placeholders := make([]string, 0, len(acts))
+		for _, a := range acts {
+			a = strings.TrimSpace(a)
+			if a == "" {
+				continue
+			}
+			placeholders = append(placeholders, next())
+			args = append(args, a)
+		}
+		if len(placeholders) > 0 {
+			wh = append(wh, "action IN ("+strings.Join(placeholders, ",")+")")
+		}
+	}
+	if p.From != "" {
+		if t, err := time.Parse(time.RFC3339, p.From); err == nil {
+			wh = append(wh, "applied_at >= "+next())
+			args = append(args, t)
+		}
+	}
+	if p.To != "" {
+		if t, err := time.Parse(time.RFC3339, p.To); err == nil {
+			wh = append(wh, "applied_at < "+next())
+			args = append(args, t.Add(24*time.Hour))
+		}
+	}
+	if p.Cursor != "" {
+		if ts, id, err := decodeCursor(p.Cursor); err == nil {
+			ph1 := next()
+			args = append(args, ts)
+			ph2 := next()
+			args = append(args, ts)
+			ph3 := next()
+			args = append(args, id)
+			wh = append(wh, "(applied_at < "+ph1+" OR (applied_at = "+ph2+" AND id < "+ph3+"))")
+		}
+	}
+
+	where := "WHERE " + strings.Join(wh, " AND ")
+
+	coalesceBefore := "COALESCE(before_json, JSON_OBJECT())"
+	coalesceAfter := "COALESCE(after_json , JSON_OBJECT())"
+	if h.Driver == "postgres" {
+		coalesceBefore = "COALESCE(before_json, '{}'::jsonb)"
+		coalesceAfter = "COALESCE(after_json , '{}'::jsonb)"
+	}
+
+	limitPlaceholder := next()
+	args = append(args, limit+1)
+
+	query := `
+      SELECT id, actor, action, table_name, column_name,
+             ` + coalesceBefore + ` AS before_json,
+             ` + coalesceAfter + ` AS after_json,
+             applied_at
+        FROM gcfm_audit_logs
+      ` + where + `
+        ORDER BY applied_at DESC, id DESC
+        LIMIT ` + limitPlaceholder
+
+	rows, err := h.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	var logs []schema.AuditLog
+	defer rows.Close()
+
+	items := make([]AuditDTO, 0, limit)
+	var nextCursor *string
+
 	for rows.Next() {
-		var l schema.AuditLog
-		var beforeJSON, afterJSON sql.NullString
-		var appliedAt any
-		if err := rows.Scan(&l.ID, &l.Actor, &l.Action, &l.TableName, &l.ColumnName, &beforeJSON, &afterJSON, &appliedAt); err != nil {
+		var it AuditDTO
+		var bj, aj sql.RawBytes
+		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &it.AppliedAt); err != nil {
 			return nil, err
 		}
-		t, err := ParseAuditTime(appliedAt)
-		if err != nil {
-			return nil, err
-		}
-		l.AppliedAt = t
-		enrichAuditLog(&l, beforeJSON, afterJSON)
-		logs = append(logs, l)
+		it.BeforeJson = append([]byte(nil), bj...)
+		it.AfterJson = append([]byte(nil), aj...)
+		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return &auditOutput{Body: logs}, nil
+
+	if len(items) > limit {
+		last := items[limit]
+		c := encodeCursor(last.AppliedAt, last.ID)
+		nextCursor = &c
+		items = items[:limit]
+	}
+
+	return &auditListOutput{Items: items, NextCursor: nextCursor}, nil
 }
 
 func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOutput, error) {
@@ -229,4 +339,29 @@ func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
 	l.BeforeJSON = beforeJSON
 	l.AfterJSON = afterJSON
 	l.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", l.ID)
+}
+
+func encodeCursor(ts time.Time, id int64) string {
+	s := fmt.Sprintf("%s:%d", ts.UTC().Format(time.RFC3339Nano), id)
+	return base64.StdEncoding.EncodeToString([]byte(s))
+}
+
+func decodeCursor(cur string) (time.Time, int64, error) {
+	b, err := base64.StdEncoding.DecodeString(cur)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	parts := strings.SplitN(string(b), ":", 2)
+	if len(parts) != 2 {
+		return time.Time{}, 0, fmt.Errorf("bad cursor")
+	}
+	ts, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	return ts, id, nil
 }
