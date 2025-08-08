@@ -17,6 +17,8 @@ type AuditLog struct {
 	BeforeJSON sql.NullString `json:"-"`
 	AfterJSON  sql.NullString `json:"-"`
 	AppliedAt  time.Time      `json:"appliedAt"`
+	Summary    string         `json:"summary"`
+	DiffURL    string         `json:"diffUrl"`
 }
 
 func (a AuditLog) MarshalJSON() ([]byte, error) {

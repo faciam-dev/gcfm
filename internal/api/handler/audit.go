@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -124,10 +125,12 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 		limit = 100
 	}
 	placeholder := "$1"
+	joinCond := "u.id::text = l.actor"
 	if h.Driver == "mysql" {
 		placeholder = "?"
+		joinCond = "u.id = CAST(l.actor AS UNSIGNED)"
 	}
-	query := `SELECT id, actor, action, table_name, column_name, before_json, after_json, applied_at FROM gcfm_audit_logs ORDER BY id DESC LIMIT ` + placeholder
+	query := `SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name, l.before_json, l.after_json, l.applied_at FROM gcfm_audit_logs l LEFT JOIN gcfm_users u ON ` + joinCond + ` ORDER BY l.id DESC LIMIT ` + placeholder
 	rows, err := h.DB.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
@@ -148,8 +151,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 			return nil, err
 		}
 		l.AppliedAt = t
-		l.BeforeJSON = beforeJSON
-		l.AfterJSON = afterJSON
+		enrichAuditLog(&l, beforeJSON, afterJSON)
 		logs = append(logs, l)
 	}
 	if err := rows.Err(); err != nil {
@@ -177,10 +179,9 @@ func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOut
 		Action:     rec.Action,
 		TableName:  rec.TableName,
 		ColumnName: rec.ColumnName,
-		BeforeJSON: rec.BeforeJSON,
-		AfterJSON:  rec.AfterJSON,
 		AppliedAt:  t,
 	}
+	enrichAuditLog(&log, rec.BeforeJSON, rec.AfterJSON)
 	return &auditGetOutput{Body: log}, nil
 }
 
@@ -208,4 +209,24 @@ func parseAuditTimeString(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, errors.New("cannot parse time: " + s)
+}
+
+func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
+	switch l.Action {
+	case "snapshot", "rollback":
+		if beforeJSON.Valid {
+			l.Summary = beforeJSON.String
+		}
+	default:
+		var addCnt, delCnt int
+		if l.Action == "add" {
+			addCnt = 1
+		} else if l.Action == "delete" {
+			delCnt = 1
+		}
+		l.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
+	}
+	l.BeforeJSON = beforeJSON
+	l.AfterJSON = afterJSON
+	l.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", l.ID)
 }

@@ -51,9 +51,15 @@
           "columnName": {
             "type": "string"
           },
+          "diffUrl": {
+            "type": "string"
+          },
           "id": {
             "format": "int64",
             "type": "integer"
+          },
+          "summary": {
+            "type": "string"
           },
           "tableName": {
             "type": "string"
@@ -65,7 +71,9 @@
           "action",
           "tableName",
           "columnName",
-          "appliedAt"
+          "appliedAt",
+          "summary",
+          "diffUrl"
         ],
         "type": "object"
       },
