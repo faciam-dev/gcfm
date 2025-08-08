@@ -305,6 +305,9 @@ func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOut
 // Drivers like the MySQL driver may return []byte or string for TIMESTAMP
 // columns when parseTime is disabled.
 func ParseAuditTime(v any) (time.Time, error) {
+	if v == nil {
+		return time.Time{}, nil
+	}
 	switch t := v.(type) {
 	case time.Time:
 		return t, nil
@@ -313,18 +316,18 @@ func ParseAuditTime(v any) (time.Time, error) {
 	case string:
 		return parseAuditTimeString(t)
 	default:
-		return time.Time{}, errors.New("unsupported time type")
+		return time.Time{}, fmt.Errorf("unsupported time type %T", v)
 	}
 }
 
 func parseAuditTimeString(s string) (time.Time, error) {
-	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05", time.RFC3339}
+	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05", time.RFC3339}
 	for _, l := range layouts {
 		if ts, err := time.Parse(l, s); err == nil {
 			return ts, nil
 		}
 	}
-	return time.Time{}, errors.New("cannot parse time: " + s)
+	return time.Time{}, fmt.Errorf("cannot parse time: %s", s)
 }
 
 func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
