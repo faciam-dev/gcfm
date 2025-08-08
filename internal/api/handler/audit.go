@@ -143,7 +143,13 @@ func RegisterAudit(api huma.API, h *AuditHandler) {
 	}, h.getDiff)
 }
 
-func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (*auditListOutput, error) {
+func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditListOutput, err error) {
+	defer func() {
+		if err != nil {
+			logger.L.Error("list audit logs", "err", err)
+		}
+	}()
+
 	tid := tenant.FromContext(ctx)
 
 	limit := p.Limit
