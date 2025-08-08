@@ -128,7 +128,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditParams) (*auditOutput, 
 	joinCond := "u.id::text = l.actor"
 	if h.Driver == "mysql" {
 		placeholder = "?"
-		joinCond = "CAST(u.id AS CHAR) = l.actor"
+		joinCond = "u.id = CAST(l.actor AS UNSIGNED)"
 	}
 	query := `SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name, l.before_json, l.after_json, l.applied_at FROM gcfm_audit_logs l LEFT JOIN gcfm_users u ON ` + joinCond + ` ORDER BY l.id DESC LIMIT ` + placeholder
 	rows, err := h.DB.QueryContext(ctx, query, limit)

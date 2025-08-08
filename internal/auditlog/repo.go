@@ -34,7 +34,7 @@ const findByIDQueryMy = `
 SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
        l.before_json, l.after_json, l.applied_at
 FROM gcfm_audit_logs l
-LEFT JOIN gcfm_users u ON CAST(u.id AS CHAR) = l.actor
+LEFT JOIN gcfm_users u ON u.id = CAST(l.actor AS UNSIGNED)
 WHERE l.id=?`
 
 // FindByID returns a record by its ID.
