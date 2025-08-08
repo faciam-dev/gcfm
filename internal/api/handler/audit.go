@@ -381,15 +381,16 @@ func decodeCursor(cur string) (time.Time, int64, error) {
 	if err != nil {
 		return time.Time{}, 0, err
 	}
-	parts := strings.SplitN(string(b), ":", 2)
-	if len(parts) != 2 {
+	s := string(b)
+	idx := strings.LastIndex(s, ":")
+	if idx < 0 {
 		return time.Time{}, 0, fmt.Errorf("bad cursor")
 	}
-	ts, err := time.Parse(time.RFC3339Nano, parts[0])
+	ts, err := time.Parse(time.RFC3339Nano, s[:idx])
 	if err != nil {
 		return time.Time{}, 0, err
 	}
-	id, err := strconv.ParseInt(parts[1], 10, 64)
+	id, err := strconv.ParseInt(s[idx+1:], 10, 64)
 	if err != nil {
 		return time.Time{}, 0, err
 	}
