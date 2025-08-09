@@ -86,6 +86,12 @@ var m0014Up string
 //go:embed sql/0014_cascade_custom_fields.down.sql
 var m0014Down string
 
+//go:embed sql/mysql/0015_idx_audit_logs.up.sql
+var m0015Up string
+
+//go:embed sql/mysql/0015_idx_audit_logs.down.sql
+var m0015Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -186,6 +192,7 @@ var defaultMigrations = []Migration{
 	{Version: 12, SemVer: "0.12", UpSQL: m0012Up, DownSQL: m0012Down},
 	{Version: 13, SemVer: "0.13", UpSQL: m0013Up, DownSQL: m0013Down},
 	{Version: 14, SemVer: "0.14", UpSQL: m0014Up, DownSQL: m0014Down},
+	{Version: 15, SemVer: "0.15", UpSQL: m0015Up, DownSQL: m0015Down},
 }
 
 var postgresMigrations = []Migration{
