@@ -117,10 +117,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "body.db_id", Message: "referenced database not found"})
 		}
-		return nil, err
-	}
-	if mdb.DSN == "" {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN is empty", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN is empty"})
+		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
 	}
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
 		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN must include database name"})
@@ -302,10 +299,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "body.db_id", Message: "referenced database not found"})
 		}
-		return nil, err
-	}
-	if mdb.DSN == "" {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN is empty", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN is empty"})
+		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
 	}
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
 		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN must include database name"})
@@ -315,7 +309,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-       ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -403,10 +397,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "db_id", Message: "referenced database not found"})
 		}
-		return nil, err
-	}
-	if mdb.DSN == "" {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN is empty", &huma.ErrorDetail{Location: "db_id", Message: "monitored database DSN is empty"})
+		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "db_id", Message: err.Error()})
 	}
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
 		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "db_id", Message: "monitored database DSN must include database name"})
@@ -416,7 +407,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, err
 	}
 	defer target.Close()
-       ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}

@@ -98,6 +98,12 @@ var m0016Up string
 //go:embed sql/mysql/0016_unique_custom_field.down.sql
 var m0016Down string
 
+//go:embed sql/mysql/0017_monitored_db_connection.up.sql
+var m0017Up string
+
+//go:embed sql/mysql/0017_monitored_db_connection.down.sql
+var m0017Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -200,6 +206,7 @@ var defaultMigrations = []Migration{
 	{Version: 14, SemVer: "0.14", UpSQL: m0014Up, DownSQL: m0014Down},
 	{Version: 15, SemVer: "0.15", UpSQL: m0015Up, DownSQL: m0015Down},
 	{Version: 16, SemVer: "0.16", UpSQL: m0016Up, DownSQL: m0016Down},
+	{Version: 17, SemVer: "0.17", UpSQL: m0017Up, DownSQL: m0017Down},
 }
 
 var postgresMigrations = []Migration{

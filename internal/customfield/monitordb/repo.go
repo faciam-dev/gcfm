@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 )
 
 type Record struct {
@@ -24,5 +25,26 @@ func GetByID(ctx context.Context, db *sql.DB, tenant string, id int64) (Record, 
 	if err == sql.ErrNoRows {
 		return Record{}, ErrNotFound
 	}
-	return rec, err
+	if err != nil {
+		return Record{}, err
+	}
+	if rec.DSN == "" {
+		// attempt legacy column fallback
+		var host, user, pass, dbname sql.NullString
+		var port sql.NullInt64
+		_ = db.QueryRowContext(ctx,
+			`SELECT host, username, password, database_name, port FROM monitored_databases WHERE id=? AND tenant_id=?`,
+			id, tenant).Scan(&host, &user, &pass, &dbname, &port)
+		if host.Valid && user.Valid && dbname.Valid && port.Valid {
+			rec.Driver = "mysql"
+			rec.DSN = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", user.String, pass.String, host.String, port.Int64, dbname.String)
+		}
+		if rec.DSN == "" {
+			return Record{}, fmt.Errorf("monitored database (id=%d) has empty DSN; run migration 0017 and set dsn", id)
+		}
+	}
+	if rec.Driver == "" {
+		rec.Driver = "mysql"
+	}
+	return rec, nil
 }
