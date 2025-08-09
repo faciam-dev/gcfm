@@ -11,12 +11,14 @@ import (
 
 func boolPtr(b bool) *bool    { return &b }
 func strPtr(s string) *string { return &s }
+func int64Ptr(i int64) *int64 { return &i }
 
 func TestCustomFieldValidation(t *testing.T) {
 	reg := huma.NewMapRegistry("#/components/schemas", huma.DefaultSchemaNamer)
 	sch := huma.SchemaFromType(reg, reflect.TypeOf(schema.CustomField{}))
 	pb := huma.NewPathBuffer([]byte(""), 0)
 	cf := schema.CustomField{
+		DBID:         int64Ptr(1),
 		Table:        "posts",
 		Column:       "id",
 		Type:         "uuid",

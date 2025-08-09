@@ -3,6 +3,7 @@ package schema
 import "github.com/faciam-dev/gcfm/internal/customfield/registry"
 
 type CustomField struct {
+	DBID         *int64                `json:"db_id,omitempty" validate:"omitempty,min=1"`
 	Table        string                `json:"table"`
 	Column       string                `json:"column"`
 	Type         string                `json:"type"`

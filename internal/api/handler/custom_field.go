@@ -97,8 +97,22 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if reserved.Is(in.Body.Table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", in.Body.Table))
 	}
+	if in.Body.DBID == nil {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "db_id required", &huma.ErrorDetail{Location: "body.db_id", Message: "required"})
+	}
+	tid := tenant.FromContext(ctx)
+	if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
+	}
+	exists, err := h.existsField(ctx, tid, *in.Body.DBID, in.Body.Table, in.Body.Column)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "field already exists for this db/table/column", &huma.ErrorDetail{Location: "body", Message: "field already exists for this db/table/column"})
+	}
 	meta := registry.FieldMeta{
-		DBID:       monitordb.DefaultDBID,
+		DBID:       *in.Body.DBID,
 		TableName:  in.Body.Table,
 		ColumnName: in.Body.Column,
 		DataType:   in.Body.Type,
@@ -195,11 +209,11 @@ func (h *CustomFieldHandler) columnExists(ctx context.Context, table, column str
 	return count > 0, err
 }
 
-func (h *CustomFieldHandler) getField(ctx context.Context, table, column string) (*registry.FieldMeta, error) {
+func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, column string) (*registry.FieldMeta, error) {
 	switch h.Driver {
 	case "mongo":
 		var m registry.FieldMeta
-		err := h.Mongo.Database(h.Schema).Collection("custom_fields").FindOne(ctx, bson.M{"table_name": table, "column_name": column}).Decode(&m)
+		err := h.Mongo.Database(h.Schema).Collection("custom_fields").FindOne(ctx, bson.M{"db_id": dbID, "table_name": table, "column_name": column}).Decode(&m)
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -215,10 +229,10 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		switch h.Driver {
 		case "postgres":
 			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=$1 AND table_name=$2 AND column_name=$3`
-			args = []any{monitordb.DefaultDBID, table, column}
+			args = []any{dbID, table, column}
 		case "mysql":
 			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=? AND table_name=? AND column_name=?`
-			args = []any{monitordb.DefaultDBID, table, column}
+			args = []any{dbID, table, column}
 		default:
 			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
 		}
@@ -230,7 +244,7 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		if err != nil {
 			return nil, err
 		}
-		return &registry.FieldMeta{TableName: table, ColumnName: column, DataType: typ}, nil
+		return &registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: typ}, nil
 	}
 }
 
@@ -242,11 +256,19 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	oldMeta, err := h.getField(ctx, table, column)
+	tid := tenant.FromContext(ctx)
+	dbID := monitordb.DefaultDBID
+	if in.Body.DBID != nil {
+		if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
+			return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
+		}
+		dbID = *in.Body.DBID
+	}
+	oldMeta, err := h.getField(ctx, dbID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
+	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
@@ -307,7 +329,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
 	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
-	oldMeta, err := h.getField(ctx, table, column)
+	oldMeta, err := h.getField(ctx, meta.DBID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)
 	}
@@ -330,4 +352,51 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	}
 	events.Emit(ctx, events.Event{Name: "cf.field.deleted", Time: time.Now(), Data: map[string]string{"table": table, "column": column}, ID: table + "." + column})
 	return &struct{}{}, nil
+}
+
+// --- helpers ---
+func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, dbID int64) error {
+	if dbID <= 0 {
+		return fmt.Errorf("must be positive integer")
+	}
+	var (
+		query string
+		args  []any
+	)
+	switch h.Driver {
+	case "postgres":
+		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=$1 AND tenant_id=$2`
+		args = []any{dbID, tenantID}
+	default:
+		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=? AND tenant_id=?`
+		args = []any{dbID, tenantID}
+	}
+	var n int
+	if err := h.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("referenced database not found")
+	}
+	return nil
+}
+
+func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, dbID int64, table, column string) (bool, error) {
+	var (
+		query string
+		args  []any
+	)
+	switch h.Driver {
+	case "postgres":
+		query = `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4`
+		args = []any{tenantID, dbID, table, column}
+	default:
+		query = `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id=? AND db_id=? AND table_name=? AND column_name=?`
+		args = []any{tenantID, dbID, table, column}
+	}
+	var n int
+	if err := h.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
