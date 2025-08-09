@@ -12,12 +12,13 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/events"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/tenant"
-	"github.com/faciam-dev/gcfm/pkg/monitordb"
+	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -111,6 +112,32 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if exists {
 		return nil, huma.NewError(http.StatusUnprocessableEntity, "field already exists for this db/table/column", &huma.ErrorDetail{Location: "body", Message: "field already exists for this db/table/column"})
 	}
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, *in.Body.DBID)
+	if err != nil {
+		if errors.Is(err, monitordbrepo.ErrNotFound) {
+			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "body.db_id", Message: "referenced database not found"})
+		}
+		return nil, err
+	}
+	if mdb.DSN == "" {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN is empty", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN is empty"})
+	}
+	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN must include database name"})
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, in.Body.Table)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		msg := fmt.Sprintf("table %q not found in target database", in.Body.Table)
+		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "body.table", Message: msg})
+	}
 	meta := registry.FieldMeta{
 		DBID:       *in.Body.DBID,
 		TableName:  in.Body.Table,
@@ -135,7 +162,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := h.columnExists(ctx, meta.TableName, meta.ColumnName)
+		exists, err := columnExists(ctx, target, mdb.Driver, mdb.Schema, meta.TableName, meta.ColumnName)
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +171,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			def = in.Body.DefaultValue
 		}
 		if !exists {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -194,18 +221,23 @@ func splitID(id string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-func (h *CustomFieldHandler) columnExists(ctx context.Context, table, column string) (bool, error) {
-	var query string
-	switch h.Driver {
+func columnExists(ctx context.Context, db *sql.DB, driver, schema, table, column string) (bool, error) {
+	var (
+		query string
+		args  []any
+	)
+	switch driver {
 	case "postgres":
 		query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3`
+		args = []any{schema, table, column}
 	case "mysql":
-		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`
+		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`
+		args = []any{table, column}
 	default:
-		return false, fmt.Errorf("unsupported driver: %s", h.Driver)
+		return false, fmt.Errorf("unsupported driver: %s", driver)
 	}
 	var count int
-	err := h.DB.QueryRowContext(ctx, query, h.Schema, table, column).Scan(&count)
+	err := db.QueryRowContext(ctx, query, args...).Scan(&count)
 	return count > 0, err
 }
 
@@ -257,12 +289,38 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
 	tid := tenant.FromContext(ctx)
-	dbID := monitordb.DefaultDBID
+	dbID := pkgmonitordb.DefaultDBID
 	if in.Body.DBID != nil {
 		if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
 			return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
 		}
 		dbID = *in.Body.DBID
+	}
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	if err != nil {
+		if errors.Is(err, monitordbrepo.ErrNotFound) {
+			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "body.db_id", Message: "referenced database not found"})
+		}
+		return nil, err
+	}
+	if mdb.DSN == "" {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN is empty", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN is empty"})
+	}
+	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN must include database name"})
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		msg := fmt.Sprintf("table %q not found in target database", table)
+		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "table", Message: msg})
 	}
 	oldMeta, err := h.getField(ctx, dbID, table, column)
 	if err != nil {
@@ -285,7 +343,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := h.columnExists(ctx, table, column)
+		exists, err := columnExists(ctx, target, mdb.Driver, mdb.Schema, table, column)
 		if err != nil {
 			return nil, err
 		}
@@ -294,14 +352,14 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			def = in.Body.DefaultValue
 		}
 		if exists {
-			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
 				return nil, err
 			}
 		} else {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -328,18 +386,49 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
-	oldMeta, err := h.getField(ctx, meta.DBID, table, column)
+	tid := tenant.FromContext(ctx)
+	dbID := pkgmonitordb.DefaultDBID
+	oldMeta, err := h.getField(ctx, dbID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)
 	}
+	if oldMeta != nil {
+		dbID = oldMeta.DBID
+	}
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	if err != nil {
+		if errors.Is(err, monitordbrepo.ErrNotFound) {
+			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "db_id", Message: "referenced database not found"})
+		}
+		return nil, err
+	}
+	if mdb.DSN == "" {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN is empty", &huma.ErrorDetail{Location: "db_id", Message: "monitored database DSN is empty"})
+	}
+	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
+		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "db_id", Message: "monitored database DSN must include database name"})
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		msg := fmt.Sprintf("table %q not found in target database", table)
+		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "table", Message: msg})
+	}
+	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column}
 	switch h.Driver {
 	case "mongo":
 		if err := registry.DeleteMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema, TablePrefix: h.TablePrefix}, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	default:
-		if err := registry.DropColumnSQL(ctx, h.DB, h.Driver, table, column); err != nil {
+		if err := registry.DropColumnSQL(ctx, target, mdb.Driver, table, column); err != nil {
 			return nil, err
 		}
 		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
