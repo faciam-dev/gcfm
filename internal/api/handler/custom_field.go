@@ -315,7 +315,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+       ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +416,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, err
 	}
 	defer target.Close()
-	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+       ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
