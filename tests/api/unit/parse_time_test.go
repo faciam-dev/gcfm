@@ -36,7 +36,7 @@ func TestParseAuditTime(t *testing.T) {
 	}
 
 	micro := "2024-01-02 15:04:05.123456"
-	wantMicro, _ := time.Parse("2006-01-02 15:04:05.999999", micro)
+	wantMicro, _ := time.Parse("2006-01-02 15:04:05.000000", micro)
 	got, err = handler.ParseAuditTime(micro)
 	if err != nil {
 		t.Fatalf("parse micro: %v", err)

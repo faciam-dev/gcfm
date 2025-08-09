@@ -342,7 +342,7 @@ func ParseAuditTime(v any) (time.Time, error) {
 }
 
 func parseAuditTimeString(s string) (time.Time, error) {
-	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05", time.RFC3339}
+	layouts := []string{time.RFC3339Nano, "2006-01-02 15:04:05.000000000", "2006-01-02 15:04:05", time.RFC3339}
 	for _, l := range layouts {
 		if ts, err := time.Parse(l, s); err == nil {
 			return ts, nil
@@ -384,7 +384,7 @@ func decodeCursor(cur string) (time.Time, int64, error) {
 	s := string(b)
 	idx := strings.LastIndex(s, ":")
 	if idx < 0 {
-		return time.Time{}, 0, fmt.Errorf("bad cursor")
+		return time.Time{}, 0, fmt.Errorf("invalid cursor format: missing timestamp separator ':' in %q", s)
 	}
 	ts, err := time.Parse(time.RFC3339Nano, s[:idx])
 	if err != nil {
