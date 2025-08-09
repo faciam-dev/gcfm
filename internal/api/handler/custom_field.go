@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/events"
+	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/tenant"
@@ -99,28 +99,28 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", in.Body.Table))
 	}
 	if in.Body.DBID == nil {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "db_id required", &huma.ErrorDetail{Location: "body.db_id", Message: "required"})
+		return nil, huma.Error422("db_id", "required")
 	}
 	tid := tenant.FromContext(ctx)
 	if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
+		return nil, huma.Error422("db_id", err.Error())
 	}
 	exists, err := h.existsField(ctx, tid, *in.Body.DBID, in.Body.Table, in.Body.Column)
 	if err != nil {
 		return nil, err
 	}
 	if exists {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "field already exists for this db/table/column", &huma.ErrorDetail{Location: "body", Message: "field already exists for this db/table/column"})
+		return nil, huma.Error422("body", "field already exists for this db/table/column")
 	}
 	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, *in.Body.DBID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
-			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "body.db_id", Message: "referenced database not found"})
+			return nil, huma.Error422("db_id", "referenced database not found")
 		}
-		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
+		return nil, huma.Error422("db_id", err.Error())
 	}
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN must include database name"})
+		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
 	}
 	target, err := sql.Open(mdb.Driver, mdb.DSN)
 	if err != nil {
@@ -133,7 +133,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	}
 	if !ok {
 		msg := fmt.Sprintf("table %q not found in target database", in.Body.Table)
-		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "body.table", Message: msg})
+		return nil, huma.Error422("table", msg)
 	}
 	meta := registry.FieldMeta{
 		DBID:       *in.Body.DBID,
@@ -173,7 +173,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
 				msg := fmt.Sprintf("add column failed: %v", err)
-				return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
+				return nil, huma.Error422("db", msg)
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
@@ -290,19 +290,19 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	dbID := pkgmonitordb.DefaultDBID
 	if in.Body.DBID != nil {
 		if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
-			return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
+			return nil, huma.Error422("db_id", err.Error())
 		}
 		dbID = *in.Body.DBID
 	}
 	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
-			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "body.db_id", Message: "referenced database not found"})
+			return nil, huma.Error422("db_id", "referenced database not found")
 		}
-		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "body.db_id", Message: err.Error()})
+		return nil, huma.Error422("db_id", err.Error())
 	}
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "body.db_id", Message: "monitored database DSN must include database name"})
+		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
 	}
 	target, err := sql.Open(mdb.Driver, mdb.DSN)
 	if err != nil {
@@ -315,7 +315,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	}
 	if !ok {
 		msg := fmt.Sprintf("table %q not found in target database", table)
-		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "table", Message: msg})
+		return nil, huma.Error422("table", msg)
 	}
 	oldMeta, err := h.getField(ctx, dbID, table, column)
 	if err != nil {
@@ -352,7 +352,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
 				msg := fmt.Sprintf("modify column failed: %v", err)
-				return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
+				return nil, huma.Error422("db", msg)
 			}
 		} else {
 			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
@@ -360,7 +360,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
 				msg := fmt.Sprintf("add column failed: %v", err)
-				return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
+				return nil, huma.Error422("db", msg)
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
@@ -395,12 +395,12 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
-			return nil, huma.NewError(http.StatusUnprocessableEntity, "referenced database not found", &huma.ErrorDetail{Location: "db_id", Message: "referenced database not found"})
+			return nil, huma.Error422("db_id", "referenced database not found")
 		}
-		return nil, huma.NewError(http.StatusUnprocessableEntity, err.Error(), &huma.ErrorDetail{Location: "db_id", Message: err.Error()})
+		return nil, huma.Error422("db_id", err.Error())
 	}
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
-		return nil, huma.NewError(http.StatusUnprocessableEntity, "monitored database DSN must include database name", &huma.ErrorDetail{Location: "db_id", Message: "monitored database DSN must include database name"})
+		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
 	}
 	target, err := sql.Open(mdb.Driver, mdb.DSN)
 	if err != nil {
@@ -413,7 +413,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	}
 	if !ok {
 		msg := fmt.Sprintf("table %q not found in target database", table)
-		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "table", Message: msg})
+		return nil, huma.Error422("table", msg)
 	}
 	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column}
 	switch h.Driver {
@@ -424,7 +424,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	default:
 		if err := registry.DropColumnSQL(ctx, target, mdb.Driver, table, column); err != nil {
 			msg := fmt.Sprintf("drop column failed: %v", err)
-			return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
+			return nil, huma.Error422("db", msg)
 		}
 		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 			return nil, err

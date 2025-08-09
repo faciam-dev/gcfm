@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	ccrypto "github.com/faciam-dev/gcfm/internal/customfield/crypto"
 )
 
 type Record struct {
@@ -12,6 +13,7 @@ type Record struct {
 	Driver string
 	DSN    string
 	Schema string // postgres schema, empty for MySQL
+	DSNEnc []byte
 }
 
 var ErrNotFound = errors.New("monitored database not found")
@@ -20,28 +22,24 @@ func GetByID(ctx context.Context, db *sql.DB, tenant string, id int64) (Record, 
 	var rec Record
 	// if monitored_databases table lacks tenant_id, remove tenant condition accordingly
 	err := db.QueryRowContext(ctx,
-		`SELECT id, driver, dsn, COALESCE(schema_name,'') FROM monitored_databases WHERE id=? AND tenant_id=?`,
-		id, tenant).Scan(&rec.ID, &rec.Driver, &rec.DSN, &rec.Schema)
+		`SELECT id, driver, dsn, COALESCE(schema_name,''), dsn_enc FROM monitored_databases WHERE id=? AND tenant_id=?`,
+		id, tenant).Scan(&rec.ID, &rec.Driver, &rec.DSN, &rec.Schema, &rec.DSNEnc)
 	if err == sql.ErrNoRows {
 		return Record{}, ErrNotFound
 	}
 	if err != nil {
 		return Record{}, err
 	}
+	// decrypt DSN if only encrypted form is available
+	if rec.DSN == "" && len(rec.DSNEnc) > 0 {
+		pt, derr := ccrypto.Decrypt(rec.DSNEnc)
+		if derr != nil {
+			return Record{}, fmt.Errorf("dsn_enc decrypt failed: %w", derr)
+		}
+		rec.DSN = string(pt)
+	}
 	if rec.DSN == "" {
-		// attempt legacy column fallback
-		var host, user, pass, dbname sql.NullString
-		var port sql.NullInt64
-		_ = db.QueryRowContext(ctx,
-			`SELECT host, username, password, database_name, port FROM monitored_databases WHERE id=? AND tenant_id=?`,
-			id, tenant).Scan(&host, &user, &pass, &dbname, &port)
-		if host.Valid && user.Valid && dbname.Valid && port.Valid {
-			rec.Driver = "mysql"
-			rec.DSN = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", user.String, pass.String, host.String, port.Int64, dbname.String)
-		}
-		if rec.DSN == "" {
-			return Record{}, fmt.Errorf("monitored database (id=%d) has empty DSN; run migration 0017 and set dsn", id)
-		}
+		return Record{}, fmt.Errorf("monitored database (id=%d) has empty DSN and no usable dsn_enc", id)
 	}
 	if rec.Driver == "" {
 		rec.Driver = "mysql"

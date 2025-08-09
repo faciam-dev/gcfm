@@ -1,5 +1,4 @@
 ALTER TABLE monitored_databases
-  ADD COLUMN driver ENUM('mysql','postgres') NOT NULL DEFAULT 'mysql',
   ADD COLUMN dsn VARCHAR(512) NOT NULL DEFAULT '',
   ADD COLUMN schema_name VARCHAR(64) NULL;
 
