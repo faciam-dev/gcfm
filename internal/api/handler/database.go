@@ -60,7 +60,7 @@ type dbTablesParams struct {
 
 type dbTablesOutput struct{ Body []string }
 
-// GET /v1/databases/{id}/tables : db_id で指定された監視対象DBのテーブル一覧を返す
+// GET /v1/databases/{id}/tables returns the list of tables for the monitored DB specified by db_id
 func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*dbTablesOutput, error) {
 	tid := tenant.FromContext(ctx)
 	mdb, err := cfmdb.GetByID(ctx, h.Repo.DB, tid, p.ID)

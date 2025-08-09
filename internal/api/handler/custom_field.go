@@ -279,8 +279,8 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, co
 }
 
 func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*createOutput, error) {
-	table, column, ok := splitID(in.ID)
-	if !ok {
+	table, column, okID := splitID(in.ID)
+	if !okID {
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	if reserved.Is(table) {
@@ -309,7 +309,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-	ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -376,8 +376,8 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 }
 
 func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*struct{}, error) {
-	table, column, ok := splitID(in.ID)
-	if !ok {
+	table, column, okID := splitID(in.ID)
+	if !okID {
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	if reserved.Is(table) {
@@ -407,7 +407,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, err
 	}
 	defer target.Close()
-	ok, err = monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
