@@ -17,6 +17,7 @@ type (
 var (
 	Error409Conflict   = base.Error409Conflict
 	Error400BadRequest = base.Error400BadRequest
+	NewError           = base.NewError
 )
 
 // Register wraps huma.Register to expose through this package.

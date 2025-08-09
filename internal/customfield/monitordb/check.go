@@ -12,17 +12,15 @@ func TableExists(ctx context.Context, db *sql.DB, driver, schema, table string) 
 	switch driver {
 	case "mysql":
 		var n int
-		err := db.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`, table).Scan(&n)
+		err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND LOWER(table_name) = LOWER(?)`, table).Scan(&n)
 		return n > 0, err
 	case "postgres":
 		if schema == "" {
 			schema = "public"
 		}
-		var n int
-		err := db.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2`, schema, table).Scan(&n)
-		return n > 0, err
+		var ok bool
+		err := db.QueryRowContext(ctx, `SELECT to_regclass($1||'.'||$2) IS NOT NULL`, schema, table).Scan(&ok)
+		return ok, err
 	default:
 		return false, fmt.Errorf("unsupported driver: %s", driver)
 	}
