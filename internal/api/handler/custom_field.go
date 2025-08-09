@@ -175,7 +175,8 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
-				return nil, err
+				msg := fmt.Sprintf("add column failed: %v", err)
+				return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
@@ -356,14 +357,16 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
-				return nil, err
+				msg := fmt.Sprintf("modify column failed: %v", err)
+				return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
 			}
 		} else {
 			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
-				return nil, err
+				msg := fmt.Sprintf("add column failed: %v", err)
+				return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
@@ -429,7 +432,8 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		}
 	default:
 		if err := registry.DropColumnSQL(ctx, target, mdb.Driver, table, column); err != nil {
-			return nil, err
+			msg := fmt.Sprintf("drop column failed: %v", err)
+			return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "db", Message: msg})
 		}
 		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
