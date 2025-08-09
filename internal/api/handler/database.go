@@ -2,15 +2,17 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	cfmdb "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/events"
+	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
@@ -52,6 +54,65 @@ type scanParams struct {
 
 type scanOutput struct{ Body schema.ScanResult }
 
+type dbTablesParams struct {
+	ID int64 `path:"id"`
+}
+
+type dbTablesOutput struct{ Body []string }
+
+// GET /v1/databases/{id}/tables returns the list of tables for the monitored DB specified by db_id
+func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*dbTablesOutput, error) {
+	tid := tenant.FromContext(ctx)
+	mdb, err := cfmdb.GetByID(ctx, h.Repo.DB, tid, p.ID)
+	if err != nil {
+		if errors.Is(err, cfmdb.ErrNotFound) {
+			return nil, huma.Error422("id", "database not found")
+		}
+		return nil, huma.Error422("id", err.Error())
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+
+	var rows *sql.Rows
+	switch mdb.Driver {
+	case "mysql":
+		rows, err = target.QueryContext(ctx, `
+      SELECT table_name
+        FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+       ORDER BY table_name`)
+	case "postgres":
+		schema := mdb.Schema
+		if schema == "" {
+			schema = "public"
+		}
+		rows, err = target.QueryContext(ctx, `
+      SELECT table_name
+        FROM information_schema.tables
+       WHERE table_schema = $1
+       ORDER BY table_name`, schema)
+	default:
+		return nil, huma.Error422("driver", "unsupported driver")
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return &dbTablesOutput{Body: out}, nil
+}
+
 // RegisterDatabase registers database endpoints.
 func RegisterDatabase(api huma.API, h *DatabaseHandler) {
 	huma.Register(api, huma.Operation{
@@ -92,6 +153,14 @@ func RegisterDatabase(api huma.API, h *DatabaseHandler) {
 		Tags:          []string{"Database"},
 		DefaultStatus: http.StatusOK,
 	}, h.scan)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "listDbTables",
+		Method:      http.MethodGet,
+		Path:        "/v1/databases/{id}/tables",
+		Summary:     "List tables in monitored database",
+		Tags:        []string{"Database"},
+	}, h.listTables)
 }
 
 func (h *DatabaseHandler) create(ctx context.Context, in *createDBInput) (*createDBOutput, error) {

@@ -3,32 +3,31 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
-	"strings"
 
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/internal/api/schema"
-	"github.com/faciam-dev/gcfm/internal/server/reserved"
+	humago "github.com/danielgtaylor/huma/v2"
+	"github.com/faciam-dev/gcfm/internal/customfield/monitordb"
+	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
-// MetadataHandler handles metadata endpoints.
-type MetadataHandler struct {
-	DB          *sql.DB
-	Driver      string
-	TablePrefix string
+type tableInfo struct {
+	Table    string `json:"table"`
+	Reserved bool   `json:"reserved"`
 }
 
-// tablesParams is the query parameters for list tables.
-type tablesParams struct {
+type listTablesOutput struct{ Body []tableInfo }
+
+// db_id from query params
+// listTablesParams defines the query parameter for listing tables.
+type listTablesParams struct {
 	DBID int64 `query:"db_id" required:"true"`
 }
 
-type tablesOutput struct{ Body []schema.TableMeta }
-
 // RegisterMetadata registers metadata endpoints.
-func RegisterMetadata(api huma.API, h *MetadataHandler) {
-	huma.Register(api, huma.Operation{
+func RegisterMetadata(api humago.API, h *MetadataHandler) {
+	humago.Register(api, humago.Operation{
 		OperationID: "listTables",
 		Method:      http.MethodGet,
 		Path:        "/v1/metadata/tables",
@@ -37,31 +36,69 @@ func RegisterMetadata(api huma.API, h *MetadataHandler) {
 	}, h.listTables)
 }
 
-func (h *MetadataHandler) listTables(ctx context.Context, p *tablesParams) (*tablesOutput, error) {
-	tenantID := tenant.FromContext(ctx)
-	var query string
-	switch h.Driver {
-	case "postgres":
-		query = `SELECT DISTINCT table_name FROM gcfm_custom_fields WHERE db_id=$1 AND tenant_id=$2 ORDER BY table_name`
-	default:
-		query = "SELECT DISTINCT table_name FROM gcfm_custom_fields WHERE db_id=? AND tenant_id=? ORDER BY table_name"
+// MetadataHandler handles metadata endpoints.
+type MetadataHandler struct{ DB *sql.DB }
+
+// listTables returns tables from the monitored database identified by db_id.
+func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (*listTablesOutput, error) {
+	tid := tenant.FromContext(ctx)
+	mdb, err := monitordb.GetByID(ctx, h.DB, tid, p.DBID)
+	if err != nil {
+		if errors.Is(err, monitordb.ErrNotFound) {
+			return nil, huma.Error422("db_id", "database not found")
+		}
+		return nil, huma.Error422("db_id", err.Error())
 	}
-	query = strings.ReplaceAll(query, "gcfm_", h.TablePrefix)
-	rows, err := h.DB.QueryContext(ctx, query, p.DBID, tenantID)
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+
+	var rows *sql.Rows
+	switch mdb.Driver {
+	case "mysql":
+		rows, err = target.QueryContext(ctx, `
+          SELECT table_name
+            FROM information_schema.tables
+           WHERE table_schema = DATABASE()
+           ORDER BY table_name`)
+	case "postgres":
+		schema := mdb.Schema
+		if schema == "" {
+			schema = "public"
+		}
+		rows, err = target.QueryContext(ctx, `
+          SELECT table_name
+            FROM information_schema.tables
+           WHERE table_schema = $1
+           ORDER BY table_name`, schema)
+	default:
+		return nil, huma.Error422("driver", "unsupported driver")
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []schema.TableMeta
+
+	reserved := map[string]bool{
+		"schema_migrations":     true,
+		"tenants":               true,
+		"tenant_confirm_tokens": true,
+		"casbin_rule":           true,
+		"roles":                 true,
+		"subjects":              true,
+		"oauth_tokens":          true,
+		"api_keys":              true,
+	}
+
+	var out []tableInfo
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var t string
+		if err := rows.Scan(&t); err != nil {
 			return nil, err
 		}
-		out = append(out, schema.TableMeta{Table: name, Reserved: reserved.Is(name)})
+		out = append(out, tableInfo{Table: t, Reserved: reserved[t]})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return &tablesOutput{Body: out}, nil
+	return &listTablesOutput{Body: out}, nil
 }

@@ -92,6 +92,24 @@ var m0015Up string
 //go:embed sql/mysql/0015_idx_audit_logs.down.sql
 var m0015Down string
 
+//go:embed sql/mysql/0016_unique_custom_field.up.sql
+var m0016Up string
+
+//go:embed sql/mysql/0016_unique_custom_field.down.sql
+var m0016Down string
+
+//go:embed sql/mysql/0017_monitored_db_connection.up.sql
+var m0017Up string
+
+//go:embed sql/mysql/0017_monitored_db_connection.down.sql
+var m0017Down string
+
+//go:embed sql/mysql/0018_db_tables_policy.up.sql
+var m0018Up string
+
+//go:embed sql/mysql/0018_db_tables_policy.down.sql
+var m0018Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -193,6 +211,9 @@ var defaultMigrations = []Migration{
 	{Version: 13, SemVer: "0.13", UpSQL: m0013Up, DownSQL: m0013Down},
 	{Version: 14, SemVer: "0.14", UpSQL: m0014Up, DownSQL: m0014Down},
 	{Version: 15, SemVer: "0.15", UpSQL: m0015Up, DownSQL: m0015Down},
+	{Version: 16, SemVer: "0.16", UpSQL: m0016Up, DownSQL: m0016Down},
+	{Version: 17, SemVer: "0.17", UpSQL: m0017Up, DownSQL: m0017Down},
+	{Version: 18, SemVer: "0.18", UpSQL: m0018Up, DownSQL: m0018Down},
 }
 
 var postgresMigrations = []Migration{

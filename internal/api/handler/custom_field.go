@@ -9,15 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
+	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/events"
+	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/tenant"
-	"github.com/faciam-dev/gcfm/pkg/monitordb"
+	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -97,8 +98,45 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if reserved.Is(in.Body.Table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", in.Body.Table))
 	}
+	if in.Body.DBID == nil {
+		return nil, huma.Error422("db_id", "required")
+	}
+	tid := tenant.FromContext(ctx)
+	if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
+		return nil, huma.Error422("db_id", err.Error())
+	}
+	exists, err := h.existsField(ctx, tid, *in.Body.DBID, in.Body.Table, in.Body.Column)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, huma.Error422("body", "field already exists for this db/table/column")
+	}
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, *in.Body.DBID)
+	if err != nil {
+		if errors.Is(err, monitordbrepo.ErrNotFound) {
+			return nil, huma.Error422("db_id", "referenced database not found")
+		}
+		return nil, huma.Error422("db_id", err.Error())
+	}
+	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
+		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, in.Body.Table)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		msg := fmt.Sprintf("table %q not found in target database", in.Body.Table)
+		return nil, huma.Error422("table", msg)
+	}
 	meta := registry.FieldMeta{
-		DBID:       monitordb.DefaultDBID,
+		DBID:       *in.Body.DBID,
 		TableName:  in.Body.Table,
 		ColumnName: in.Body.Column,
 		DataType:   in.Body.Type,
@@ -121,7 +159,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := h.columnExists(ctx, meta.TableName, meta.ColumnName)
+		exists, err := columnExists(ctx, target, mdb.Driver, mdb.Schema, meta.TableName, meta.ColumnName)
 		if err != nil {
 			return nil, err
 		}
@@ -130,11 +168,12 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			def = in.Body.DefaultValue
 		}
 		if !exists {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
-				return nil, err
+				msg := fmt.Sprintf("add column failed: %v", err)
+				return nil, huma.Error422("db", msg)
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
@@ -180,26 +219,31 @@ func splitID(id string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-func (h *CustomFieldHandler) columnExists(ctx context.Context, table, column string) (bool, error) {
-	var query string
-	switch h.Driver {
+func columnExists(ctx context.Context, db *sql.DB, driver, schema, table, column string) (bool, error) {
+	var (
+		query string
+		args  []any
+	)
+	switch driver {
 	case "postgres":
 		query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3`
+		args = []any{schema, table, column}
 	case "mysql":
-		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`
+		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`
+		args = []any{table, column}
 	default:
-		return false, fmt.Errorf("unsupported driver: %s", h.Driver)
+		return false, fmt.Errorf("unsupported driver: %s", driver)
 	}
 	var count int
-	err := h.DB.QueryRowContext(ctx, query, h.Schema, table, column).Scan(&count)
+	err := db.QueryRowContext(ctx, query, args...).Scan(&count)
 	return count > 0, err
 }
 
-func (h *CustomFieldHandler) getField(ctx context.Context, table, column string) (*registry.FieldMeta, error) {
+func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, column string) (*registry.FieldMeta, error) {
 	switch h.Driver {
 	case "mongo":
 		var m registry.FieldMeta
-		err := h.Mongo.Database(h.Schema).Collection("custom_fields").FindOne(ctx, bson.M{"table_name": table, "column_name": column}).Decode(&m)
+		err := h.Mongo.Database(h.Schema).Collection("custom_fields").FindOne(ctx, bson.M{"db_id": dbID, "table_name": table, "column_name": column}).Decode(&m)
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -215,10 +259,10 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		switch h.Driver {
 		case "postgres":
 			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=$1 AND table_name=$2 AND column_name=$3`
-			args = []any{monitordb.DefaultDBID, table, column}
+			args = []any{dbID, table, column}
 		case "mysql":
 			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=? AND table_name=? AND column_name=?`
-			args = []any{monitordb.DefaultDBID, table, column}
+			args = []any{dbID, table, column}
 		default:
 			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
 		}
@@ -230,23 +274,54 @@ func (h *CustomFieldHandler) getField(ctx context.Context, table, column string)
 		if err != nil {
 			return nil, err
 		}
-		return &registry.FieldMeta{TableName: table, ColumnName: column, DataType: typ}, nil
+		return &registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: typ}, nil
 	}
 }
 
 func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*createOutput, error) {
-	table, column, ok := splitID(in.ID)
-	if !ok {
+	table, column, okID := splitID(in.ID)
+	if !okID {
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	oldMeta, err := h.getField(ctx, table, column)
+	tid := tenant.FromContext(ctx)
+	dbID := pkgmonitordb.DefaultDBID
+	if in.Body.DBID != nil {
+		if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
+			return nil, huma.Error422("db_id", err.Error())
+		}
+		dbID = *in.Body.DBID
+	}
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	if err != nil {
+		if errors.Is(err, monitordbrepo.ErrNotFound) {
+			return nil, huma.Error422("db_id", "referenced database not found")
+		}
+		return nil, huma.Error422("db_id", err.Error())
+	}
+	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
+		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		msg := fmt.Sprintf("table %q not found in target database", table)
+		return nil, huma.Error422("table", msg)
+	}
+	oldMeta, err := h.getField(ctx, dbID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
+	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
@@ -263,7 +338,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := h.columnExists(ctx, table, column)
+		exists, err := columnExists(ctx, target, mdb.Driver, mdb.Schema, table, column)
 		if err != nil {
 			return nil, err
 		}
@@ -272,18 +347,20 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			def = in.Body.DefaultValue
 		}
 		if exists {
-			if err := registry.ModifyColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
-				return nil, err
+				msg := fmt.Sprintf("modify column failed: %v", err)
+				return nil, huma.Error422("db", msg)
 			}
 		} else {
-			if err := registry.AddColumnSQL(ctx, h.DB, h.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
-				return nil, err
+				msg := fmt.Sprintf("add column failed: %v", err)
+				return nil, huma.Error422("db", msg)
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
@@ -299,26 +376,55 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 }
 
 func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*struct{}, error) {
-	table, column, ok := splitID(in.ID)
-	if !ok {
+	table, column, okID := splitID(in.ID)
+	if !okID {
 		return nil, huma.Error400BadRequest("bad id")
 	}
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	meta := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
-	oldMeta, err := h.getField(ctx, table, column)
+	tid := tenant.FromContext(ctx)
+	dbID := pkgmonitordb.DefaultDBID
+	oldMeta, err := h.getField(ctx, dbID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)
 	}
+	if oldMeta != nil {
+		dbID = oldMeta.DBID
+	}
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	if err != nil {
+		if errors.Is(err, monitordbrepo.ErrNotFound) {
+			return nil, huma.Error422("db_id", "referenced database not found")
+		}
+		return nil, huma.Error422("db_id", err.Error())
+	}
+	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
+		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
+	}
+	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	if err != nil {
+		return nil, err
+	}
+	defer target.Close()
+	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		msg := fmt.Sprintf("table %q not found in target database", table)
+		return nil, huma.Error422("table", msg)
+	}
+	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column}
 	switch h.Driver {
 	case "mongo":
 		if err := registry.DeleteMongo(ctx, h.Mongo, registry.DBConfig{Schema: h.Schema, TablePrefix: h.TablePrefix}, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	default:
-		if err := registry.DropColumnSQL(ctx, h.DB, h.Driver, table, column); err != nil {
-			return nil, err
+		if err := registry.DropColumnSQL(ctx, target, mdb.Driver, table, column); err != nil {
+			msg := fmt.Sprintf("drop column failed: %v", err)
+			return nil, huma.Error422("db", msg)
 		}
 		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
@@ -330,4 +436,51 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	}
 	events.Emit(ctx, events.Event{Name: "cf.field.deleted", Time: time.Now(), Data: map[string]string{"table": table, "column": column}, ID: table + "." + column})
 	return &struct{}{}, nil
+}
+
+// --- helpers ---
+func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, dbID int64) error {
+	if dbID <= 0 {
+		return fmt.Errorf("must be positive integer")
+	}
+	var (
+		query string
+		args  []any
+	)
+	switch h.Driver {
+	case "postgres":
+		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=$1 AND tenant_id=$2`
+		args = []any{dbID, tenantID}
+	default:
+		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=? AND tenant_id=?`
+		args = []any{dbID, tenantID}
+	}
+	var n int
+	if err := h.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("referenced database not found")
+	}
+	return nil
+}
+
+func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, dbID int64, table, column string) (bool, error) {
+	var (
+		query string
+		args  []any
+	)
+	switch h.Driver {
+	case "postgres":
+		query = `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4`
+		args = []any{tenantID, dbID, table, column}
+	default:
+		query = `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id=? AND db_id=? AND table_name=? AND column_name=?`
+		args = []any{tenantID, dbID, table, column}
+	}
+	var n int
+	if err := h.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
