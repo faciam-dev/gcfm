@@ -13,7 +13,6 @@ import (
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/rbac"
-	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
 // RBACHandler provides role and user listing endpoints.
@@ -167,7 +166,6 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 	if !roleNamePattern.MatchString(in.Body.Name) {
 		return nil, huma.Error422("name", "must match ^[a-z0-9_-]{1,64}$")
 	}
-	_ = tenant.FromContext(ctx)
 	var comment interface{}
 	if in.Body.Comment != nil && *in.Body.Comment != "" {
 		comment = *in.Body.Comment
@@ -203,7 +201,6 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 }
 
 func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}, error) {
-	_ = tenant.FromContext(ctx)
 	var q string
 	if h.Driver == "postgres" {
 		q = "SELECT COUNT(*) FROM gcfm_user_roles WHERE role_id=$1"
@@ -237,7 +234,7 @@ func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}
 		return nil, err
 	}
 	rbac.ReloadEnforcer(ctx, h.DB)
-	return nil, nil
+	return &struct{}{}, nil
 }
 
 func isDuplicateErr(err error) bool {
