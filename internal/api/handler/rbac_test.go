@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"regexp"
@@ -174,6 +173,36 @@ func TestRBACHandler_putRoleMembers(t *testing.T) {
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	if _, err := h.putRoleMembers(ctx, in); err != nil {
 		t.Fatalf("putRoleMembers: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestRBACHandler_putRoleMembers_invalidUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE ur.role_id=? AND u.tenant_id=?")).
+		WithArgs(int64(1), "t1").
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM gcfm_users WHERE id=? AND tenant_id=?")).
+		WithArgs(int64(2), "t1").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectRollback()
+	h := &RBACHandler{DB: db, Driver: "mysql"}
+	ctx := tenant.WithTenant(context.Background(), "t1")
+	in := &roleMembersInput{ID: 1}
+	in.Body.UserIDs = []int64{2}
+	_, err = h.putRoleMembers(ctx, in)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	se, ok := err.(huma.StatusError)
+	if !ok || se.GetStatus() != http.StatusUnprocessableEntity {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet: %v", err)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -57,7 +58,8 @@ func Register(api huma.API, h *Handler) {
 }
 
 func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, error) {
-	u, err := h.Repo.GetByUsername(ctx, in.Body.Username)
+	tenantID := tenant.FromContext(ctx)
+	u, err := h.Repo.GetByUsername(ctx, tenantID, in.Body.Username)
 	if err != nil {
 		logger.L.Error("get user", "err", err)
 		if isDatabaseError(err) {
@@ -73,7 +75,6 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 		logger.L.Info("password mismatch", "username", in.Body.Username)
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
-	tenantID := tenant.FromContext(ctx)
 	roles, err := h.Repo.GetRoles(ctx, u.ID)
 	if err != nil {
 		logger.L.Error("get roles", "err", err)
@@ -82,7 +83,13 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 		}
 		return nil, err
 	}
-	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID, roles)
+	role := highestRole(roles)
+	var tok string
+	if role != "" {
+		tok, err = h.JWT.GenerateWithTenant(u.ID, tenantID, []string{role})
+	} else {
+		tok, err = h.JWT.GenerateWithTenant(u.ID, tenantID, nil)
+	}
 	if err != nil {
 		logger.L.Error("generate token", "err", err)
 		return nil, err
@@ -108,7 +115,13 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 		}
 		return nil, err
 	}
-	tok, err := h.JWT.GenerateWithTenant(uid, tenantID, roles)
+	role := highestRole(roles)
+	var tok string
+	if role != "" {
+		tok, err = h.JWT.GenerateWithTenant(uid, tenantID, []string{role})
+	} else {
+		tok, err = h.JWT.GenerateWithTenant(uid, tenantID, nil)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -123,4 +136,23 @@ func isDatabaseError(err error) bool {
 		return false
 	}
 	return !errors.Is(err, sql.ErrNoRows)
+}
+
+func highestRole(roles []string) string {
+	for _, r := range roles {
+		if strings.ToLower(r) == "admin" {
+			return "admin"
+		}
+	}
+	for _, r := range roles {
+		if strings.ToLower(r) == "editor" {
+			return "editor"
+		}
+	}
+	for _, r := range roles {
+		if strings.ToLower(r) == "viewer" {
+			return "viewer"
+		}
+	}
+	return ""
 }

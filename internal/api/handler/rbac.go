@@ -458,7 +458,7 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 			}
 		}
 		if cnt == 0 {
-			continue
+			return nil, huma.Error422("userIds", fmt.Sprintf("user %d not found", id))
 		}
 		if h.Driver == "postgres" {
 			if _, err := tx.ExecContext(ctx, "INSERT INTO gcfm_user_roles(user_id, role_id) VALUES($1,$2) ON CONFLICT DO NOTHING", id, in.ID); err != nil {
