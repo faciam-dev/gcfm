@@ -244,8 +244,32 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 	if per <= 0 {
 		per = 20
 	}
-	if per > 100 {
-		per = 100
+	if per > 200 {
+		per = 200
+	}
+
+	sort := p.Sort
+	if sort == "" {
+		sort = "username"
+	}
+	order := strings.ToLower(p.Order)
+	if order == "" {
+		order = "asc"
+	}
+
+	var sortCol string
+	switch sort {
+	case "username":
+		sortCol = "u.username"
+	case "created_at":
+		sortCol = "u.created_at"
+	default:
+		msg := "sort must be one of [username, created_at]"
+		return nil, huma.NewError(http.StatusBadRequest, msg, &huma.ErrorDetail{Location: "sort", Message: msg, Value: sort})
+	}
+	if order != "asc" && order != "desc" {
+		msg := "order must be one of [asc, desc]"
+		return nil, huma.NewError(http.StatusBadRequest, msg, &huma.ErrorDetail{Location: "order", Message: msg, Value: order})
 	}
 
 	i := 0
@@ -293,8 +317,8 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
                SELECT u.id, u.username
                  FROM gcfm_users u
                  %s
-                ORDER BY u.username ASC
-                LIMIT %s OFFSET %s`, whereSQL, ph(), ph())
+                ORDER BY %s %s
+                LIMIT %s OFFSET %s`, whereSQL, sortCol, strings.ToUpper(order), ph(), ph())
 	listArgs := append(append([]any{}, args...), per, offset)
 
 	rows, err := h.DB.QueryContext(ctx, listSQL, listArgs...)
