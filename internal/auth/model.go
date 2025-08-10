@@ -12,7 +12,6 @@ type User struct {
 	ID           uint64
 	Username     string
 	PasswordHash string
-	Role         string
 }
 
 // UserRepo provides access to the gcfm_users table.
@@ -21,42 +20,51 @@ type UserRepo struct {
 	Driver string
 }
 
-// GetByUsername returns a user by name.
-func (r *UserRepo) GetByUsername(ctx context.Context, name string) (*User, error) {
+// GetByUsername returns a user by name within a tenant.
+func (r *UserRepo) GetByUsername(ctx context.Context, tenantID, name string) (*User, error) {
 	if r == nil || r.DB == nil {
 		return nil, fmt.Errorf("repo not initialized")
 	}
 	var q string
 	switch r.Driver {
 	case "postgres":
-		q = `SELECT id, username, password_hash, role FROM gcfm_users WHERE username=$1`
-	default:
-		q = `SELECT id, username, password_hash, role FROM gcfm_users WHERE username=?`
-	}
-	row := r.DB.QueryRowContext(ctx, q, name)
-	var u User
-	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
+		q = `SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=$1 AND username=$2`
+		row := r.DB.QueryRowContext(ctx, q, tenantID, name)
+		var u User
+		if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash); err != nil {
+			if err == sql.ErrNoRows {
+				return nil, nil
+			}
+			return nil, err
 		}
-		return nil, err
+		return &u, nil
+	default:
+		q = `SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=? AND username=?`
+		row := r.DB.QueryRowContext(ctx, q, tenantID, name)
+		var u User
+		if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash); err != nil {
+			if err == sql.ErrNoRows {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return &u, nil
 	}
-	return &u, nil
 }
 
-// List returns all users and their roles.
-func (r *UserRepo) List(ctx context.Context) ([]User, error) {
+// List returns all users within a tenant.
+func (r *UserRepo) List(ctx context.Context, tenantID string) ([]User, error) {
 	if r == nil || r.DB == nil {
 		return nil, fmt.Errorf("repo not initialized")
 	}
 	var q string
 	switch r.Driver {
 	case "postgres":
-		q = `SELECT id, username, password_hash, role FROM gcfm_users`
+		q = `SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=$1`
 	default:
-		q = `SELECT id, username, password_hash, role FROM gcfm_users`
+		q = `SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=?`
 	}
-	rows, err := r.DB.QueryContext(ctx, q)
+	rows, err := r.DB.QueryContext(ctx, q, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +72,7 @@ func (r *UserRepo) List(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash); err != nil {
 			return nil, err
 		}
 		users = append(users, u)

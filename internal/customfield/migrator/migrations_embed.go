@@ -110,6 +110,12 @@ var m0018Up string
 //go:embed sql/mysql/0018_db_tables_policy.down.sql
 var m0018Down string
 
+//go:embed sql/mysql/0019_users_multitenant.up.sql
+var m0019Up string
+
+//go:embed sql/mysql/0019_users_multitenant.down.sql
+var m0019Down string
+
 // PostgreSQL migration files
 //
 //go:embed sql/postgres/0001_init.up.sql
@@ -195,6 +201,12 @@ var pg0014Up string
 
 //go:embed sql/postgres/0014_cascade_custom_fields.down.sql
 var pg0014Down string
+
+//go:embed sql/postgres/0015_users_multitenant.up.sql
+var pg0015Up string
+
+//go:embed sql/postgres/0015_users_multitenant.down.sql
+var pg0015Down string
 var defaultMigrations = []Migration{
 	{Version: 1, SemVer: "0.1", UpSQL: m0001Up, DownSQL: m0001Down},
 	{Version: 2, SemVer: "0.2", UpSQL: m0002Up, DownSQL: m0002Down},
@@ -214,6 +226,7 @@ var defaultMigrations = []Migration{
 	{Version: 16, SemVer: "0.16", UpSQL: m0016Up, DownSQL: m0016Down},
 	{Version: 17, SemVer: "0.17", UpSQL: m0017Up, DownSQL: m0017Down},
 	{Version: 18, SemVer: "0.18", UpSQL: m0018Up, DownSQL: m0018Down},
+	{Version: 19, SemVer: "0.19", UpSQL: m0019Up, DownSQL: m0019Down},
 }
 
 var postgresMigrations = []Migration{
@@ -231,4 +244,5 @@ var postgresMigrations = []Migration{
 	{Version: 12, SemVer: "0.12", UpSQL: pg0012Up, DownSQL: pg0012Down},
 	{Version: 13, SemVer: "0.13", UpSQL: pg0013Up, DownSQL: pg0013Down},
 	{Version: 14, SemVer: "0.14", UpSQL: pg0014Up, DownSQL: pg0014Down},
+	{Version: 15, SemVer: "0.15", UpSQL: pg0015Up, DownSQL: pg0015Down},
 }

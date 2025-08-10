@@ -3,29 +3,52 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
 
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	audit "github.com/faciam-dev/gcfm/internal/customfield/audit"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/rbac"
+	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
 // RBACHandler provides role and user listing endpoints.
 type RBACHandler struct {
-	DB     *sql.DB
-	Driver string
+	DB       *sql.DB
+	Driver   string
+	Recorder *audit.Recorder
 }
 
 type listRolesOutput struct{ Body []schema.Role }
 
-type listUsersOutput struct{ Body []schema.User }
+type listUsersOutput struct{ Body schema.UsersPage }
 
 var roleNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+
+var (
+	reloadMu    sync.Mutex
+	reloadTimer *time.Timer
+)
+
+func scheduleEnforcerReload(ctx context.Context, db *sql.DB) {
+	reloadMu.Lock()
+	defer reloadMu.Unlock()
+	if reloadTimer != nil {
+		reloadTimer.Stop()
+	}
+	reloadTimer = time.AfterFunc(100*time.Millisecond, func() {
+		rbac.ReloadEnforcer(context.Background(), db)
+	})
+}
 
 func RegisterRBAC(api huma.API, h *RBACHandler) {
 	huma.Register(api, huma.Operation{
@@ -59,13 +82,57 @@ func RegisterRBAC(api huma.API, h *RBACHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listUsers",
 		Method:      http.MethodGet,
-		Path:        "/v1/users",
+		Path:        "/v1/rbac/users",
 		Summary:     "List users",
 		Tags:        []string{"RBAC"},
-	}, h.listUsers)
+	}, h.ListUsers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getRoleMembers",
+		Method:      http.MethodGet,
+		Path:        "/v1/rbac/roles/{id}/members",
+		Summary:     "Get role members",
+		Tags:        []string{"RBAC"},
+	}, h.getRoleMembers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "putRoleMembers",
+		Method:      http.MethodPut,
+		Path:        "/v1/rbac/roles/{id}/members",
+		Summary:     "Replace role members",
+		Tags:        []string{"RBAC"},
+	}, h.putRoleMembers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "getRolePolicies",
+		Method:      http.MethodGet,
+		Path:        "/v1/rbac/roles/{id}/policies",
+		Summary:     "List role policies",
+		Tags:        []string{"RBAC"},
+	}, h.getRolePolicies)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "addRolePolicy",
+		Method:        http.MethodPost,
+		Path:          "/v1/rbac/roles/{id}/policies",
+		Summary:       "Add role policy",
+		Tags:          []string{"RBAC"},
+		Errors:        []int{http.StatusConflict, http.StatusUnprocessableEntity},
+		DefaultStatus: http.StatusCreated,
+	}, h.addRolePolicy)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "deleteRolePolicy",
+		Method:        http.MethodDelete,
+		Path:          "/v1/rbac/roles/{id}/policies",
+		Summary:       "Delete role policy",
+		Tags:          []string{"RBAC"},
+		DefaultStatus: http.StatusNoContent,
+	}, h.deleteRolePolicy)
 }
 
 func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOutput, error) {
+	tid := tenant.FromContext(ctx)
 	rows, err := h.DB.QueryContext(ctx, "SELECT id, name, comment FROM gcfm_roles ORDER BY id")
 	if err != nil {
 		return nil, err
@@ -109,44 +176,183 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	if err := pRows.Err(); err != nil {
 		return nil, err
 	}
+	var cRows *sql.Rows
+	var cq string
+	if h.Driver == "postgres" {
+		cq = "SELECT ur.role_id, COUNT(*) FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE u.tenant_id=$1 GROUP BY ur.role_id"
+		cRows, err = h.DB.QueryContext(ctx, cq, tid)
+	} else {
+		cq = "SELECT ur.role_id, COUNT(*) FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE u.tenant_id=? GROUP BY ur.role_id"
+		cRows, err = h.DB.QueryContext(ctx, cq, tid)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cRows.Close() }()
+	counts := make(map[int64]int64)
+	for cRows.Next() {
+		var id, n int64
+		if err := cRows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		counts[id] = n
+	}
+	if err := cRows.Err(); err != nil {
+		return nil, err
+	}
 	for i := range roles {
 		roles[i].Policies = byRole[roles[i].ID]
+		roles[i].Members = counts[roles[i].ID]
 	}
 	return &listRolesOutput{Body: roles}, nil
 }
 
-func (h *RBACHandler) listUsers(ctx context.Context, _ *struct{}) (*listUsersOutput, error) {
-	rows, err := h.DB.QueryContext(ctx, `SELECT u.id, u.username, r.name FROM gcfm_users u LEFT JOIN gcfm_user_roles ur ON u.id=ur.user_id LEFT JOIN gcfm_roles r ON ur.role_id=r.id ORDER BY u.id`)
+func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) (*listUsersOutput, error) {
+	tid := tenant.FromContext(ctx)
+	if tid == "" {
+		return nil, huma.Error422("missing tenant", "X-Tenant-ID header is required")
+	}
+
+	page := p.Page
+	if page < 1 {
+		page = 1
+	}
+	per := p.PerPage
+	if per <= 0 {
+		per = 20
+	}
+	if per > 100 {
+		per = 100
+	}
+
+	i := 0
+	ph := func() string {
+		i++
+		if h.Driver == "postgres" {
+			return fmt.Sprintf("$%d", i)
+		}
+		return "?"
+	}
+
+	var where []string
+	var args []any
+
+	where = append(where, fmt.Sprintf("u.tenant_id = %s", ph()))
+	args = append(args, tid)
+
+	if p.Search != "" {
+		if h.Driver == "postgres" {
+			where = append(where, fmt.Sprintf("u.username ILIKE %s", ph()))
+		} else {
+			where = append(where, fmt.Sprintf("u.username LIKE %s", ph()))
+		}
+		args = append(args, "%"+p.Search+"%")
+	}
+
+	if p.ExcludeRoleID > 0 {
+		where = append(where, fmt.Sprintf("NOT EXISTS (SELECT 1 FROM gcfm_user_roles ur WHERE ur.user_id = u.id AND ur.role_id = %s)", ph()))
+		args = append(args, p.ExcludeRoleID)
+	}
+
+	whereSQL := ""
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM gcfm_users u %s`, whereSQL)
+	var total int64
+	if err := h.DB.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	offset := (page - 1) * per
+	listSQL := fmt.Sprintf(`
+               SELECT u.id, u.username
+                 FROM gcfm_users u
+                 %s
+                ORDER BY u.username ASC
+                LIMIT %s OFFSET %s`, whereSQL, ph(), ph())
+	listArgs := append(append([]any{}, args...), per, offset)
+
+	rows, err := h.DB.QueryContext(ctx, listSQL, listArgs...)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	m := map[uint64]*schema.User{}
+	defer rows.Close()
+
+	users := make([]schema.UserBrief, 0, per)
+	ids := make([]int64, 0, per)
 	for rows.Next() {
-		var id uint64
-		var username, role sql.NullString
-		if err := rows.Scan(&id, &username, &role); err != nil {
+		var u schema.UserBrief
+		if err := rows.Scan(&u.ID, &u.Username); err != nil {
 			return nil, err
 		}
-		u, ok := m[id]
-		if !ok {
-			m[id] = &schema.User{ID: id, Username: username.String}
-			u = m[id]
-		}
-		if role.Valid {
-			u.Roles = append(u.Roles, role.String)
-		}
+		users = append(users, u)
+		ids = append(ids, u.ID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	users := make([]schema.User, 0, len(m))
-	for _, u := range m {
-		users = append(users, *u)
+
+	if len(ids) > 0 {
+		rolesMap := make(map[int64][]string, len(ids))
+		const batchSize = 100
+		for start := 0; start < len(ids); start += batchSize {
+			end := start + batchSize
+			if end > len(ids) {
+				end = len(ids)
+			}
+			batch := ids[start:end]
+			inPH := make([]string, len(batch))
+			args := make([]any, len(batch))
+			for j, id := range batch {
+				if h.Driver == "postgres" {
+					inPH[j] = fmt.Sprintf("$%d", j+1)
+				} else {
+					inPH[j] = "?"
+				}
+				args[j] = id
+			}
+			roleSQL := fmt.Sprintf(`
+                       SELECT ur.user_id, r.name
+                         FROM gcfm_user_roles ur
+                         JOIN gcfm_roles r ON r.id = ur.role_id
+                        WHERE ur.user_id IN (%s)
+                        ORDER BY r.name`, strings.Join(inPH, ","))
+			rrows, err := h.DB.QueryContext(ctx, roleSQL, args...)
+			if err != nil {
+				return nil, err
+			}
+			for rrows.Next() {
+				var uid int64
+				var rname string
+				if err := rrows.Scan(&uid, &rname); err != nil {
+					rrows.Close()
+					return nil, err
+				}
+				rolesMap[uid] = append(rolesMap[uid], rname)
+			}
+			if err := rrows.Close(); err != nil {
+				return nil, err
+			}
+			if err := rrows.Err(); err != nil {
+				return nil, err
+			}
+		}
+		for i := range users {
+			if rs, ok := rolesMap[users[i].ID]; ok {
+				users[i].Roles = rs
+			}
+		}
 	}
-	return &listUsersOutput{Body: users}, nil
+
+	out := schema.UsersPage{
+		Items:   users,
+		Total:   total,
+		Page:    page,
+		PerPage: per,
+	}
+	return &listUsersOutput{Body: out}, nil
 }
 
 type createRoleInput struct {
@@ -192,7 +398,7 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 			return nil, err
 		}
 	}
-	rbac.ReloadEnforcer(ctx, h.DB)
+	scheduleEnforcerReload(ctx, h.DB)
 	r := schema.Role{ID: id, Name: in.Body.Name}
 	if in.Body.Comment != nil {
 		r.Comment = *in.Body.Comment
@@ -233,7 +439,238 @@ func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}
 	if _, err := h.DB.ExecContext(ctx, q, p.ID); err != nil {
 		return nil, err
 	}
-	rbac.ReloadEnforcer(ctx, h.DB)
+	scheduleEnforcerReload(ctx, h.DB)
+	return &struct{}{}, nil
+}
+
+type roleMembersOutput struct {
+	Body struct {
+		RoleID int64              `json:"roleId"`
+		Users  []schema.UserBrief `json:"users"`
+	}
+}
+
+type roleMembersInput struct {
+	ID   int64 `path:"id"`
+	Body struct {
+		UserIDs []int64 `json:"userIds"`
+	}
+}
+
+func (h *RBACHandler) getRoleMembers(ctx context.Context, p *roleIDParam) (*roleMembersOutput, error) {
+	tid := tenant.FromContext(ctx)
+	var q string
+	if h.Driver == "postgres" {
+		q = "SELECT u.id, u.username FROM gcfm_users u JOIN gcfm_user_roles ur ON ur.user_id=u.id WHERE ur.role_id=$1 AND u.tenant_id=$2 ORDER BY u.username"
+	} else {
+		q = "SELECT u.id, u.username FROM gcfm_users u JOIN gcfm_user_roles ur ON ur.user_id=u.id WHERE ur.role_id=? AND u.tenant_id=? ORDER BY u.username"
+	}
+	rows, err := h.DB.QueryContext(ctx, q, p.ID, tid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := []schema.UserBrief{}
+	for rows.Next() {
+		var u schema.UserBrief
+		if err := rows.Scan(&u.ID, &u.Username); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := &roleMembersOutput{}
+	out.Body.RoleID = p.ID
+	out.Body.Users = users
+	return out, nil
+}
+
+func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) (*struct{}, error) {
+	tid := tenant.FromContext(ctx)
+	tx, err := h.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var q string
+	if h.Driver == "postgres" {
+		q = "SELECT ur.user_id FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE ur.role_id=$1 AND u.tenant_id=$2"
+	} else {
+		q = "SELECT ur.user_id FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE ur.role_id=? AND u.tenant_id=?"
+	}
+	rows, err := tx.QueryContext(ctx, q, in.ID, tid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	existing := map[int64]struct{}{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		existing[id] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	newSet := map[int64]struct{}{}
+	for _, id := range in.Body.UserIDs {
+		newSet[id] = struct{}{}
+	}
+	for id := range existing {
+		if _, ok := newSet[id]; !ok {
+			if h.Driver == "postgres" {
+				if _, err := tx.ExecContext(ctx, "DELETE FROM gcfm_user_roles WHERE role_id=$1 AND user_id=$2", in.ID, id); err != nil {
+					return nil, err
+				}
+			} else {
+				if _, err := tx.ExecContext(ctx, "DELETE FROM gcfm_user_roles WHERE role_id=? AND user_id=?", in.ID, id); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	for id := range newSet {
+		if _, ok := existing[id]; ok {
+			continue
+		}
+		var cnt int
+		if h.Driver == "postgres" {
+			if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM gcfm_users WHERE id=$1 AND tenant_id=$2", id, tid).Scan(&cnt); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM gcfm_users WHERE id=? AND tenant_id=?", id, tid).Scan(&cnt); err != nil {
+				return nil, err
+			}
+		}
+		if cnt == 0 {
+			return nil, huma.Error422("userIds", fmt.Sprintf("user %d not found", id))
+		}
+		if h.Driver == "postgres" {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO gcfm_user_roles(user_id, role_id) VALUES($1,$2) ON CONFLICT DO NOTHING", id, in.ID); err != nil {
+				return nil, err
+			}
+		} else {
+			if _, err := tx.ExecContext(ctx, "INSERT IGNORE INTO gcfm_user_roles(user_id, role_id) VALUES(?, ?)", id, in.ID); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	scheduleEnforcerReload(ctx, h.DB)
+	actor := middleware.UserFromContext(ctx)
+	if h.Recorder != nil {
+		payload := map[string]any{"object": "role-members", "role_id": in.ID, "user_ids": in.Body.UserIDs}
+		_ = h.Recorder.WriteJSON(ctx, actor, "rbac", payload)
+	}
+	return &struct{}{}, nil
+}
+
+type listPoliciesOutput struct{ Body []schema.Policy }
+
+type policyInput struct {
+	ID   int64 `path:"id"`
+	Body schema.Policy
+}
+
+type policyParams struct {
+	ID     int64  `path:"id"`
+	Path   string `query:"path"`
+	Method string `query:"method"`
+}
+
+func (h *RBACHandler) getRolePolicies(ctx context.Context, p *roleIDParam) (*listPoliciesOutput, error) {
+	var q string
+	if h.Driver == "postgres" {
+		q = "SELECT path, method FROM gcfm_role_policies WHERE role_id=$1 ORDER BY path, method"
+	} else {
+		q = "SELECT path, method FROM gcfm_role_policies WHERE role_id=? ORDER BY path, method"
+	}
+	rows, err := h.DB.QueryContext(ctx, q, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ps := []schema.Policy{}
+	for rows.Next() {
+		var pol schema.Policy
+		if err := rows.Scan(&pol.Path, &pol.Method); err != nil {
+			return nil, err
+		}
+		ps = append(ps, pol)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return &listPoliciesOutput{Body: ps}, nil
+}
+
+func (h *RBACHandler) addRolePolicy(ctx context.Context, in *policyInput) (*schema.Policy, error) {
+	if !strings.HasPrefix(in.Body.Path, "/") || len(in.Body.Path) > 128 {
+		return nil, huma.Error422("path", "must start with '/' and be <=128 chars")
+	}
+	switch in.Body.Method {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return nil, huma.Error422("method", "invalid")
+	}
+	var q string
+	var err error
+	if h.Driver == "postgres" {
+		q = "INSERT INTO gcfm_role_policies(role_id, path, method) VALUES($1,$2,$3)"
+		_, err = h.DB.ExecContext(ctx, q, in.ID, in.Body.Path, in.Body.Method)
+	} else {
+		q = "INSERT INTO gcfm_role_policies(role_id, path, method) VALUES(?,?,?)"
+		_, err = h.DB.ExecContext(ctx, q, in.ID, in.Body.Path, in.Body.Method)
+	}
+	if err != nil {
+		if isDuplicateErr(err) {
+			return nil, huma.Error409Conflict("policy exists")
+		}
+		return nil, err
+	}
+	scheduleEnforcerReload(ctx, h.DB)
+	actor := middleware.UserFromContext(ctx)
+	if h.Recorder != nil {
+		payload := map[string]any{"object": "role-policies", "role_id": in.ID, "path": in.Body.Path, "method": in.Body.Method}
+		_ = h.Recorder.WriteJSON(ctx, actor, "rbac", payload)
+	}
+	return &in.Body, nil
+}
+
+func (h *RBACHandler) deleteRolePolicy(ctx context.Context, p *policyParams) (*struct{}, error) {
+	if p.Path == "" || !strings.HasPrefix(p.Path, "/") || len(p.Path) > 128 {
+		return nil, huma.Error422("path", "invalid")
+	}
+	switch p.Method {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return nil, huma.Error422("method", "invalid")
+	}
+	var q string
+	if h.Driver == "postgres" {
+		q = "DELETE FROM gcfm_role_policies WHERE role_id=$1 AND path=$2 AND method=$3"
+	} else {
+		q = "DELETE FROM gcfm_role_policies WHERE role_id=? AND path=? AND method=?"
+	}
+	res, err := h.DB.ExecContext(ctx, q, p.ID, p.Path, p.Method)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		scheduleEnforcerReload(ctx, h.DB)
+		actor := middleware.UserFromContext(ctx)
+		if h.Recorder != nil {
+			payload := map[string]any{"object": "role-policies", "role_id": p.ID, "path": p.Path, "method": p.Method}
+			_ = h.Recorder.WriteJSON(ctx, actor, "rbac", payload)
+		}
+	}
 	return &struct{}{}, nil
 }
 

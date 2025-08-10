@@ -6,9 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	cfhuma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
@@ -57,7 +59,11 @@ func Register(api huma.API, h *Handler) {
 }
 
 func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, error) {
-	u, err := h.Repo.GetByUsername(ctx, in.Body.Username)
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == "" {
+		return nil, cfhuma.Error422("missing tenant", "X-Tenant-ID header is required")
+	}
+	u, err := h.Repo.GetByUsername(ctx, tenantID, in.Body.Username)
 	if err != nil {
 		logger.L.Error("get user", "err", err)
 		if isDatabaseError(err) {
@@ -73,7 +79,6 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 		logger.L.Info("password mismatch", "username", in.Body.Username)
 		return nil, huma.Error401Unauthorized("invalid credentials")
 	}
-	tenantID := tenant.FromContext(ctx)
 	roles, err := h.Repo.GetRoles(ctx, u.ID)
 	if err != nil {
 		logger.L.Error("get roles", "err", err)
@@ -82,7 +87,13 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 		}
 		return nil, err
 	}
-	tok, err := h.JWT.GenerateWithTenant(u.ID, tenantID, roles)
+	role := highestRole(roles)
+	var tok string
+	if role != NoRole {
+		tok, err = h.JWT.GenerateWithTenant(u.ID, tenantID, []string{role})
+	} else {
+		tok, err = h.JWT.GenerateWithTenant(u.ID, tenantID, nil)
+	}
 	if err != nil {
 		logger.L.Error("generate token", "err", err)
 		return nil, err
@@ -108,7 +119,13 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 		}
 		return nil, err
 	}
-	tok, err := h.JWT.GenerateWithTenant(uid, tenantID, roles)
+	role := highestRole(roles)
+	var tok string
+	if role != NoRole {
+		tok, err = h.JWT.GenerateWithTenant(uid, tenantID, []string{role})
+	} else {
+		tok, err = h.JWT.GenerateWithTenant(uid, tenantID, nil)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -123,4 +140,29 @@ func isDatabaseError(err error) bool {
 		return false
 	}
 	return !errors.Is(err, sql.ErrNoRows)
+}
+
+// NoRole represents absence of any recognized role.
+const NoRole = ""
+
+// rolePriority defines the priority of each role. Lower numbers indicate higher priority.
+var rolePriority = map[string]int{
+	"admin":  0,
+	"editor": 1,
+	"viewer": 2,
+}
+
+func highestRole(roles []string) string {
+	highest := NoRole
+	highestPrio := len(rolePriority) + 1
+	for _, r := range roles {
+		role := strings.ToLower(r)
+		if prio, ok := rolePriority[role]; ok {
+			if prio < highestPrio {
+				highestPrio = prio
+				highest = role
+			}
+		}
+	}
+	return highest
 }

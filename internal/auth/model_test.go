@@ -14,25 +14,26 @@ func TestUserRepoList(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	repo := &UserRepo{DB: db, Driver: "postgres"}
-	rows := sqlmock.NewRows([]string{"id", "username", "password_hash", "role"}).
-		AddRow(1, "alice", "hash", "admin").
-		AddRow(2, "bob", "hash2", "user")
-	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM gcfm_users$").WillReturnRows(rows)
-	users, err := repo.List(context.Background())
+	rows := sqlmock.NewRows([]string{"id", "username", "password_hash"}).
+		AddRow(1, "alice", "hash").
+		AddRow(2, "bob", "hash2")
+	mock.ExpectQuery("^SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=\\$1$").
+		WithArgs("t1").WillReturnRows(rows)
+	users, err := repo.List(context.Background(), "t1")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet: %v", err)
 	}
-	if len(users) != 2 || users[0].Username != "alice" || users[1].Role != "user" {
+	if len(users) != 2 || users[0].Username != "alice" || users[1].Username != "bob" {
 		t.Fatalf("unexpected users: %#v", users)
 	}
 }
 
 func TestUserRepoListNotInit(t *testing.T) {
 	repo := &UserRepo{}
-	if _, err := repo.List(context.Background()); err == nil {
+	if _, err := repo.List(context.Background(), "t1"); err == nil {
 		t.Fatalf("expected error for uninitialized repo")
 	}
 }
@@ -43,8 +44,9 @@ func TestUserRepoListQueryError(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	repo := &UserRepo{DB: db, Driver: "postgres"}
-	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM gcfm_users$").WillReturnError(errors.New("bad"))
-	if _, err := repo.List(context.Background()); err == nil {
+	mock.ExpectQuery("^SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=\\$1$").
+		WithArgs("t1").WillReturnError(errors.New("bad"))
+	if _, err := repo.List(context.Background(), "t1"); err == nil {
 		t.Fatalf("expected error")
 	}
 }
@@ -55,10 +57,11 @@ func TestUserRepoListScanError(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	repo := &UserRepo{DB: db, Driver: "postgres"}
-	rows := sqlmock.NewRows([]string{"id", "username", "password_hash", "role"}).
-		AddRow("bad", "alice", "hash", "admin")
-	mock.ExpectQuery("^SELECT id, username, password_hash, role FROM gcfm_users$").WillReturnRows(rows)
-	if _, err := repo.List(context.Background()); err == nil {
+	rows := sqlmock.NewRows([]string{"id", "username", "password_hash"}).
+		AddRow("bad", "alice", "hash")
+	mock.ExpectQuery("^SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=\\$1$").
+		WithArgs("t1").WillReturnRows(rows)
+	if _, err := repo.List(context.Background(), "t1"); err == nil {
 		t.Fatalf("expected error")
 	}
 }

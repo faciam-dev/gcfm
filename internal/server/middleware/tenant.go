@@ -21,6 +21,10 @@ func ExtractTenant(api huma.API) func(huma.Context, func(huma.Context)) {
 			}
 		}
 		if tid == "" {
+			if r.URL.Path == "/v1/auth/login" {
+				next(humachi.NewContext(ctx.Operation(), r, w))
+				return
+			}
 			huma.WriteErr(api, ctx, 400, "missing tenant identifier: set X-Tenant-ID header or tid claim")
 			return
 		}
