@@ -404,29 +404,69 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 
 	roleIDs := make([]int64, 0, len(roles))
 	missing := []string{}
-	for _, name := range roles {
-		var id int64
-		var err error
+
+	if len(roles) > 0 {
+		// Build query and args for IN clause
+		var (
+			query    string
+			args     []interface{}
+			nameToID = make(map[string]int64, len(roles))
+		)
+
 		if h.Driver == "postgres" {
-			err = h.DB.QueryRowContext(ctx, "SELECT id FROM gcfm_roles WHERE name=$1", name).Scan(&id)
+			placeholders := make([]string, len(roles))
+			for i := range roles {
+				placeholders[i] = fmt.Sprintf("$%d", i+1)
+			}
+			query = fmt.Sprintf("SELECT id, name FROM gcfm_roles WHERE name IN (%s)", strings.Join(placeholders, ","))
+			for _, r := range roles {
+				args = append(args, r)
+			}
 		} else {
-			err = h.DB.QueryRowContext(ctx, "SELECT id FROM gcfm_roles WHERE name=?", name).Scan(&id)
+			placeholders := make([]string, len(roles))
+			for i := range roles {
+				placeholders[i] = "?"
+			}
+			query = fmt.Sprintf("SELECT id, name FROM gcfm_roles WHERE name IN (%s)", strings.Join(placeholders, ","))
+			for _, r := range roles {
+				args = append(args, r)
+			}
 		}
-		if err == sql.ErrNoRows {
-			missing = append(missing, name)
-			continue
-		}
+
+		rows, err := h.DB.QueryContext(ctx, query, args...)
 		if err != nil {
 			return nil, err
 		}
-		roleIDs = append(roleIDs, id)
+		defer rows.Close()
+
+		for rows.Next() {
+			var id int64
+			var name string
+			if err := rows.Scan(&id, &name); err != nil {
+				return nil, err
+			}
+			nameToID[name] = id
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+
+		for _, name := range roles {
+			id, ok := nameToID[name]
+			if !ok {
+				missing = append(missing, name)
+				continue
+			}
+			roleIDs = append(roleIDs, id)
+		}
 	}
+
 	if len(missing) > 0 {
 		msg := fmt.Sprintf("missing roles: %s", strings.Join(missing, ","))
 		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "roles", Message: msg})
 	}
 
-	tx, err := h.DB.BeginTx(ctx, nil)
+	tx, err := h.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, err
 	}
@@ -461,14 +501,32 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 		}
 		return nil, err
 	}
-	for _, rid := range roleIDs {
+	if len(roleIDs) > 0 {
+		var (
+			valueStrings []string
+			valueArgs    []interface{}
+		)
 		if h.Driver == "postgres" {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO gcfm_user_roles(user_id, role_id) VALUES($1,$2)", id, rid); err != nil {
+			argPos := 1
+			for _, rid := range roleIDs {
+				valueStrings = append(valueStrings, fmt.Sprintf("($%d,$%d)", argPos, argPos+1))
+				valueArgs = append(valueArgs, id, rid)
+				argPos += 2
+			}
+			stmt := fmt.Sprintf("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES %s", strings.Join(valueStrings, ","))
+			if _, err := tx.ExecContext(ctx, stmt, valueArgs...); err != nil {
 				_ = tx.Rollback()
 				return nil, err
 			}
 		} else {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO gcfm_user_roles(user_id, role_id) VALUES(?, ?)", id, rid); err != nil {
+			for range roleIDs {
+				valueStrings = append(valueStrings, "(?, ?)")
+			}
+			for _, rid := range roleIDs {
+				valueArgs = append(valueArgs, id, rid)
+			}
+			stmt := fmt.Sprintf("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES %s", strings.Join(valueStrings, ","))
+			if _, err := tx.ExecContext(ctx, stmt, valueArgs...); err != nil {
 				_ = tx.Rollback()
 				return nil, err
 			}

@@ -184,9 +184,9 @@ func TestRBACHandler_createUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT id FROM gcfm_roles WHERE name=?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, name FROM gcfm_roles WHERE name IN (?)")).
 		WithArgs("admin").
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(2, "admin"))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)")).
 		WithArgs("t1", "alice", sqlmock.AnyArg()).
@@ -195,7 +195,7 @@ func TestRBACHandler_createUser(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT created_at FROM gcfm_users WHERE id=?")).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(now))
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES(?, ?)")).
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES (?, ?)")).
 		WithArgs(int64(1), int64(2)).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
@@ -228,9 +228,9 @@ func TestRBACHandler_createUser_duplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT id FROM gcfm_roles WHERE name=?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, name FROM gcfm_roles WHERE name IN (?)")).
 		WithArgs("admin").
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(2, "admin"))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)")).
 		WithArgs("t1", "alice", sqlmock.AnyArg()).
