@@ -136,7 +136,7 @@ func TestRBACHandler_ListUsers_ExcludeRole(t *testing.T) {
 	rid := int64(1)
 	h := &RBACHandler{DB: db, Driver: "mysql"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
-	out, err := h.ListUsers(ctx, &schema.ListUsersParams{ExcludeRoleID: &rid})
+	out, err := h.ListUsers(ctx, &schema.ListUsersParams{ExcludeRoleID: rid})
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}

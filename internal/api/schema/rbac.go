@@ -30,5 +30,5 @@ type ListUsersParams struct {
 	Search        string `query:"search"`
 	Page          int    `query:"page"`
 	PerPage       int    `query:"per_page"`
-	ExcludeRoleID *int64 `query:"exclude_role_id"`
+	ExcludeRoleID int64  `query:"exclude_role_id"`
 }

@@ -231,9 +231,9 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 		args = append(args, "%"+p.Search+"%")
 	}
 
-	if p.ExcludeRoleID != nil {
+	if p.ExcludeRoleID > 0 {
 		where = append(where, fmt.Sprintf("NOT EXISTS (SELECT 1 FROM gcfm_user_roles ur WHERE ur.user_id = u.id AND ur.role_id = %s)", ph()))
-		args = append(args, *p.ExcludeRoleID)
+		args = append(args, p.ExcludeRoleID)
 	}
 
 	whereSQL := ""
