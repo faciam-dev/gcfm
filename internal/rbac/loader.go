@@ -47,3 +47,7 @@ func loadGroupPolicies(ctx context.Context, db *sql.DB, e *casbin.Enforcer) erro
 	}
 	return rows.Err()
 }
+
+// ReloadEnforcer is a hook for reloading the Casbin enforcer after RBAC changes.
+// Currently it is a no-op and can be overridden elsewhere.
+func ReloadEnforcer(ctx context.Context, db *sql.DB) {}
