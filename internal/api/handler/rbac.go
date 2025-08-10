@@ -4,9 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"regexp"
+	"strings"
 
-	"github.com/danielgtaylor/huma/v2"
+	"github.com/go-sql-driver/mysql"
+	"github.com/lib/pq"
+
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	huma "github.com/faciam-dev/gcfm/internal/huma"
+	"github.com/faciam-dev/gcfm/internal/rbac"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
 // RBACHandler provides role and user listing endpoints.
@@ -19,14 +26,36 @@ type listRolesOutput struct{ Body []schema.Role }
 
 type listUsersOutput struct{ Body []schema.User }
 
+var roleNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+
 func RegisterRBAC(api huma.API, h *RBACHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "listRoles",
 		Method:      http.MethodGet,
-		Path:        "/v1/roles",
+		Path:        "/v1/rbac/roles",
 		Summary:     "List roles",
 		Tags:        []string{"RBAC"},
 	}, h.listRoles)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "createRole",
+		Method:        http.MethodPost,
+		Path:          "/v1/rbac/roles",
+		Summary:       "Create role",
+		Tags:          []string{"RBAC"},
+		Errors:        []int{http.StatusConflict, http.StatusUnprocessableEntity},
+		DefaultStatus: http.StatusCreated,
+	}, h.createRole)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "deleteRole",
+		Method:        http.MethodDelete,
+		Path:          "/v1/rbac/roles/{id}",
+		Summary:       "Delete role",
+		Tags:          []string{"RBAC"},
+		Errors:        []int{http.StatusConflict},
+		DefaultStatus: http.StatusNoContent,
+	}, h.deleteRole)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listUsers",
@@ -119,4 +148,108 @@ func (h *RBACHandler) listUsers(ctx context.Context, _ *struct{}) (*listUsersOut
 		users = append(users, *u)
 	}
 	return &listUsersOutput{Body: users}, nil
+}
+
+type createRoleInput struct {
+	Body struct {
+		Name    string  `json:"name"`
+		Comment *string `json:"comment,omitempty"`
+	}
+}
+
+type roleOutput struct{ Body schema.Role }
+
+type roleIDParam struct {
+	ID int64 `path:"id"`
+}
+
+func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*roleOutput, error) {
+	if !roleNamePattern.MatchString(in.Body.Name) {
+		return nil, huma.Error422("name", "must match ^[a-z0-9_-]{1,64}$")
+	}
+	_ = tenant.FromContext(ctx)
+	var comment interface{}
+	if in.Body.Comment != nil && *in.Body.Comment != "" {
+		comment = *in.Body.Comment
+	}
+	var id int64
+	if h.Driver == "postgres" {
+		err := h.DB.QueryRowContext(ctx, "INSERT INTO gcfm_roles(name, comment) VALUES($1, $2) RETURNING id", in.Body.Name, comment).Scan(&id)
+		if err != nil {
+			if isDuplicateErr(err) {
+				return nil, huma.Error409Conflict("role already exists")
+			}
+			return nil, err
+		}
+	} else {
+		res, err := h.DB.ExecContext(ctx, "INSERT INTO gcfm_roles(name, comment) VALUES(?, ?)", in.Body.Name, comment)
+		if err != nil {
+			if isDuplicateErr(err) {
+				return nil, huma.Error409Conflict("role already exists")
+			}
+			return nil, err
+		}
+		id, err = res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+	}
+	rbac.ReloadEnforcer(ctx, h.DB)
+	r := schema.Role{ID: id, Name: in.Body.Name}
+	if in.Body.Comment != nil {
+		r.Comment = *in.Body.Comment
+	}
+	return &roleOutput{Body: r}, nil
+}
+
+func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}, error) {
+	_ = tenant.FromContext(ctx)
+	var q string
+	if h.Driver == "postgres" {
+		q = "SELECT COUNT(*) FROM gcfm_user_roles WHERE role_id=$1"
+	} else {
+		q = "SELECT COUNT(*) FROM gcfm_user_roles WHERE role_id=?"
+	}
+	var cnt int
+	if err := h.DB.QueryRowContext(ctx, q, p.ID).Scan(&cnt); err != nil {
+		return nil, err
+	}
+	if cnt > 0 {
+		return nil, huma.Error409Conflict("role has users")
+	}
+	if h.Driver == "postgres" {
+		q = "SELECT COUNT(*) FROM gcfm_role_policies WHERE role_id=$1"
+	} else {
+		q = "SELECT COUNT(*) FROM gcfm_role_policies WHERE role_id=?"
+	}
+	if err := h.DB.QueryRowContext(ctx, q, p.ID).Scan(&cnt); err != nil {
+		return nil, err
+	}
+	if cnt > 0 {
+		return nil, huma.Error409Conflict("role has policies")
+	}
+	if h.Driver == "postgres" {
+		q = "DELETE FROM gcfm_roles WHERE id=$1"
+	} else {
+		q = "DELETE FROM gcfm_roles WHERE id=?"
+	}
+	if _, err := h.DB.ExecContext(ctx, q, p.ID); err != nil {
+		return nil, err
+	}
+	rbac.ReloadEnforcer(ctx, h.DB)
+	return nil, nil
+}
+
+func isDuplicateErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if me, ok := err.(*mysql.MySQLError); ok {
+		return me.Number == 1062
+	}
+	if pe, ok := err.(*pq.Error); ok {
+		return string(pe.Code) == "23505"
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate") || strings.Contains(msg, "conflict")
 }
