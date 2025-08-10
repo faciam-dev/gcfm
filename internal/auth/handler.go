@@ -89,7 +89,7 @@ func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, erro
 	}
 	role := highestRole(roles)
 	var tok string
-	if role != "" {
+	if role != NoRole {
 		tok, err = h.JWT.GenerateWithTenant(u.ID, tenantID, []string{role})
 	} else {
 		tok, err = h.JWT.GenerateWithTenant(u.ID, tenantID, nil)
@@ -121,7 +121,7 @@ func (h *Handler) refresh(ctx context.Context, _ *refreshInput) (*loginOutput, e
 	}
 	role := highestRole(roles)
 	var tok string
-	if role != "" {
+	if role != NoRole {
 		tok, err = h.JWT.GenerateWithTenant(uid, tenantID, []string{role})
 	} else {
 		tok, err = h.JWT.GenerateWithTenant(uid, tenantID, nil)
@@ -142,21 +142,27 @@ func isDatabaseError(err error) bool {
 	return !errors.Is(err, sql.ErrNoRows)
 }
 
+// NoRole represents absence of any recognized role.
+const NoRole = ""
+
+// rolePriority defines the priority of each role. Lower numbers indicate higher priority.
+var rolePriority = map[string]int{
+	"admin":  0,
+	"editor": 1,
+	"viewer": 2,
+}
+
 func highestRole(roles []string) string {
+	highest := NoRole
+	highestPrio := len(rolePriority) + 1
 	for _, r := range roles {
-		if strings.ToLower(r) == "admin" {
-			return "admin"
+		role := strings.ToLower(r)
+		if prio, ok := rolePriority[role]; ok {
+			if prio < highestPrio {
+				highestPrio = prio
+				highest = role
+			}
 		}
 	}
-	for _, r := range roles {
-		if strings.ToLower(r) == "editor" {
-			return "editor"
-		}
-	}
-	for _, r := range roles {
-		if strings.ToLower(r) == "viewer" {
-			return "viewer"
-		}
-	}
-	return ""
+	return highest
 }

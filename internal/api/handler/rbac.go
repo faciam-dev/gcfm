@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
@@ -31,6 +33,22 @@ type listRolesOutput struct{ Body []schema.Role }
 type listUsersOutput struct{ Body schema.UsersPage }
 
 var roleNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+
+var (
+	reloadMu    sync.Mutex
+	reloadTimer *time.Timer
+)
+
+func scheduleEnforcerReload(ctx context.Context, db *sql.DB) {
+	reloadMu.Lock()
+	defer reloadMu.Unlock()
+	if reloadTimer != nil {
+		reloadTimer.Stop()
+	}
+	reloadTimer = time.AfterFunc(100*time.Millisecond, func() {
+		rbac.ReloadEnforcer(context.Background(), db)
+	})
+}
 
 func RegisterRBAC(api huma.API, h *RBACHandler) {
 	huma.Register(api, huma.Operation{
@@ -277,38 +295,50 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 	}
 
 	if len(ids) > 0 {
-		inPH := make([]string, len(ids))
-		for k := range ids {
-			inPH[k] = ph()
-		}
-		roleSQL := fmt.Sprintf(`
+		rolesMap := make(map[int64][]string, len(ids))
+		const batchSize = 100
+		for start := 0; start < len(ids); start += batchSize {
+			end := start + batchSize
+			if end > len(ids) {
+				end = len(ids)
+			}
+			batch := ids[start:end]
+			inPH := make([]string, len(batch))
+			args := make([]any, len(batch))
+			for j, id := range batch {
+				if h.Driver == "postgres" {
+					inPH[j] = fmt.Sprintf("$%d", j+1)
+				} else {
+					inPH[j] = "?"
+				}
+				args[j] = id
+			}
+			roleSQL := fmt.Sprintf(`
                        SELECT ur.user_id, r.name
                          FROM gcfm_user_roles ur
                          JOIN gcfm_roles r ON r.id = ur.role_id
                         WHERE ur.user_id IN (%s)
                         ORDER BY r.name`, strings.Join(inPH, ","))
-		roleArgs := make([]any, len(ids))
-		for k, v := range ids {
-			roleArgs[k] = v
-		}
-
-		rrows, err := h.DB.QueryContext(ctx, roleSQL, roleArgs...)
-		if err != nil {
-			return nil, err
-		}
-		defer rrows.Close()
-
-		rolesMap := make(map[int64][]string, len(ids))
-		for rrows.Next() {
-			var uid int64
-			var rname string
-			if err := rrows.Scan(&uid, &rname); err != nil {
+			rrows, err := h.DB.QueryContext(ctx, roleSQL, args...)
+			if err != nil {
 				return nil, err
 			}
-			rolesMap[uid] = append(rolesMap[uid], rname)
+			for rrows.Next() {
+				var uid int64
+				var rname string
+				if err := rrows.Scan(&uid, &rname); err != nil {
+					rrows.Close()
+					return nil, err
+				}
+				rolesMap[uid] = append(rolesMap[uid], rname)
+			}
+			if err := rrows.Close(); err != nil {
+				return nil, err
+			}
+			if err := rrows.Err(); err != nil {
+				return nil, err
+			}
 		}
-		_ = rrows.Close()
-
 		for i := range users {
 			if rs, ok := rolesMap[users[i].ID]; ok {
 				users[i].Roles = rs
@@ -368,7 +398,7 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 			return nil, err
 		}
 	}
-	rbac.ReloadEnforcer(ctx, h.DB)
+	scheduleEnforcerReload(ctx, h.DB)
 	r := schema.Role{ID: id, Name: in.Body.Name}
 	if in.Body.Comment != nil {
 		r.Comment = *in.Body.Comment
@@ -409,7 +439,7 @@ func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}
 	if _, err := h.DB.ExecContext(ctx, q, p.ID); err != nil {
 		return nil, err
 	}
-	rbac.ReloadEnforcer(ctx, h.DB)
+	scheduleEnforcerReload(ctx, h.DB)
 	return &struct{}{}, nil
 }
 
@@ -533,7 +563,7 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	rbac.ReloadEnforcer(ctx, h.DB)
+	scheduleEnforcerReload(ctx, h.DB)
 	actor := middleware.UserFromContext(ctx)
 	if h.Recorder != nil {
 		payload := map[string]any{"object": "role-members", "role_id": in.ID, "user_ids": in.Body.UserIDs}
@@ -605,7 +635,7 @@ func (h *RBACHandler) addRolePolicy(ctx context.Context, in *policyInput) (*sche
 		}
 		return nil, err
 	}
-	rbac.ReloadEnforcer(ctx, h.DB)
+	scheduleEnforcerReload(ctx, h.DB)
 	actor := middleware.UserFromContext(ctx)
 	if h.Recorder != nil {
 		payload := map[string]any{"object": "role-policies", "role_id": in.ID, "path": in.Body.Path, "method": in.Body.Method}
@@ -634,7 +664,7 @@ func (h *RBACHandler) deleteRolePolicy(ctx context.Context, p *policyParams) (*s
 		return nil, err
 	}
 	if n, _ := res.RowsAffected(); n > 0 {
-		rbac.ReloadEnforcer(ctx, h.DB)
+		scheduleEnforcerReload(ctx, h.DB)
 		actor := middleware.UserFromContext(ctx)
 		if h.Recorder != nil {
 			payload := map[string]any{"object": "role-policies", "role_id": p.ID, "path": p.Path, "method": p.Method}
