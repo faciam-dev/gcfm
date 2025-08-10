@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	cfhuma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
@@ -59,6 +60,9 @@ func Register(api huma.API, h *Handler) {
 
 func (h *Handler) login(ctx context.Context, in *loginInput) (*loginOutput, error) {
 	tenantID := tenant.FromContext(ctx)
+	if tenantID == "" {
+		return nil, cfhuma.Error422("missing tenant", "X-Tenant-ID header is required")
+	}
 	u, err := h.Repo.GetByUsername(ctx, tenantID, in.Body.Username)
 	if err != nil {
 		logger.L.Error("get user", "err", err)

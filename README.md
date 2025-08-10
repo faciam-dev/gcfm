@@ -227,8 +227,9 @@ After seeding the admin account, obtain a token. The API server listens on
 
 ```bash
 curl -X POST http://localhost:8080/v1/auth/login \
-     -H 'Content-Type: application/json' \
-     -d '{"username":"admin","password":"admin123"}'
+    -H 'Content-Type: application/json' \
+    -H 'X-Tenant-ID: default' \
+    -d '{"username":"admin","password":"admin123"}'
 ```
 
 Example request to create a custom field with all options:
