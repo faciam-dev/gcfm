@@ -22,12 +22,16 @@ func TestRBACHandler_listRoles(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "comment"}).AddRow(1, "admin", ""))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT role_id, path, method FROM gcfm_role_policies")).
 		WillReturnRows(sqlmock.NewRows([]string{"role_id", "path", "method"}).AddRow(1, "/v1/foo", "GET"))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.role_id, COUNT(*) FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE u.tenant_id=? GROUP BY ur.role_id")).
+		WithArgs("t1").
+		WillReturnRows(sqlmock.NewRows([]string{"role_id", "count"}).AddRow(1, 1))
 	h := &RBACHandler{DB: db, Driver: "mysql"}
-	out, err := h.listRoles(context.Background(), nil)
+	ctx := tenant.WithTenant(context.Background(), "t1")
+	out, err := h.listRoles(ctx, nil)
 	if err != nil {
 		t.Fatalf("listRoles: %v", err)
 	}
-	if len(out.Body) != 1 || out.Body[0].Name != "admin" || len(out.Body[0].Policies) != 1 {
+	if len(out.Body) != 1 || out.Body[0].Name != "admin" || len(out.Body[0].Policies) != 1 || out.Body[0].Members != 1 {
 		t.Fatalf("unexpected result: %#v", out.Body)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

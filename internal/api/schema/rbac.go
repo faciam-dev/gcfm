@@ -9,6 +9,7 @@ type Role struct {
 	ID       int64    `json:"id"`
 	Name     string   `json:"name"`
 	Comment  string   `json:"comment,omitempty"`
+	Members  int64    `json:"members"`
 	Policies []Policy `json:"policies,omitempty"`
 }
 

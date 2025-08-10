@@ -114,6 +114,7 @@ func RegisterRBAC(api huma.API, h *RBACHandler) {
 }
 
 func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOutput, error) {
+	tid := tenant.FromContext(ctx)
 	rows, err := h.DB.QueryContext(ctx, "SELECT id, name, comment FROM gcfm_roles ORDER BY id")
 	if err != nil {
 		return nil, err
@@ -157,8 +158,33 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	if err := pRows.Err(); err != nil {
 		return nil, err
 	}
+	var cRows *sql.Rows
+	var cq string
+	if h.Driver == "postgres" {
+		cq = "SELECT ur.role_id, COUNT(*) FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE u.tenant_id=$1 GROUP BY ur.role_id"
+		cRows, err = h.DB.QueryContext(ctx, cq, tid)
+	} else {
+		cq = "SELECT ur.role_id, COUNT(*) FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE u.tenant_id=? GROUP BY ur.role_id"
+		cRows, err = h.DB.QueryContext(ctx, cq, tid)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cRows.Close() }()
+	counts := make(map[int64]int64)
+	for cRows.Next() {
+		var id, n int64
+		if err := cRows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		counts[id] = n
+	}
+	if err := cRows.Err(); err != nil {
+		return nil, err
+	}
 	for i := range roles {
 		roles[i].Policies = byRole[roles[i].ID]
+		roles[i].Members = counts[roles[i].ID]
 	}
 	return &listRolesOutput{Body: roles}, nil
 }
