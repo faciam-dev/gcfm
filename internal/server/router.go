@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func New(db *sql.DB, cfg DBConfig) huma.API {
@@ -142,7 +143,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
-	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver})
+	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver, PasswordCost: bcrypt.DefaultCost})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}, Recorder: rec})
 	if db != nil {

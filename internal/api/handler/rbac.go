@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	audit "github.com/faciam-dev/gcfm/internal/customfield/audit"
@@ -23,16 +24,28 @@ import (
 
 // RBACHandler provides role and user listing endpoints.
 type RBACHandler struct {
-	DB       *sql.DB
-	Driver   string
-	Recorder *audit.Recorder
+	DB           *sql.DB
+	Driver       string
+	Recorder     *audit.Recorder
+	PasswordCost int
 }
 
 type listRolesOutput struct{ Body []schema.Role }
 
 type listUsersOutput struct{ Body schema.UsersPage }
 
+type createUserInput struct {
+	Body struct {
+		Username string   `json:"username"`
+		Password string   `json:"password"`
+		Roles    []string `json:"roles,omitempty"`
+	}
+}
+
+type userOutput struct{ Body schema.User }
+
 var roleNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 var (
 	reloadMu    sync.Mutex
@@ -86,6 +99,16 @@ func RegisterRBAC(api huma.API, h *RBACHandler) {
 		Summary:     "List users",
 		Tags:        []string{"RBAC"},
 	}, h.ListUsers)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "createUser",
+		Method:        http.MethodPost,
+		Path:          "/v1/rbac/users",
+		Summary:       "Create user",
+		Tags:          []string{"RBAC"},
+		Errors:        []int{http.StatusConflict, http.StatusUnprocessableEntity, http.StatusBadRequest},
+		DefaultStatus: http.StatusCreated,
+	}, h.createUser)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getRoleMembers",
@@ -353,6 +376,115 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 		PerPage: per,
 	}
 	return &listUsersOutput{Body: out}, nil
+}
+
+func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*userOutput, error) {
+	tid := tenant.FromContext(ctx)
+	if tid == "" {
+		return nil, huma.Error422("missing tenant", "X-Tenant-ID header is required")
+	}
+	if l := len(in.Body.Username); l < 3 || l > 64 || !usernamePattern.MatchString(in.Body.Username) {
+		return nil, huma.NewError(http.StatusBadRequest, "invalid username", &huma.ErrorDetail{Location: "username", Message: "must be 3-64 chars and match ^[a-zA-Z0-9._-]+$"})
+	}
+	if l := len(in.Body.Password); l < 8 || l > 128 {
+		return nil, huma.NewError(http.StatusBadRequest, "invalid password", &huma.ErrorDetail{Location: "password", Message: "must be 8-128 chars"})
+	}
+	seen := make(map[string]struct{})
+	roles := make([]string, 0, len(in.Body.Roles))
+	for _, r := range in.Body.Roles {
+		if l := len(r); l < 1 || l > 64 {
+			return nil, huma.NewError(http.StatusBadRequest, "invalid role", &huma.ErrorDetail{Location: "roles", Message: "each must be 1-64 chars"})
+		}
+		if _, ok := seen[r]; ok {
+			continue
+		}
+		seen[r] = struct{}{}
+		roles = append(roles, r)
+	}
+
+	roleIDs := make([]int64, 0, len(roles))
+	missing := []string{}
+	for _, name := range roles {
+		var id int64
+		var err error
+		if h.Driver == "postgres" {
+			err = h.DB.QueryRowContext(ctx, "SELECT id FROM gcfm_roles WHERE name=$1", name).Scan(&id)
+		} else {
+			err = h.DB.QueryRowContext(ctx, "SELECT id FROM gcfm_roles WHERE name=?", name).Scan(&id)
+		}
+		if err == sql.ErrNoRows {
+			missing = append(missing, name)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		roleIDs = append(roleIDs, id)
+	}
+	if len(missing) > 0 {
+		msg := fmt.Sprintf("missing roles: %s", strings.Join(missing, ","))
+		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "roles", Message: msg})
+	}
+
+	tx, err := h.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	cost := h.PasswordCost
+	if cost == 0 {
+		cost = bcrypt.DefaultCost
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Body.Password), cost)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	var id int64
+	var created time.Time
+	if h.Driver == "postgres" {
+		err = tx.QueryRowContext(ctx, "INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES($1,$2,$3) RETURNING id, created_at", tid, in.Body.Username, hash).Scan(&id, &created)
+	} else {
+		res, execErr := tx.ExecContext(ctx, "INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)", tid, in.Body.Username, hash)
+		if execErr != nil {
+			err = execErr
+		} else {
+			id, err = res.LastInsertId()
+			if err == nil {
+				err = tx.QueryRowContext(ctx, "SELECT created_at FROM gcfm_users WHERE id=?", id).Scan(&created)
+			}
+		}
+	}
+	if err != nil {
+		_ = tx.Rollback()
+		if isDuplicateErr(err) {
+			return nil, huma.Error409Conflict("username already exists in this tenant")
+		}
+		return nil, err
+	}
+	for _, rid := range roleIDs {
+		if h.Driver == "postgres" {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO gcfm_user_roles(user_id, role_id) VALUES($1,$2)", id, rid); err != nil {
+				_ = tx.Rollback()
+				return nil, err
+			}
+		} else {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO gcfm_user_roles(user_id, role_id) VALUES(?, ?)", id, rid); err != nil {
+				_ = tx.Rollback()
+				return nil, err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	scheduleEnforcerReload(ctx, h.DB)
+	actor := middleware.UserFromContext(ctx)
+	if h.Recorder != nil {
+		payload := map[string]any{"id": id, "tenant_id": tid, "username": in.Body.Username, "roles": roles}
+		_ = h.Recorder.WriteTableJSON(ctx, actor, "CREATE", "gcfm_users", payload)
+	}
+	out := schema.User{ID: id, TenantID: tid, Username: in.Body.Username, Roles: roles, CreatedAt: created}
+	return &userOutput{Body: out}, nil
 }
 
 type createRoleInput struct {

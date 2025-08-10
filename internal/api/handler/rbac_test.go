@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	audit "github.com/faciam-dev/gcfm/internal/customfield/audit"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
+	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
@@ -170,6 +173,82 @@ func TestRBACHandler_ListUsers_Paging(t *testing.T) {
 	}
 	if out.Body.Total != 3 || len(out.Body.Items) != 1 || out.Body.Items[0].Username != "bob" || out.Body.Page != 2 || out.Body.PerPage != 1 {
 		t.Fatalf("unexpected: %#v", out.Body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestRBACHandler_createUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id FROM gcfm_roles WHERE name=?")).
+		WithArgs("admin").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)")).
+		WithArgs("t1", "alice", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	now := time.Now()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT created_at FROM gcfm_users WHERE id=?")).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(now))
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES(?, ?)")).
+		WithArgs(int64(1), int64(2)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)")).
+		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	rec := &audit.Recorder{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", PasswordCost: 4, Recorder: rec}
+	ctx := context.WithValue(context.Background(), middleware.UserKey(), "bob")
+	ctx = tenant.WithTenant(ctx, "t1")
+	in := &createUserInput{}
+	in.Body.Username = "alice"
+	in.Body.Password = "password123"
+	in.Body.Roles = []string{"admin"}
+	out, err := h.createUser(ctx, in)
+	if err != nil {
+		t.Fatalf("createUser: %v", err)
+	}
+	if out.Body.ID != 1 || out.Body.TenantID != "t1" || out.Body.Username != "alice" || len(out.Body.Roles) != 1 || out.Body.Roles[0] != "admin" || !out.Body.CreatedAt.Equal(now) {
+		t.Fatalf("unexpected output: %#v", out.Body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestRBACHandler_createUser_duplicate(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id FROM gcfm_roles WHERE name=?")).
+		WithArgs("admin").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)")).
+		WithArgs("t1", "alice", sqlmock.AnyArg()).
+		WillReturnError(errors.New("duplicate"))
+	mock.ExpectRollback()
+	h := &RBACHandler{DB: db, Driver: "mysql", PasswordCost: 4}
+	ctx := tenant.WithTenant(context.Background(), "t1")
+	in := &createUserInput{}
+	in.Body.Username = "alice"
+	in.Body.Password = "password123"
+	in.Body.Roles = []string{"admin"}
+	_, err = h.createUser(ctx, in)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	se, ok := err.(huma.StatusError)
+	if !ok || se.GetStatus() != http.StatusConflict {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet: %v", err)
