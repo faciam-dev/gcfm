@@ -77,6 +77,31 @@ func TestRBACHandler_listUsers(t *testing.T) {
 	}
 }
 
+func TestRBACHandler_listUsers_excludeRole(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, username FROM gcfm_users WHERE tenant_id=? AND id NOT IN (SELECT user_id FROM gcfm_user_roles WHERE role_id=?) ORDER BY username LIMIT ? OFFSET ?")).
+		WithArgs("t1", int64(1), 50, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "username"}).AddRow(2, "bob"))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id IN (?)")).
+		WithArgs(int64(2)).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}))
+	h := &RBACHandler{DB: db, Driver: "mysql"}
+	ctx := tenant.WithTenant(context.Background(), "t1")
+	out, err := h.listUsers(ctx, &listUsersParams{ExcludeRoleID: 1})
+	if err != nil {
+		t.Fatalf("listUsers: %v", err)
+	}
+	if len(out.Body) != 1 || out.Body[0].Username != "bob" {
+		t.Fatalf("unexpected result: %#v", out.Body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
 func TestRBACHandler_createRole_duplicate(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

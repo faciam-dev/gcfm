@@ -190,9 +190,10 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 }
 
 type listUsersParams struct {
-	Search  string `query:"search"`
-	Page    int    `query:"page"`
-	PerPage int    `query:"per_page"`
+	Search        string `query:"search"`
+	Page          int    `query:"page"`
+	PerPage       int    `query:"per_page"`
+	ExcludeRoleID int64  `query:"exclude_role_id"`
 }
 
 func (h *RBACHandler) listUsers(ctx context.Context, p *listUsersParams) (*listUsersOutput, error) {
@@ -210,21 +211,29 @@ func (h *RBACHandler) listUsers(ctx context.Context, p *listUsersParams) (*listU
 	if h.Driver == "postgres" {
 		q = "SELECT id, username FROM gcfm_users WHERE tenant_id=$1"
 		args = append(args, tid)
+		idx := 2
 		if search != "" {
-			q += " AND username LIKE $2"
+			q += fmt.Sprintf(" AND username LIKE $%d", idx)
 			args = append(args, "%"+search+"%")
-			q += " ORDER BY username LIMIT $3 OFFSET $4"
-			args = append(args, p.PerPage, offset)
-		} else {
-			q += " ORDER BY username LIMIT $2 OFFSET $3"
-			args = append(args, p.PerPage, offset)
+			idx++
 		}
+		if p.ExcludeRoleID > 0 {
+			q += fmt.Sprintf(" AND id NOT IN (SELECT user_id FROM gcfm_user_roles WHERE role_id=$%d)", idx)
+			args = append(args, p.ExcludeRoleID)
+			idx++
+		}
+		q += fmt.Sprintf(" ORDER BY username LIMIT $%d OFFSET $%d", idx, idx+1)
+		args = append(args, p.PerPage, offset)
 	} else {
 		q = "SELECT id, username FROM gcfm_users WHERE tenant_id=?"
 		args = append(args, tid)
 		if search != "" {
 			q += " AND username LIKE ?"
 			args = append(args, "%"+search+"%")
+		}
+		if p.ExcludeRoleID > 0 {
+			q += " AND id NOT IN (SELECT user_id FROM gcfm_user_roles WHERE role_id=?)"
+			args = append(args, p.ExcludeRoleID)
 		}
 		q += " ORDER BY username LIMIT ? OFFSET ?"
 		args = append(args, p.PerPage, offset)
