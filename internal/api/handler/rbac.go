@@ -28,7 +28,7 @@ type RBACHandler struct {
 
 type listRolesOutput struct{ Body []schema.Role }
 
-type listUsersOutput struct{ Body []schema.User }
+type listUsersOutput struct{ Body schema.UsersPage }
 
 var roleNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
 
@@ -67,7 +67,7 @@ func RegisterRBAC(api huma.API, h *RBACHandler) {
 		Path:        "/v1/rbac/users",
 		Summary:     "List users",
 		Tags:        []string{"RBAC"},
-	}, h.listUsers)
+	}, h.ListUsers)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getRoleMembers",
@@ -189,115 +189,140 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	return &listRolesOutput{Body: roles}, nil
 }
 
-type listUsersParams struct {
-	Search        string `query:"search"`
-	Page          int    `query:"page"`
-	PerPage       int    `query:"per_page"`
-	ExcludeRoleID int64  `query:"exclude_role_id"`
-}
-
-func (h *RBACHandler) listUsers(ctx context.Context, p *listUsersParams) (*listUsersOutput, error) {
+func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) (*listUsersOutput, error) {
 	tid := tenant.FromContext(ctx)
-	search := strings.TrimSpace(p.Search)
-	if p.Page <= 0 {
-		p.Page = 1
+	if tid == "" {
+		return nil, huma.Error422("missing tenant", "X-Tenant-ID header is required")
 	}
-	if p.PerPage <= 0 {
-		p.PerPage = 50
+
+	page := p.Page
+	if page < 1 {
+		page = 1
 	}
-	offset := (p.Page - 1) * p.PerPage
-	var q string
+	per := p.PerPage
+	if per <= 0 {
+		per = 20
+	}
+	if per > 100 {
+		per = 100
+	}
+
+	i := 0
+	ph := func() string {
+		i++
+		if h.Driver == "postgres" {
+			return fmt.Sprintf("$%d", i)
+		}
+		return "?"
+	}
+
+	var where []string
 	var args []any
-	if h.Driver == "postgres" {
-		q = "SELECT id, username FROM gcfm_users WHERE tenant_id=$1"
-		args = append(args, tid)
-		idx := 2
-		if search != "" {
-			q += fmt.Sprintf(" AND username LIKE $%d", idx)
-			args = append(args, "%"+search+"%")
-			idx++
+
+	where = append(where, fmt.Sprintf("u.tenant_id = %s", ph()))
+	args = append(args, tid)
+
+	if p.Search != "" {
+		if h.Driver == "postgres" {
+			where = append(where, fmt.Sprintf("u.username ILIKE %s", ph()))
+		} else {
+			where = append(where, fmt.Sprintf("u.username LIKE %s", ph()))
 		}
-		if p.ExcludeRoleID > 0 {
-			q += fmt.Sprintf(" AND id NOT IN (SELECT user_id FROM gcfm_user_roles WHERE role_id=$%d)", idx)
-			args = append(args, p.ExcludeRoleID)
-			idx++
-		}
-		q += fmt.Sprintf(" ORDER BY username LIMIT $%d OFFSET $%d", idx, idx+1)
-		args = append(args, p.PerPage, offset)
-	} else {
-		q = "SELECT id, username FROM gcfm_users WHERE tenant_id=?"
-		args = append(args, tid)
-		if search != "" {
-			q += " AND username LIKE ?"
-			args = append(args, "%"+search+"%")
-		}
-		if p.ExcludeRoleID > 0 {
-			q += " AND id NOT IN (SELECT user_id FROM gcfm_user_roles WHERE role_id=?)"
-			args = append(args, p.ExcludeRoleID)
-		}
-		q += " ORDER BY username LIMIT ? OFFSET ?"
-		args = append(args, p.PerPage, offset)
+		args = append(args, "%"+p.Search+"%")
 	}
-	rows, err := h.DB.QueryContext(ctx, q, args...)
+
+	if p.ExcludeRoleID != nil {
+		where = append(where, fmt.Sprintf("NOT EXISTS (SELECT 1 FROM gcfm_user_roles ur WHERE ur.user_id = u.id AND ur.role_id = %s)", ph()))
+		args = append(args, *p.ExcludeRoleID)
+	}
+
+	whereSQL := ""
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM gcfm_users u %s`, whereSQL)
+	var total int64
+	if err := h.DB.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	offset := (page - 1) * per
+	listSQL := fmt.Sprintf(`
+               SELECT u.id, u.username
+                 FROM gcfm_users u
+                 %s
+                ORDER BY u.username ASC
+                LIMIT %s OFFSET %s`, whereSQL, ph(), ph())
+	listArgs := append(append([]any{}, args...), per, offset)
+
+	rows, err := h.DB.QueryContext(ctx, listSQL, listArgs...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	users := []schema.User{}
-	ids := []int64{}
+
+	users := make([]schema.UserBrief, 0, per)
+	ids := make([]int64, 0, per)
 	for rows.Next() {
-		var u schema.User
+		var u schema.UserBrief
 		if err := rows.Scan(&u.ID, &u.Username); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
-		ids = append(ids, int64(u.ID))
+		ids = append(ids, u.ID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
 	if len(ids) > 0 {
-		var rq string
-		var rargs []any
-		if h.Driver == "postgres" {
-			ph := make([]string, len(ids))
-			for i, id := range ids {
-				ph[i] = fmt.Sprintf("$%d", i+1)
-				rargs = append(rargs, id)
-			}
-			rq = fmt.Sprintf("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id IN (%s)", strings.Join(ph, ","))
-		} else {
-			ph := make([]string, len(ids))
-			for i, id := range ids {
-				ph[i] = "?"
-				rargs = append(rargs, id)
-			}
-			rq = fmt.Sprintf("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id IN (%s)", strings.Join(ph, ","))
+		inPH := make([]string, len(ids))
+		for k := range ids {
+			inPH[k] = ph()
 		}
-		rrows, err := h.DB.QueryContext(ctx, rq, rargs...)
+		roleSQL := fmt.Sprintf(`
+                       SELECT ur.user_id, r.name
+                         FROM gcfm_user_roles ur
+                         JOIN gcfm_roles r ON r.id = ur.role_id
+                        WHERE ur.user_id IN (%s)
+                        ORDER BY r.name`, strings.Join(inPH, ","))
+		roleArgs := make([]any, len(ids))
+		for k, v := range ids {
+			roleArgs[k] = v
+		}
+
+		rrows, err := h.DB.QueryContext(ctx, roleSQL, roleArgs...)
 		if err != nil {
 			return nil, err
 		}
 		defer rrows.Close()
-		rolesByUser := make(map[int64][]string)
+
+		rolesMap := make(map[int64][]string, len(ids))
 		for rrows.Next() {
 			var uid int64
-			var role string
-			if err := rrows.Scan(&uid, &role); err != nil {
+			var rname string
+			if err := rrows.Scan(&uid, &rname); err != nil {
 				return nil, err
 			}
-			rolesByUser[uid] = append(rolesByUser[uid], role)
+			rolesMap[uid] = append(rolesMap[uid], rname)
 		}
-		if err := rrows.Err(); err != nil {
-			return nil, err
-		}
+		_ = rrows.Close()
+
 		for i := range users {
-			if r, ok := rolesByUser[int64(users[i].ID)]; ok {
-				users[i].Roles = r
+			if rs, ok := rolesMap[users[i].ID]; ok {
+				users[i].Roles = rs
 			}
 		}
 	}
-	return &listUsersOutput{Body: users}, nil
+
+	out := schema.UsersPage{
+		Items:   users,
+		Total:   total,
+		Page:    page,
+		PerPage: per,
+	}
+	return &listUsersOutput{Body: out}, nil
 }
 
 type createRoleInput struct {
@@ -390,8 +415,8 @@ func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}
 
 type roleMembersOutput struct {
 	Body struct {
-		RoleID int64         `json:"roleId"`
-		Users  []schema.User `json:"users"`
+		RoleID int64              `json:"roleId"`
+		Users  []schema.UserBrief `json:"users"`
 	}
 }
 
@@ -415,9 +440,9 @@ func (h *RBACHandler) getRoleMembers(ctx context.Context, p *roleIDParam) (*role
 		return nil, err
 	}
 	defer rows.Close()
-	users := []schema.User{}
+	users := []schema.UserBrief{}
 	for rows.Next() {
-		var u schema.User
+		var u schema.UserBrief
 		if err := rows.Scan(&u.ID, &u.Username); err != nil {
 			return nil, err
 		}
