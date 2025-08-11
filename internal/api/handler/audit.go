@@ -74,14 +74,16 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 }
 
 type auditListParams struct {
-	Limit  int    `query:"limit"`
-	Cursor string `query:"cursor"` // base64("RFC3339Nano:id")
-	Action string `query:"action"` // "add,update" など
-	Actor  string `query:"actor"`
-	Table  string `query:"table"`
-	Column string `query:"column"`
-	From   string `query:"from"` // ISO
-	To     string `query:"to"`   // ISO (閉区間上端は < To+1day にします)
+	Limit      int    `query:"limit"`
+	Cursor     string `query:"cursor"` // base64("RFC3339Nano:id")
+	Action     string `query:"action"` // "add,update" など
+	Actor      string `query:"actor"`
+	Table      string `query:"table"`
+	Column     string `query:"column"`
+	From       string `query:"from"` // ISO
+	To         string `query:"to"`   // ISO (閉区間上端は < To+1day にします)
+	MinChanges int    `query:"min_changes"`
+	MaxChanges int    `query:"max_changes"`
 }
 
 type AuditDTO struct {
@@ -94,6 +96,7 @@ type AuditDTO struct {
 	BeforeJson json.RawMessage `json:"beforeJson"`
 	AfterJson  json.RawMessage `json:"afterJson"`
 	Summary    string          `json:"summary,omitempty"` // 将来サーバ側計算
+	Count      int             `json:"count"`
 }
 
 type auditListOutput struct {
@@ -255,6 +258,9 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 
 	items := make([]AuditDTO, 0, limit)
 	var nextCursor *string
+	var rowCount int
+	var lastID int64
+	var lastApplied time.Time
 
 	for rows.Next() {
 		var it AuditDTO
@@ -272,18 +278,27 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.AppliedAt = t
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
-		items = append(items, it)
+		it.Count = diffTokenCount(bj, aj)
+
+		rowCount++
+		lastID = it.ID
+		lastApplied = it.AppliedAt
+
+		if (p.MinChanges > 0 && it.Count < p.MinChanges) || (p.MaxChanges > 0 && it.Count > p.MaxChanges) {
+			continue
+		}
+		if len(items) < limit {
+			items = append(items, it)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		logger.L.Error("iterate audit rows", "err", err)
 		return nil, err
 	}
 
-	if len(items) > limit {
-		last := items[limit]
-		c := encodeCursor(last.AppliedAt, last.ID)
+	if rowCount > limit {
+		c := encodeCursor(lastApplied, lastID)
 		nextCursor = &c
-		items = items[:limit]
 	}
 
 	return &auditListOutput{
@@ -369,6 +384,33 @@ func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
 	l.BeforeJSON = beforeJSON
 	l.AfterJSON = afterJSON
 	l.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", l.ID)
+}
+
+func diffTokenCount(before, after []byte) int {
+	var bb, aa bytes.Buffer
+	if err := json.Indent(&bb, before, "", "  "); err != nil {
+		bb.Write(before)
+	}
+	if err := json.Indent(&aa, after, "", "  "); err != nil {
+		aa.Write(after)
+	}
+	ud := difflib.UnifiedDiff{
+		A: difflib.SplitLines(bb.String()),
+		B: difflib.SplitLines(aa.String()),
+	}
+	text, err := difflib.GetUnifiedDiffString(ud)
+	if err != nil {
+		return 0
+	}
+	cnt := 0
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			cnt += len(strings.Fields(line[1:]))
+		} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			cnt += len(strings.Fields(line[1:]))
+		}
+	}
+	return cnt
 }
 
 func encodeCursor(ts time.Time, id int64) string {
