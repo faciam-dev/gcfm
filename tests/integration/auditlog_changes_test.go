@@ -20,7 +20,7 @@ import (
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 
-func TestAuditLog_MinMaxChanges(t *testing.T) {
+func TestAuditLog_CountsAndFilters(t *testing.T) {
 	ctx := context.Background()
 	container, err := func() (c *postgres.PostgresContainer, err error) {
 		defer func() {
@@ -59,26 +59,98 @@ func TestAuditLog_MinMaxChanges(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	_, add, del := auditutil.UnifiedDiff([]byte(`{"v":1}`), []byte(`{"v":2}`))
-	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('alice','update','posts','title',$1,$2,$3,$4,$5)`,
-		`{"v":1}`, `{"v":2}`, add, del, add+del); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
 	t.Setenv("JWT_SECRET", "testsecret")
 	api := server.New(db, server.DBConfig{Driver: "postgres", DSN: dsn, TablePrefix: "gcfm_"})
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
+	// empty case
+	resp, err := http.Get(srv.URL + "/v1/audit-logs")
+	if err != nil {
+		t.Fatalf("get empty: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var out struct{ Items []map[string]any }
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode empty: %v", err)
+	}
+	resp.Body.Close()
+	if len(out.Items) != 0 {
+		t.Fatalf("expected 0 items, got %d", len(out.Items))
+	}
+
+	// insert logs with various change counts
+	_, add1, del1 := auditutil.UnifiedDiff([]byte(`{}`), []byte(`{"a":1,"b":1,"c":1,"d":1,"e":1}`))
+	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('alice','update','posts','t1',$1,$2,$3,$4,$5)`,
+		`{}`, `{"a":1,"b":1,"c":1,"d":1,"e":1}`, add1, del1, add1+del1); err != nil {
+		t.Fatalf("insert1: %v", err)
+	}
+	_, add2, del2 := auditutil.UnifiedDiff([]byte(`{"a":1,"b":2}`), []byte(`{"c":3,"d":4,"e":5}`))
+	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('bob','update','posts','t2',$1,$2,$3,$4,$5)`,
+		`{"a":1,"b":2}`, `{"c":3,"d":4,"e":5}`, add2, del2, add2+del2); err != nil {
+		t.Fatalf("insert2: %v", err)
+	}
+	_, add3, del3 := auditutil.UnifiedDiff([]byte(`{"v":1}`), []byte(`{"v":2}`))
+	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('carol','update','posts','t3',$1,$2,$3,$4,$5)`,
+		`{"v":1}`, `{"v":2}`, add3, del3, add3+del3); err != nil {
+		t.Fatalf("insert3: %v", err)
+	}
+
+	// verify summaries and counts
+	resp, err = http.Get(srv.URL + "/v1/audit-logs")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	out = struct{ Items []map[string]any }{}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	resp.Body.Close()
+	if len(out.Items) != 3 {
+		t.Fatalf("want 3 got %d", len(out.Items))
+	}
+	found := map[string]bool{"+5 -0": false, "+3 -2": false, "+1 -1": false}
+	for _, it := range out.Items {
+		summary := it["summary"].(string)
+		count := int(it["changeCount"].(float64))
+		switch summary {
+		case "+5 -0":
+			if count != 5 {
+				t.Fatalf("summary %s count %d", summary, count)
+			}
+			found[summary] = true
+		case "+3 -2":
+			if count != 5 {
+				t.Fatalf("summary %s count %d", summary, count)
+			}
+			found[summary] = true
+		case "+1 -1":
+			if count != 2 {
+				t.Fatalf("summary %s count %d", summary, count)
+			}
+			found[summary] = true
+		}
+	}
+	for k, v := range found {
+		if !v {
+			t.Fatalf("missing summary %s", k)
+		}
+	}
+
+	// filter cases
 	cases := []struct {
 		name  string
 		query string
 		want  int
 	}{
-		{"min-hit", "?min_changes=2", 1},
-		{"min-miss", "?min_changes=3", 0},
-		{"max-hit", "?max_changes=2", 1},
-		{"max-miss", "?max_changes=1", 0},
+		{"eq-five", "?min_changes=5&max_changes=5", 2},
+		{"over-range", "?min_changes=6", 0},
+		{"max-two", "?max_changes=2", 1},
 	}
 
 	for _, tc := range cases {
@@ -91,9 +163,7 @@ func TestAuditLog_MinMaxChanges(t *testing.T) {
 				t.Fatalf("status=%d", resp.StatusCode)
 			}
 			defer resp.Body.Close()
-			var out struct {
-				Items []map[string]any `json:"items"`
-			}
+			var out struct{ Items []map[string]any }
 			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 				t.Fatalf("decode: %v", err)
 			}

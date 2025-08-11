@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,11 +25,20 @@ type AuditHandler struct {
 	Driver string
 }
 
+// auditDiffOutput represents the diff response body.
+type auditDiffOutput struct {
+	Body struct {
+		Unified string `json:"unified"`
+		Added   int    `json:"added"`
+		Removed int    `json:"removed"`
+	}
+}
+
 // getDiff returns unified diff for an audit record
 func (h *AuditHandler) getDiff(ctx context.Context,
 	p *struct {
 		ID int64 `path:"id"`
-	}) (*huma.StreamResponse, error) {
+	}) (*auditDiffOutput, error) {
 	var before, after sql.NullString
 	query := `SELECT COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM gcfm_audit_logs WHERE id = $1`
 	if h.Driver == "mysql" {
@@ -43,13 +51,12 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		return nil, err
 	}
 
-	text, _, _ := auditutil.UnifiedDiff([]byte(before.String), []byte(after.String))
-	return &huma.StreamResponse{Body: func(hctx huma.Context) {
-		hctx.SetHeader("Content-Type", "text/plain")
-		if _, err := hctx.BodyWriter().Write([]byte(text)); err != nil {
-			log.Printf("error writing diff response: %v", err)
-		}
-	}}, nil
+	unified, add, del := auditutil.UnifiedDiff([]byte(before.String), []byte(after.String))
+	out := &auditDiffOutput{}
+	out.Body.Unified = unified
+	out.Body.Added = add
+	out.Body.Removed = del
+	return out, nil
 }
 
 type auditListParams struct {
@@ -66,16 +73,16 @@ type auditListParams struct {
 }
 
 type AuditDTO struct {
-	ID         int64           `json:"id"`
-	Actor      string          `json:"actor"`
-	Action     string          `json:"action"`
-	TableName  string          `json:"tableName"`
-	ColumnName string          `json:"columnName"`
-	AppliedAt  time.Time       `json:"appliedAt"`
-	BeforeJson json.RawMessage `json:"beforeJson"`
-	AfterJson  json.RawMessage `json:"afterJson"`
-	Summary    string          `json:"summary,omitempty"` // 将来サーバ側計算
-	Count      int             `json:"count"`
+	ID          int64           `json:"id"`
+	Actor       string          `json:"actor"`
+	Action      string          `json:"action"`
+	TableName   string          `json:"tableName"`
+	ColumnName  string          `json:"columnName"`
+	AppliedAt   time.Time       `json:"appliedAt"`
+	BeforeJson  json.RawMessage `json:"beforeJson"`
+	AfterJson   json.RawMessage `json:"afterJson"`
+	Summary     string          `json:"summary,omitempty"`
+	ChangeCount int             `json:"changeCount"`
 }
 
 type auditListOutput struct {
@@ -117,13 +124,6 @@ func RegisterAudit(api huma.API, h *AuditHandler) {
 		Path:        "/v1/audit-logs/{id}/diff",
 		Summary:     "Get unified diff for an audit log",
 		Tags:        []string{"Audit"},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Content: map[string]*huma.MediaType{
-					"text/plain": {Schema: &huma.Schema{Type: "string"}},
-				},
-			},
-		},
 	}, h.getDiff)
 }
 
@@ -267,7 +267,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.AppliedAt = t
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
-		it.Count = chCnt
+		it.ChangeCount = chCnt
 		if it.Action == "snapshot" || it.Action == "rollback" {
 			it.Summary = string(bj)
 		} else {

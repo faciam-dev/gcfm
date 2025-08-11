@@ -41,12 +41,12 @@
             "type": "string"
           },
           "beforeJson": {},
-          "columnName": {
-            "type": "string"
-          },
-          "count": {
+          "changeCount": {
             "format": "int64",
             "type": "integer"
+          },
+          "columnName": {
+            "type": "string"
           },
           "id": {
             "format": "int64",
@@ -68,7 +68,38 @@
           "appliedAt",
           "beforeJson",
           "afterJson",
-          "count"
+          "changeCount"
+        ],
+        "type": "object"
+      },
+      "AuditDiffOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/AuditDiffOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "added": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unified": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "unified",
+          "added",
+          "removed"
         ],
         "type": "object"
       },
@@ -1214,9 +1245,9 @@
         "responses": {
           "200": {
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/AuditDiffOutputBody"
                 }
               }
             },
