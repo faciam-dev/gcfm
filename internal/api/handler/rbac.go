@@ -490,7 +490,7 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 		return nil, huma.NewError(http.StatusUnprocessableEntity, msg, &huma.ErrorDetail{Location: "roles", Message: msg})
 	}
 
-	tx, err := h.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := h.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, err
 	}
@@ -552,10 +552,8 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 				return nil, err
 			}
 		} else {
-			for range roleIDs {
-				valueStrings = append(valueStrings, "(?, ?)")
-			}
 			for _, rid := range roleIDs {
+				valueStrings = append(valueStrings, "(?, ?)")
 				valueArgs = append(valueArgs, id, rid)
 			}
 			stmt := fmt.Sprintf("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES %s", strings.Join(valueStrings, ","))
