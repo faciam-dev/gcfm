@@ -81,14 +81,16 @@ type optionalInt struct {
 }
 
 func (o *optionalInt) UnmarshalText(b []byte) error {
-	o.Set = true
 	if len(b) == 0 {
+		o.Set = false
+		o.Val = 0
 		return nil
 	}
 	v, err := strconv.Atoi(string(b))
 	if err != nil {
 		return err
 	}
+	o.Set = true
 	o.Val = v
 	return nil
 }
@@ -201,6 +203,18 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		limit = 200
 	}
 
+	min := p.EffMin()
+	max := p.EffMax()
+	pass := func(v int) bool {
+		if min != nil && v < *min {
+			return false
+		}
+		if max != nil && v > *max {
+			return false
+		}
+		return true
+	}
+
 	args := []any{}
 	next := func() string {
 		if h.Driver == "postgres" {
@@ -251,14 +265,6 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 			args = append(args, t.Add(24*time.Hour))
 		}
 	}
-	if min := p.EffMin(); min != nil {
-		wh = append(wh, "change_count >= "+next())
-		args = append(args, *min)
-	}
-	if max := p.EffMax(); max != nil {
-		wh = append(wh, "change_count <= "+next())
-		args = append(args, *max)
-	}
 	if p.Cursor != "" {
 		if ts, id, err := decodeCursor(p.Cursor); err == nil {
 			ph1 := next()
@@ -281,7 +287,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	}
 
 	limitPlaceholder := next()
-	args = append(args, limit+1)
+	args = append(args, limit*4+1)
 
 	query := `
       SELECT id, actor, action, table_name, column_name,
@@ -303,9 +309,9 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 
 	items := make([]AuditDTO, 0, limit)
 	var nextCursor *string
-	var rowCount int
-	var lastID int64
-	var lastApplied time.Time
+	var lastReturnedID int64
+	var lastReturnedApplied time.Time
+	more := false
 
 	for rows.Next() {
 		var it AuditDTO
@@ -336,12 +342,16 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 			it.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
 		}
 
-		rowCount++
-		lastID = it.ID
-		lastApplied = it.AppliedAt
-
+		if !pass(chCnt) {
+			continue
+		}
 		if len(items) < limit {
 			items = append(items, it)
+			lastReturnedID = it.ID
+			lastReturnedApplied = it.AppliedAt
+		} else {
+			more = true
+			break
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -349,8 +359,8 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		return nil, err
 	}
 
-	if rowCount > limit {
-		c := encodeCursor(lastApplied, lastID)
+	if more {
+		c := encodeCursor(lastReturnedApplied, lastReturnedID)
 		nextCursor = &c
 	}
 

@@ -45,3 +45,7 @@ db-init:
 .PHONY: user-create
 user-create:
 	@fieldctl user create --db $(DB_DSN) --username=$(U) --password=$(P) --role=$(R)
+
+.PHONY: backfill-audit-counts
+backfill-audit-counts:
+	go run ./tools/backfill_audit_counts.go --driver=$(DB_DRIVER) --dsn=$(DB_DSN)
