@@ -329,6 +329,51 @@ func TestRBACHandler_createUser(t *testing.T) {
 	}
 }
 
+func TestRBACHandler_createUser_parseTimeBytes(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, name FROM gcfm_roles WHERE name IN (?)")).
+		WithArgs("admin").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(2, "admin"))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)")).
+		WithArgs("t1", "alice", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	now := time.Now().UTC().Truncate(time.Second)
+	ts := []byte(now.Format("2006-01-02 15:04:05"))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT created_at FROM gcfm_users WHERE id=?")).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(ts))
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_user_roles(user_id, role_id) VALUES (?, ?)")).
+		WithArgs(int64(1), int64(2)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)")).
+		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	rec := &audit.Recorder{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", PasswordCost: 4, Recorder: rec}
+	ctx := context.WithValue(context.Background(), middleware.UserKey(), "bob")
+	ctx = tenant.WithTenant(ctx, "t1")
+	in := &createUserInput{}
+	in.Body.Username = "alice"
+	in.Body.Password = "password123"
+	in.Body.Roles = []string{"admin"}
+	out, err := h.createUser(ctx, in)
+	if err != nil {
+		t.Fatalf("createUser: %v", err)
+	}
+	if !out.Body.CreatedAt.Equal(now) {
+		t.Fatalf("unexpected created_at: %v", out.Body.CreatedAt)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
 func TestRBACHandler_createUser_duplicate(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

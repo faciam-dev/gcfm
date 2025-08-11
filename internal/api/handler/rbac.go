@@ -503,10 +503,16 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 		_ = tx.Rollback()
 		return nil, err
 	}
-	var id int64
-	var created time.Time
+	var (
+		id         int64
+		created    time.Time
+		rawCreated any
+	)
 	if h.Driver == "postgres" {
-		err = tx.QueryRowContext(ctx, "INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES($1,$2,$3) RETURNING id, created_at", tid, in.Body.Username, hash).Scan(&id, &created)
+		err = tx.QueryRowContext(ctx, "INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES($1,$2,$3) RETURNING id, created_at", tid, in.Body.Username, hash).Scan(&id, &rawCreated)
+		if err == nil {
+			created, err = ParseAuditTime(rawCreated)
+		}
 	} else {
 		res, execErr := tx.ExecContext(ctx, "INSERT INTO gcfm_users(tenant_id, username, password_hash) VALUES(?,?,?)", tid, in.Body.Username, hash)
 		if execErr != nil {
@@ -514,7 +520,10 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 		} else {
 			id, err = res.LastInsertId()
 			if err == nil {
-				err = tx.QueryRowContext(ctx, "SELECT created_at FROM gcfm_users WHERE id=?", id).Scan(&created)
+				err = tx.QueryRowContext(ctx, "SELECT created_at FROM gcfm_users WHERE id=?", id).Scan(&rawCreated)
+				if err == nil {
+					created, err = ParseAuditTime(rawCreated)
+				}
 			}
 		}
 	}
