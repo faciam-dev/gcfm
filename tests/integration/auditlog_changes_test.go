@@ -82,7 +82,12 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 		t.Fatalf("expected 0 items, got %d", len(out.Items))
 	}
 
-	// insert logs with various change counts
+	// insert logs with various change counts, including zero
+	_, add0, del0 := auditutil.UnifiedDiff([]byte(`{"x":1}`), []byte(`{"x":1}`))
+	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('zoe','update','posts','t0',$1,$2,$3,$4,$5)`,
+		`{"x":1}`, `{"x":1}`, add0, del0, add0+del0); err != nil {
+		t.Fatalf("insert0: %v", err)
+	}
 	_, add1, del1 := auditutil.UnifiedDiff([]byte(`{}`), []byte(`{"a":1,"b":1,"c":1,"d":1,"e":1}`))
 	var firstID int64
 	if err := db.QueryRowContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('alice','update','posts','t1',$1,$2,$3,$4,$5) RETURNING id`,
@@ -121,11 +126,16 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 	if len(out.Items) != 4 {
 		t.Fatalf("want 4 got %d", len(out.Items))
 	}
-	found := map[string]bool{"+5 -0": false, "+3 -2": false, "+1 -1": false, "+6 -0": false}
+	found := map[string]bool{"+0 -0": false, "+5 -0": false, "+3 -2": false, "+1 -1": false, "+6 -0": false}
 	for _, it := range out.Items {
 		summary := it["summary"].(string)
 		count := int(it["changeCount"].(float64))
 		switch summary {
+		case "+0 -0":
+			if count != 0 {
+				t.Fatalf("summary %s count %d", summary, count)
+			}
+			found[summary] = true
 		case "+5 -0":
 			if count != 5 {
 				t.Fatalf("summary %s count %d", summary, count)
@@ -163,7 +173,7 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 		t.Fatalf("diff status=%d", resp.StatusCode)
 	}
 	var diffOut struct {
-		Diff    string `json:"diff"`
+		Unified string `json:"unified"`
 		Added   int    `json:"added"`
 		Removed int    `json:"removed"`
 	}
@@ -174,8 +184,8 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 	if diffOut.Added != add1 || diffOut.Removed != del1 {
 		t.Fatalf("diff counts %d %d", diffOut.Added, diffOut.Removed)
 	}
-	if !strings.Contains(diffOut.Diff, "--- before") || !strings.Contains(diffOut.Diff, "+++ after") {
-		t.Fatalf("diff text not unified: %s", diffOut.Diff)
+	if !strings.Contains(diffOut.Unified, "--- before") || !strings.Contains(diffOut.Unified, "+++ after") {
+		t.Fatalf("diff text not unified: %s", diffOut.Unified)
 	}
 
 	// filter cases
@@ -184,11 +194,13 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 		query string
 		want  int
 	}{
+		{"both-zero", "?min_changes=0&max_changes=0", 1},
+		{"range-two-five", "?min_changes=2&max_changes=5", 3},
 		{"eq-five", "?min_changes=5&max_changes=5", 2},
 		{"min-six", "?min_changes=6", 1},
-		{"max-two", "?max_changes=2", 1},
-		{"range-zero-five", "?min_changes=0&max_changes=5", 3},
-		{"camel-range", "?minChanges=0&maxChanges=5", 3},
+		{"max-two", "?max_changes=2", 2},
+		{"range-zero-five", "?min_changes=0&max_changes=5", 4},
+		{"camel-range", "?minChanges=0&maxChanges=5", 4},
 	}
 
 	for _, tc := range cases {
