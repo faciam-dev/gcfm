@@ -16,6 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/faciam-dev/gcfm/internal/server"
+	auditutil "github.com/faciam-dev/gcfm/pkg/audit"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -58,7 +59,9 @@ func TestAuditLog_MinMaxChanges(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ('alice','update','posts','title','{"v":1}','{"v":2}')`); err != nil {
+	_, add, del := auditutil.UnifiedDiff([]byte(`{"v":1}`), []byte(`{"v":2}`))
+	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('alice','update','posts','title',$1,$2,$3,$4,$5)`,
+		`{"v":1}`, `{"v":2}`, add, del, add+del); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
@@ -72,10 +75,10 @@ func TestAuditLog_MinMaxChanges(t *testing.T) {
 		query string
 		want  int
 	}{
-		{"min-hit", "?min_changes=4", 1},
-		{"min-miss", "?min_changes=5", 0},
-		{"max-hit", "?max_changes=4", 1},
-		{"max-miss", "?max_changes=3", 0},
+		{"min-hit", "?min_changes=2", 1},
+		{"min-miss", "?min_changes=3", 0},
+		{"max-hit", "?max_changes=2", 1},
+		{"max-miss", "?max_changes=1", 0},
 	}
 
 	for _, tc := range cases {

@@ -7,14 +7,17 @@ import (
 
 // Record represents a single audit log entry in the database.
 type Record struct {
-	ID         int64
-	Actor      string
-	Action     string
-	TableName  string
-	ColumnName string
-	BeforeJSON sql.NullString
-	AfterJSON  sql.NullString
-	AppliedAt  any
+	ID           int64
+	Actor        string
+	Action       string
+	TableName    string
+	ColumnName   string
+	BeforeJSON   sql.NullString
+	AfterJSON    sql.NullString
+	AddedCount   int
+	RemovedCount int
+	ChangeCount  int
+	AppliedAt    any
 }
 
 // Repo provides access to audit log records.
@@ -25,14 +28,14 @@ type Repo struct {
 
 const findByIDQueryPg = `
 SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
-       l.before_json, l.after_json, l.applied_at
+       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
 FROM gcfm_audit_logs l
 LEFT JOIN gcfm_users u ON u.id::text = l.actor
 WHERE l.id=$1`
 
 const findByIDQueryMy = `
 SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
-       l.before_json, l.after_json, l.applied_at
+       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
 FROM gcfm_audit_logs l
 LEFT JOIN gcfm_users u ON u.id = CAST(l.actor AS UNSIGNED)
 WHERE l.id=?`
@@ -49,7 +52,7 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	var rec Record
 	err := r.DB.QueryRowContext(ctx, q, id).Scan(
 		&rec.ID, &rec.Actor, &rec.Action, &rec.TableName, &rec.ColumnName,
-		&rec.BeforeJSON, &rec.AfterJSON, &rec.AppliedAt,
+		&rec.BeforeJSON, &rec.AfterJSON, &rec.AddedCount, &rec.RemovedCount, &rec.ChangeCount, &rec.AppliedAt,
 	)
 	return rec, err
 }

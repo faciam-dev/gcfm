@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -19,7 +18,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/auditlog"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/tenant"
-	"github.com/pmezard/go-difflib/difflib"
+	auditutil "github.com/faciam-dev/gcfm/pkg/audit"
 )
 
 type AuditHandler struct {
@@ -44,27 +43,7 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		return nil, err
 	}
 
-	prettify := func(js string) string {
-		var buf bytes.Buffer
-		if err := json.Indent(&buf, []byte(js), "", "  "); err != nil {
-			return js
-		}
-		return buf.String()
-	}
-	left := prettify(before.String)
-	right := prettify(after.String)
-
-	ud := difflib.UnifiedDiff{
-		A:        difflib.SplitLines(left),
-		B:        difflib.SplitLines(right),
-		FromFile: "before",
-		ToFile:   "after",
-		Context:  3,
-	}
-	text, err := difflib.GetUnifiedDiffString(ud)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to generate diff: " + err.Error())
-	}
+	text, _, _ := auditutil.UnifiedDiff([]byte(before.String), []byte(after.String))
 	return &huma.StreamResponse{Body: func(hctx huma.Context) {
 		hctx.SetHeader("Content-Type", "text/plain")
 		if _, err := hctx.BodyWriter().Write([]byte(text)); err != nil {
@@ -215,6 +194,14 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 			args = append(args, t.Add(24*time.Hour))
 		}
 	}
+	if p.MinChanges > 0 {
+		wh = append(wh, "change_count >= "+next())
+		args = append(args, p.MinChanges)
+	}
+	if p.MaxChanges > 0 {
+		wh = append(wh, "change_count <= "+next())
+		args = append(args, p.MaxChanges)
+	}
 	if p.Cursor != "" {
 		if ts, id, err := decodeCursor(p.Cursor); err == nil {
 			ph1 := next()
@@ -243,6 +230,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
       SELECT id, actor, action, table_name, column_name,
              ` + coalesceBefore + ` AS before_json,
              ` + coalesceAfter + ` AS after_json,
+             added_count, removed_count, change_count,
              applied_at
         FROM gcfm_audit_logs
       ` + where + `
@@ -265,8 +253,9 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	for rows.Next() {
 		var it AuditDTO
 		var bj, aj sql.RawBytes
+		var addCnt, delCnt, chCnt int
 		var applied any
-		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &applied); err != nil {
+		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &addCnt, &delCnt, &chCnt, &applied); err != nil {
 			logger.L.Error("scan audit row", "err", err)
 			return nil, err
 		}
@@ -278,15 +267,17 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.AppliedAt = t
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
-		it.Count = diffTokenCount(bj, aj)
+		it.Count = chCnt
+		if it.Action == "snapshot" || it.Action == "rollback" {
+			it.Summary = string(bj)
+		} else {
+			it.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
+		}
 
 		rowCount++
 		lastID = it.ID
 		lastApplied = it.AppliedAt
 
-		if (p.MinChanges > 0 && it.Count < p.MinChanges) || (p.MaxChanges > 0 && it.Count > p.MaxChanges) {
-			continue
-		}
 		if len(items) < limit {
 			items = append(items, it)
 		}
@@ -333,7 +324,7 @@ func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOut
 		ColumnName: rec.ColumnName,
 		AppliedAt:  t,
 	}
-	enrichAuditLog(&log, rec.BeforeJSON, rec.AfterJSON)
+	enrichAuditLog(&log, rec.BeforeJSON, rec.AfterJSON, rec.AddedCount, rec.RemovedCount)
 	return &auditGetOutput{Body: log}, nil
 }
 
@@ -366,51 +357,18 @@ func parseAuditTimeString(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("cannot parse time: %s", s)
 }
 
-func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
+func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString, addCnt, delCnt int) {
 	switch l.Action {
 	case "snapshot", "rollback":
 		if beforeJSON.Valid {
 			l.Summary = beforeJSON.String
 		}
 	default:
-		var addCnt, delCnt int
-		if l.Action == "add" {
-			addCnt = 1
-		} else if l.Action == "delete" {
-			delCnt = 1
-		}
 		l.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
 	}
 	l.BeforeJSON = beforeJSON
 	l.AfterJSON = afterJSON
 	l.DiffURL = fmt.Sprintf("/v1/audit-logs/%d/diff", l.ID)
-}
-
-func diffTokenCount(before, after []byte) int {
-	var bb, aa bytes.Buffer
-	if err := json.Indent(&bb, before, "", "  "); err != nil {
-		bb.Write(before)
-	}
-	if err := json.Indent(&aa, after, "", "  "); err != nil {
-		aa.Write(after)
-	}
-	ud := difflib.UnifiedDiff{
-		A: difflib.SplitLines(bb.String()),
-		B: difflib.SplitLines(aa.String()),
-	}
-	text, err := difflib.GetUnifiedDiffString(ud)
-	if err != nil {
-		return 0
-	}
-	cnt := 0
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
-			cnt += len(strings.Fields(line[1:]))
-		} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
-			cnt += len(strings.Fields(line[1:]))
-		}
-	}
-	return cnt
 }
 
 func encodeCursor(ts time.Time, id int64) string {
