@@ -20,7 +20,11 @@ type tableInfo struct {
 	Full   string `json:"qualified"`
 }
 
-type listTablesOutput struct{ Body []tableInfo }
+type tablesOutput struct {
+	Body struct {
+		Items []tableInfo `json:"items"`
+	}
+}
 
 // db_id from query params
 // listTablesParams defines the query parameter for listing tables.
@@ -43,7 +47,7 @@ func RegisterMetadata(api humago.API, h *MetadataHandler) {
 type MetadataHandler struct{ DB *sql.DB }
 
 // listTables returns tables from the monitored database identified by db_id.
-func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (*listTablesOutput, error) {
+func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (*tablesOutput, error) {
 	tid := tenant.FromContext(ctx)
 	mdb, err := monitordb.GetByID(ctx, h.DB, tid, p.DBID)
 	if err != nil {
@@ -65,11 +69,11 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 
 	filtered := md.FilterTables(mdb.Driver, raw)
 
-	var out []tableInfo
+	out := &tablesOutput{}
 	for _, t := range filtered {
-		out = append(out, tableInfo{Schema: t.Schema, Name: t.Name, Full: t.Qualified})
+		out.Body.Items = append(out.Body.Items, tableInfo{Schema: t.Schema, Name: t.Name, Full: t.Qualified})
 	}
-	return &listTablesOutput{Body: out}, nil
+	return out, nil
 }
 
 func listPhysicalTables(ctx context.Context, db *sql.DB, driver string) ([]md.TableInfo, error) {
