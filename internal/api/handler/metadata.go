@@ -5,16 +5,19 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 
 	humago "github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	md "github.com/faciam-dev/gcfm/pkg/metadata"
 )
 
 type tableInfo struct {
-	Table    string `json:"table"`
-	Reserved bool   `json:"reserved"`
+	Schema string `json:"schema,omitempty"`
+	Name   string `json:"name"`
+	Full   string `json:"qualified"`
 }
 
 type listTablesOutput struct{ Body []tableInfo }
@@ -49,56 +52,68 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 		}
 		return nil, huma.Error422("db_id", err.Error())
 	}
-	target, err := sql.Open(mdb.Driver, mdb.DSN)
+	conn, err := sql.Open(mdb.Driver, mdb.DSN)
 	if err != nil {
 		return nil, err
 	}
-	defer target.Close()
+	defer conn.Close()
+
+	raw, err := listPhysicalTables(ctx, conn, mdb.Driver)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := md.FilterTables(mdb.Driver, raw)
+
+	var out []tableInfo
+	for _, t := range filtered {
+		out = append(out, tableInfo{Schema: t.Schema, Name: t.Name, Full: t.Qualified})
+	}
+	return &listTablesOutput{Body: out}, nil
+}
+
+func listPhysicalTables(ctx context.Context, db *sql.DB, driver string) ([]md.TableInfo, error) {
+	const base = `
+SELECT table_schema, table_name
+  FROM information_schema.tables
+ WHERE table_type = 'BASE TABLE'`
 
 	var rows *sql.Rows
-	switch mdb.Driver {
-	case "mysql":
-		rows, err = target.QueryContext(ctx, `
-          SELECT table_name
-            FROM information_schema.tables
-           WHERE table_schema = DATABASE()
-           ORDER BY table_name`)
+	var err error
+
+	switch strings.ToLower(driver) {
 	case "postgres":
-		schema := mdb.Schema
-		if schema == "" {
-			schema = "public"
-		}
-		rows, err = target.QueryContext(ctx, `
-          SELECT table_name
-            FROM information_schema.tables
-           WHERE table_schema = $1
-           ORDER BY table_name`, schema)
+		q := base + `
+   AND table_schema NOT IN ('pg_catalog','information_schema','pg_toast')
+   AND table_schema NOT LIKE 'pg_temp_%'
+ ORDER BY table_schema, table_name`
+		rows, err = db.QueryContext(ctx, q)
+	case "mysql":
+		q := base + `
+   AND table_schema = DATABASE()
+ ORDER BY table_schema, table_name`
+		rows, err = db.QueryContext(ctx, q)
 	default:
-		return nil, huma.Error422("driver", "unsupported driver")
+		rows, err = db.QueryContext(ctx, base+` ORDER BY table_schema, table_name`)
 	}
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	reserved := map[string]bool{
-		"schema_migrations":     true,
-		"tenants":               true,
-		"tenant_confirm_tokens": true,
-		"casbin_rule":           true,
-		"roles":                 true,
-		"subjects":              true,
-		"oauth_tokens":          true,
-		"api_keys":              true,
-	}
-
-	var out []tableInfo
+	var list []md.TableInfo
 	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
+		var s, n string
+		if err := rows.Scan(&s, &n); err != nil {
 			return nil, err
 		}
-		out = append(out, tableInfo{Table: t, Reserved: reserved[t]})
+		ti := md.TableInfo{Schema: s, Name: n}
+		if s != "" && s != "public" {
+			ti.Qualified = s + "." + n
+		} else {
+			ti.Qualified = n
+		}
+		list = append(list, ti)
 	}
-	return &listTablesOutput{Body: out}, nil
+	return list, rows.Err()
 }

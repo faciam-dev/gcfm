@@ -842,16 +842,19 @@
       "TableInfo": {
         "additionalProperties": false,
         "properties": {
-          "reserved": {
-            "type": "boolean"
+          "name": {
+            "type": "string"
           },
-          "table": {
+          "qualified": {
+            "type": "string"
+          },
+          "schema": {
             "type": "string"
           }
         },
         "required": [
-          "table",
-          "reserved"
+          "name",
+          "qualified"
         ],
         "type": "object"
       },
