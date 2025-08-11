@@ -267,6 +267,11 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.AppliedAt = t
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
+		if chCnt == 0 && it.Action != "snapshot" && it.Action != "rollback" {
+			// compute diff on demand for legacy records
+			_, addCnt, delCnt = auditutil.UnifiedDiff(bj, aj)
+			chCnt = addCnt + delCnt
+		}
 		it.ChangeCount = chCnt
 		if it.Action == "snapshot" || it.Action == "rollback" {
 			it.Summary = string(bj)
@@ -358,6 +363,9 @@ func parseAuditTimeString(s string) (time.Time, error) {
 }
 
 func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString, addCnt, delCnt int) {
+	if addCnt+delCnt == 0 && l.Action != "snapshot" && l.Action != "rollback" {
+		_, addCnt, delCnt = auditutil.UnifiedDiff([]byte(beforeJSON.String), []byte(afterJSON.String))
+	}
 	switch l.Action {
 	case "snapshot", "rollback":
 		if beforeJSON.Valid {

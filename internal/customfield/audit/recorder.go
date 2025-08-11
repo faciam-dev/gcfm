@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	audutil "github.com/faciam-dev/gcfm/pkg/audit"
 )
@@ -54,7 +57,15 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 		table = old.TableName
 		column = old.ColumnName
 	}
-	_, addCnt, delCnt := audutil.UnifiedDiff(before, after)
+	unified, addCnt, delCnt := audutil.UnifiedDiff(before, after)
+	summary := fmt.Sprintf("+%d -%d", addCnt, delCnt)
+	beforeNorm := audutil.NormalizeJSON(before)
+	afterNorm := audutil.NormalizeJSON(after)
+	lines := strings.Split(unified, "\n")
+	if len(lines) > 20 {
+		lines = lines[:20]
+	}
+	logger.L.Debug("audit diff", "summary", summary, "before", beforeNorm, "after", afterNorm, "diff", strings.Join(lines, "\n"), "added", addCnt, "removed", delCnt)
 
 	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
 	if r.Driver == "postgres" {

@@ -10,10 +10,10 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 )
 
-func normalizeJSONForDiff(b []byte) string {
+// NormalizeJSON formats and sorts keys so that JSON diffs are stable.
+func NormalizeJSON(b []byte) string {
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
-		// treat as raw string if invalid JSON
 		return string(b)
 	}
 	v = sortKeys(v)
@@ -48,9 +48,10 @@ func sortKeys(v any) any {
 	}
 }
 
+// UnifiedDiff returns a unified diff and counts of added and removed key lines.
 func UnifiedDiff(beforeJSON, afterJSON []byte) (unified string, added, removed int) {
-	a := difflib.SplitLines(normalizeJSONForDiff(beforeJSON) + "\n")
-	b := difflib.SplitLines(normalizeJSONForDiff(afterJSON) + "\n")
+	a := difflib.SplitLines(NormalizeJSON(beforeJSON) + "\n")
+	b := difflib.SplitLines(NormalizeJSON(afterJSON) + "\n")
 	diff := difflib.UnifiedDiff{
 		A:        a,
 		B:        b,
@@ -59,28 +60,29 @@ func UnifiedDiff(beforeJSON, afterJSON []byte) (unified string, added, removed i
 		Context:  3,
 	}
 	s, _ := difflib.GetUnifiedDiffString(diff)
-	added, removed = countPlusMinus(s)
+	added, removed = countChanges(s)
 	return s, added, removed
 }
 
-func countPlusMinus(unified string) (add, del int) {
+// countChanges counts only JSON key lines in a unified diff.
+func countChanges(unified string) (add, del int) {
 	sc := bufio.NewScanner(strings.NewReader(unified))
 	for sc.Scan() {
 		line := sc.Text()
 		if len(line) == 0 {
 			continue
 		}
-		switch line[0] {
-		case '+':
-			if strings.HasPrefix(line, "+++") {
-				continue
+		if strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---") {
+			continue
+		}
+		if line[0] == '+' {
+			if strings.Contains(line, "\":") {
+				add++
 			}
-			add++
-		case '-':
-			if strings.HasPrefix(line, "---") {
-				continue
+		} else if line[0] == '-' {
+			if strings.Contains(line, "\":") {
+				del++
 			}
-			del++
 		}
 	}
 	return
