@@ -1,14 +1,12 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,7 +17,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/auditlog"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/tenant"
-	"github.com/pmezard/go-difflib/difflib"
+	auditutil "github.com/faciam-dev/gcfm/pkg/audit"
 )
 
 type AuditHandler struct {
@@ -27,11 +25,26 @@ type AuditHandler struct {
 	Driver string
 }
 
+// auditLogOverfetchMultiplier controls how many extra rows are fetched when
+// applying change-count filters in memory. This compensates for rows that may be
+// discarded after post-processing so that the client still receives up to the
+// requested limit.
+const auditLogOverfetchMultiplier = 4
+
+// auditDiffOutput represents the diff response body.
+type auditDiffOutput struct {
+	Body struct {
+		Unified string `json:"unified"`
+		Added   int    `json:"added"`
+		Removed int    `json:"removed"`
+	}
+}
+
 // getDiff returns unified diff for an audit record
 func (h *AuditHandler) getDiff(ctx context.Context,
 	p *struct {
 		ID int64 `path:"id"`
-	}) (*huma.StreamResponse, error) {
+	}) (*auditDiffOutput, error) {
 	var before, after sql.NullString
 	query := `SELECT COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM gcfm_audit_logs WHERE id = $1`
 	if h.Driver == "mysql" {
@@ -44,56 +57,97 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		return nil, err
 	}
 
-	prettify := func(js string) string {
-		var buf bytes.Buffer
-		if err := json.Indent(&buf, []byte(js), "", "  "); err != nil {
-			return js
-		}
-		return buf.String()
-	}
-	left := prettify(before.String)
-	right := prettify(after.String)
-
-	ud := difflib.UnifiedDiff{
-		A:        difflib.SplitLines(left),
-		B:        difflib.SplitLines(right),
-		FromFile: "before",
-		ToFile:   "after",
-		Context:  3,
-	}
-	text, err := difflib.GetUnifiedDiffString(ud)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to generate diff: " + err.Error())
-	}
-	return &huma.StreamResponse{Body: func(hctx huma.Context) {
-		hctx.SetHeader("Content-Type", "text/plain")
-		if _, err := hctx.BodyWriter().Write([]byte(text)); err != nil {
-			log.Printf("error writing diff response: %v", err)
-		}
-	}}, nil
+	unified, add, del := auditutil.UnifiedDiff([]byte(before.String), []byte(after.String))
+	out := &auditDiffOutput{}
+	out.Body.Unified = unified
+	out.Body.Added = add
+	out.Body.Removed = del
+	return out, nil
 }
 
 type auditListParams struct {
-	Limit  int    `query:"limit"`
-	Cursor string `query:"cursor"` // base64("RFC3339Nano:id")
-	Action string `query:"action"` // "add,update" など
-	Actor  string `query:"actor"`
-	Table  string `query:"table"`
-	Column string `query:"column"`
-	From   string `query:"from"` // ISO
-	To     string `query:"to"`   // ISO (閉区間上端は < To+1day にします)
+	Limit      int         `query:"limit"`
+	Cursor     string      `query:"cursor"` // base64("RFC3339Nano:id")
+	Action     string      `query:"action"` // "add,update" など
+	Actor      string      `query:"actor"`
+	Table      string      `query:"table"`
+	Column     string      `query:"column"`
+	From       string      `query:"from"` // ISO
+	To         string      `query:"to"`   // ISO (閉区間上端は < To+1day にします)
+	MinChanges optionalInt `query:"min_changes"`
+	MaxChanges optionalInt `query:"max_changes"`
+	// Compatibility aliases for camelCase parameters
+	MinChangesAlias optionalInt `query:"minChanges" json:"-" huma:"deprecated"`
+	MaxChangesAlias optionalInt `query:"maxChanges" json:"-" huma:"deprecated"`
+}
+
+type optionalInt struct {
+	Set bool
+	Val int
+}
+
+func (o *optionalInt) UnmarshalText(b []byte) error {
+	if len(b) == 0 {
+		o.Set = false
+		o.Val = 0
+		return nil
+	}
+	v, err := strconv.Atoi(string(b))
+	if err != nil {
+		return err
+	}
+	o.Set = true
+	o.Val = v
+	return nil
+}
+
+func (p *auditListParams) EffMin() *int {
+	if p.MinChanges.Set {
+		v := p.MinChanges.Val
+		if v < 0 {
+			v = 0
+		}
+		return &v
+	}
+	if p.MinChangesAlias.Set {
+		v := p.MinChangesAlias.Val
+		if v < 0 {
+			v = 0
+		}
+		return &v
+	}
+	return nil
+}
+
+func (p *auditListParams) EffMax() *int {
+	if p.MaxChanges.Set {
+		v := p.MaxChanges.Val
+		if v < 0 {
+			v = 0
+		}
+		return &v
+	}
+	if p.MaxChangesAlias.Set {
+		v := p.MaxChangesAlias.Val
+		if v < 0 {
+			v = 0
+		}
+		return &v
+	}
+	return nil
 }
 
 type AuditDTO struct {
-	ID         int64           `json:"id"`
-	Actor      string          `json:"actor"`
-	Action     string          `json:"action"`
-	TableName  string          `json:"tableName"`
-	ColumnName string          `json:"columnName"`
-	AppliedAt  time.Time       `json:"appliedAt"`
-	BeforeJson json.RawMessage `json:"beforeJson"`
-	AfterJson  json.RawMessage `json:"afterJson"`
-	Summary    string          `json:"summary,omitempty"` // 将来サーバ側計算
+	ID          int64           `json:"id"`
+	Actor       string          `json:"actor"`
+	Action      string          `json:"action"`
+	TableName   string          `json:"tableName"`
+	ColumnName  string          `json:"columnName"`
+	AppliedAt   time.Time       `json:"appliedAt"`
+	BeforeJson  json.RawMessage `json:"beforeJson"`
+	AfterJson   json.RawMessage `json:"afterJson"`
+	Summary     string          `json:"summary,omitempty"`
+	ChangeCount int             `json:"changeCount"`
 }
 
 type auditListOutput struct {
@@ -135,13 +189,6 @@ func RegisterAudit(api huma.API, h *AuditHandler) {
 		Path:        "/v1/audit-logs/{id}/diff",
 		Summary:     "Get unified diff for an audit log",
 		Tags:        []string{"Audit"},
-		Responses: map[string]*huma.Response{
-			"200": {
-				Content: map[string]*huma.MediaType{
-					"text/plain": {Schema: &huma.Schema{Type: "string"}},
-				},
-			},
-		},
 	}, h.getDiff)
 }
 
@@ -160,6 +207,18 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	}
 	if limit > 200 {
 		limit = 200
+	}
+
+	min := p.EffMin()
+	max := p.EffMax()
+	pass := func(v int) bool {
+		if min != nil && v < *min {
+			return false
+		}
+		if max != nil && v > *max {
+			return false
+		}
+		return true
 	}
 
 	args := []any{}
@@ -234,12 +293,13 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	}
 
 	limitPlaceholder := next()
-	args = append(args, limit+1)
+	args = append(args, limit*auditLogOverfetchMultiplier+1)
 
 	query := `
       SELECT id, actor, action, table_name, column_name,
              ` + coalesceBefore + ` AS before_json,
              ` + coalesceAfter + ` AS after_json,
+             added_count, removed_count, change_count,
              applied_at
         FROM gcfm_audit_logs
       ` + where + `
@@ -255,12 +315,16 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 
 	items := make([]AuditDTO, 0, limit)
 	var nextCursor *string
+	var lastReturnedID int64
+	var lastReturnedApplied time.Time
+	more := false
 
 	for rows.Next() {
 		var it AuditDTO
 		var bj, aj sql.RawBytes
+		var addCnt, delCnt, chCnt int
 		var applied any
-		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &applied); err != nil {
+		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &addCnt, &delCnt, &chCnt, &applied); err != nil {
 			logger.L.Error("scan audit row", "err", err)
 			return nil, err
 		}
@@ -272,18 +336,36 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.AppliedAt = t
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
-		items = append(items, it)
+		if chCnt == 0 && it.Action != "snapshot" && it.Action != "rollback" {
+			// diff unavailable for legacy records; should be backfilled via migration
+			it.Summary = "diff unavailable"
+		} else if it.Action == "snapshot" || it.Action == "rollback" {
+			it.Summary = string(bj)
+		} else {
+			it.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
+		}
+		it.ChangeCount = chCnt
+
+		if !pass(chCnt) {
+			continue
+		}
+		if len(items) < limit {
+			items = append(items, it)
+			lastReturnedID = it.ID
+			lastReturnedApplied = it.AppliedAt
+		} else {
+			more = true
+			break
+		}
 	}
 	if err := rows.Err(); err != nil {
 		logger.L.Error("iterate audit rows", "err", err)
 		return nil, err
 	}
 
-	if len(items) > limit {
-		last := items[limit]
-		c := encodeCursor(last.AppliedAt, last.ID)
+	if more {
+		c := encodeCursor(lastReturnedApplied, lastReturnedID)
 		nextCursor = &c
-		items = items[:limit]
 	}
 
 	return &auditListOutput{
@@ -318,7 +400,7 @@ func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOut
 		ColumnName: rec.ColumnName,
 		AppliedAt:  t,
 	}
-	enrichAuditLog(&log, rec.BeforeJSON, rec.AfterJSON)
+	enrichAuditLog(&log, rec.BeforeJSON, rec.AfterJSON, rec.AddedCount, rec.RemovedCount)
 	return &auditGetOutput{Body: log}, nil
 }
 
@@ -351,19 +433,16 @@ func parseAuditTimeString(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("cannot parse time: %s", s)
 }
 
-func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString) {
+func enrichAuditLog(l *schema.AuditLog, beforeJSON, afterJSON sql.NullString, addCnt, delCnt int) {
+	if addCnt+delCnt == 0 && l.Action != "snapshot" && l.Action != "rollback" {
+		_, addCnt, delCnt = auditutil.UnifiedDiff([]byte(beforeJSON.String), []byte(afterJSON.String))
+	}
 	switch l.Action {
 	case "snapshot", "rollback":
 		if beforeJSON.Valid {
 			l.Summary = beforeJSON.String
 		}
 	default:
-		var addCnt, delCnt int
-		if l.Action == "add" {
-			addCnt = 1
-		} else if l.Action == "delete" {
-			delCnt = 1
-		}
 		l.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
 	}
 	l.BeforeJSON = beforeJSON

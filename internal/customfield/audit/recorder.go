@@ -4,9 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
+	audutil "github.com/faciam-dev/gcfm/pkg/audit"
 )
 
 // Recorder writes audit logs to the database.
@@ -14,6 +18,11 @@ type Recorder struct {
 	DB     *sql.DB
 	Driver string // mysql or postgres
 }
+
+// enableVerboseAuditLogs controls whether detailed diff information is logged
+// for each audit entry. This should remain disabled in production unless
+// troubleshooting is needed.
+var enableVerboseAuditLogs = false
 
 // Write records a single field change.
 func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.FieldMeta) error {
@@ -53,9 +62,21 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 		table = old.TableName
 		column = old.ColumnName
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	unified, addCnt, delCnt := audutil.UnifiedDiff(before, after)
+	summary := fmt.Sprintf("+%d -%d", addCnt, delCnt)
+	beforeNorm := audutil.NormalizeJSON(before)
+	afterNorm := audutil.NormalizeJSON(after)
+	lines := strings.Split(unified, "\n")
+	if len(lines) > 20 {
+		lines = lines[:20]
+	}
+	if enableVerboseAuditLogs {
+		logger.L.Debug("audit diff", "summary", summary, "before", beforeNorm, "after", afterNorm, "diff", strings.Join(lines, "\n"), "added", addCnt, "removed", delCnt)
+	}
+
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
 	}
 	var beforeJSON sql.NullString
 	if before != nil {
@@ -69,7 +90,7 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 	} else {
 		afterJSON = sql.NullString{Valid: false}
 	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, table, column, beforeJSON, afterJSON)
+	_, err = r.DB.ExecContext(ctx, q, actor, action, table, column, beforeJSON, afterJSON, addCnt, delCnt, addCnt+delCnt)
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {
@@ -85,12 +106,12 @@ func (r *Recorder) WriteAction(ctx context.Context, actor, action, targetVer, di
 	if r == nil || r.DB == nil {
 		return nil
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
 	}
 	before := sql.NullString{Valid: diffSummary != "", String: diffSummary}
-	_, err := r.DB.ExecContext(ctx, q, actor, action, "registry", targetVer, before, sql.NullString{Valid: false})
+	_, err := r.DB.ExecContext(ctx, q, actor, action, "registry", targetVer, before, sql.NullString{Valid: false}, 0, 0, 0)
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {
@@ -108,11 +129,11 @@ func (r *Recorder) WriteJSON(ctx context.Context, actor, action string, payload 
 	if err != nil {
 		return err
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
 	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, sql.NullString{Valid: false}, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data))
+	_, err = r.DB.ExecContext(ctx, q, actor, action, sql.NullString{Valid: false}, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data), 0, 0, 0)
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {
@@ -130,11 +151,11 @@ func (r *Recorder) WriteTableJSON(ctx context.Context, actor, action, table stri
 	if err != nil {
 		return err
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)"
+	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES ($1,$2,$3,$4,$5,$6)"
+		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
 	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, table, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data))
+	_, err = r.DB.ExecContext(ctx, q, actor, action, table, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data), 0, 0, 0)
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {

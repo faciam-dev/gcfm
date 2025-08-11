@@ -305,8 +305,8 @@ func TestRBACHandler_createUser(t *testing.T) {
 		WithArgs(int64(1), int64(2)).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)")).
-		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)")).
+		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, 0, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	rec := &audit.Recorder{DB: db, Driver: "mysql"}
@@ -350,8 +350,8 @@ func TestRBACHandler_createUser_parseTimeBytes(t *testing.T) {
 		WithArgs(int64(1), int64(2)).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json) VALUES (?,?,?,?,?,?)")).
-		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)")).
+		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, 0, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	rec := &audit.Recorder{DB: db, Driver: "mysql"}
