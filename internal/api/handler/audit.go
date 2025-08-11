@@ -94,15 +94,15 @@ func (o *optionalInt) UnmarshalText(b []byte) error {
 }
 
 func (p *auditListParams) EffMin() *int {
-	if p.MinChangesAlias.Set {
-		v := p.MinChangesAlias.Val
+	if p.MinChanges.Set {
+		v := p.MinChanges.Val
 		if v < 0 {
 			v = 0
 		}
 		return &v
 	}
-	if p.MinChanges.Set {
-		v := p.MinChanges.Val
+	if p.MinChangesAlias.Set {
+		v := p.MinChangesAlias.Val
 		if v < 0 {
 			v = 0
 		}
@@ -112,15 +112,15 @@ func (p *auditListParams) EffMin() *int {
 }
 
 func (p *auditListParams) EffMax() *int {
-	if p.MaxChangesAlias.Set {
-		v := p.MaxChangesAlias.Val
+	if p.MaxChanges.Set {
+		v := p.MaxChanges.Val
 		if v < 0 {
 			v = 0
 		}
 		return &v
 	}
-	if p.MaxChanges.Set {
-		v := p.MaxChanges.Val
+	if p.MaxChangesAlias.Set {
+		v := p.MaxChangesAlias.Val
 		if v < 0 {
 			v = 0
 		}

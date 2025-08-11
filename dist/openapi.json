@@ -88,12 +88,12 @@
             "format": "int64",
             "type": "integer"
           },
-          "unified": {
-            "type": "string"
-          },
           "removed": {
             "format": "int64",
             "type": "integer"
+          },
+          "unified": {
+            "type": "string"
           }
         },
         "required": [
@@ -1144,8 +1144,7 @@
             "in": "query",
             "name": "min_changes",
             "schema": {
-              "format": "int64",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -1153,8 +1152,7 @@
             "in": "query",
             "name": "max_changes",
             "schema": {
-              "format": "int64",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -1162,8 +1160,7 @@
             "in": "query",
             "name": "minChanges",
             "schema": {
-              "format": "int64",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -1171,8 +1168,7 @@
             "in": "query",
             "name": "maxChanges",
             "schema": {
-              "format": "int64",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
