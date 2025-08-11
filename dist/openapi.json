@@ -88,16 +88,16 @@
             "format": "int64",
             "type": "integer"
           },
+          "diff": {
+            "type": "string"
+          },
           "removed": {
             "format": "int64",
             "type": "integer"
-          },
-          "unified": {
-            "type": "string"
           }
         },
         "required": [
-          "unified",
+          "diff",
           "added",
           "removed"
         ],
@@ -1152,6 +1152,24 @@
             "explode": false,
             "in": "query",
             "name": "max_changes",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "minChanges",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "maxChanges",
             "schema": {
               "format": "int64",
               "type": "integer"

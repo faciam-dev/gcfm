@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -83,8 +84,9 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 
 	// insert logs with various change counts
 	_, add1, del1 := auditutil.UnifiedDiff([]byte(`{}`), []byte(`{"a":1,"b":1,"c":1,"d":1,"e":1}`))
-	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('alice','update','posts','t1',$1,$2,$3,$4,$5)`,
-		`{}`, `{"a":1,"b":1,"c":1,"d":1,"e":1}`, add1, del1, add1+del1); err != nil {
+	var firstID int64
+	if err := db.QueryRowContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('alice','update','posts','t1',$1,$2,$3,$4,$5) RETURNING id`,
+		`{}`, `{"a":1,"b":1,"c":1,"d":1,"e":1}`, add1, del1, add1+del1).Scan(&firstID); err != nil {
 		t.Fatalf("insert1: %v", err)
 	}
 	_, add2, del2 := auditutil.UnifiedDiff([]byte(`{"a":1,"b":2}`), []byte(`{"c":3,"d":4,"e":5}`))
@@ -96,6 +98,11 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('carol','update','posts','t3',$1,$2,$3,$4,$5)`,
 		`{"v":1}`, `{"v":2}`, add3, del3, add3+del3); err != nil {
 		t.Fatalf("insert3: %v", err)
+	}
+	_, add4, del4 := auditutil.UnifiedDiff([]byte(`{}`), []byte(`{"a":1,"b":1,"c":1,"d":1,"e":1,"f":1}`))
+	if _, err := db.ExecContext(ctx, `INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ('dave','update','posts','t4',$1,$2,$3,$4,$5)`,
+		`{}`, `{"a":1,"b":1,"c":1,"d":1,"e":1,"f":1}`, add4, del4, add4+del4); err != nil {
+		t.Fatalf("insert4: %v", err)
 	}
 
 	// verify summaries and counts
@@ -111,10 +118,10 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	resp.Body.Close()
-	if len(out.Items) != 3 {
-		t.Fatalf("want 3 got %d", len(out.Items))
+	if len(out.Items) != 4 {
+		t.Fatalf("want 4 got %d", len(out.Items))
 	}
-	found := map[string]bool{"+5 -0": false, "+3 -2": false, "+1 -1": false}
+	found := map[string]bool{"+5 -0": false, "+3 -2": false, "+1 -1": false, "+6 -0": false}
 	for _, it := range out.Items {
 		summary := it["summary"].(string)
 		count := int(it["changeCount"].(float64))
@@ -134,12 +141,41 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 				t.Fatalf("summary %s count %d", summary, count)
 			}
 			found[summary] = true
+		case "+6 -0":
+			if count != 6 {
+				t.Fatalf("summary %s count %d", summary, count)
+			}
+			found[summary] = true
 		}
 	}
 	for k, v := range found {
 		if !v {
 			t.Fatalf("missing summary %s", k)
 		}
+	}
+
+	// verify diff endpoint returns unified text
+	resp, err = http.Get(fmt.Sprintf("%s/v1/audit-logs/%d/diff", srv.URL, firstID))
+	if err != nil {
+		t.Fatalf("get diff: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("diff status=%d", resp.StatusCode)
+	}
+	var diffOut struct {
+		Diff    string `json:"diff"`
+		Added   int    `json:"added"`
+		Removed int    `json:"removed"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&diffOut); err != nil {
+		t.Fatalf("diff decode: %v", err)
+	}
+	resp.Body.Close()
+	if diffOut.Added != add1 || diffOut.Removed != del1 {
+		t.Fatalf("diff counts %d %d", diffOut.Added, diffOut.Removed)
+	}
+	if !strings.Contains(diffOut.Diff, "--- before") || !strings.Contains(diffOut.Diff, "+++ after") {
+		t.Fatalf("diff text not unified: %s", diffOut.Diff)
 	}
 
 	// filter cases
@@ -149,8 +185,10 @@ func TestAuditLog_CountsAndFilters(t *testing.T) {
 		want  int
 	}{
 		{"eq-five", "?min_changes=5&max_changes=5", 2},
-		{"over-range", "?min_changes=6", 0},
+		{"min-six", "?min_changes=6", 1},
 		{"max-two", "?max_changes=2", 1},
+		{"range-zero-five", "?min_changes=0&max_changes=5", 3},
+		{"camel-range", "?minChanges=0&maxChanges=5", 3},
 	}
 
 	for _, tc := range cases {

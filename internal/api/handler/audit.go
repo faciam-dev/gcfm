@@ -28,7 +28,7 @@ type AuditHandler struct {
 // auditDiffOutput represents the diff response body.
 type auditDiffOutput struct {
 	Body struct {
-		Unified string `json:"unified"`
+		Diff    string `json:"diff"`
 		Added   int    `json:"added"`
 		Removed int    `json:"removed"`
 	}
@@ -53,7 +53,7 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 
 	unified, add, del := auditutil.UnifiedDiff([]byte(before.String), []byte(after.String))
 	out := &auditDiffOutput{}
-	out.Body.Unified = unified
+	out.Body.Diff = unified
 	out.Body.Added = add
 	out.Body.Removed = del
 	return out, nil
@@ -70,6 +70,9 @@ type auditListParams struct {
 	To         string `query:"to"`   // ISO (閉区間上端は < To+1day にします)
 	MinChanges int    `query:"min_changes"`
 	MaxChanges int    `query:"max_changes"`
+	// Compatibility aliases for camelCase parameters
+	MinChangesAlias int `query:"minChanges" json:"-" huma:"deprecated"`
+	MaxChangesAlias int `query:"maxChanges" json:"-" huma:"deprecated"`
 }
 
 type AuditDTO struct {
@@ -194,13 +197,27 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 			args = append(args, t.Add(24*time.Hour))
 		}
 	}
-	if p.MinChanges > 0 {
-		wh = append(wh, "change_count >= "+next())
-		args = append(args, p.MinChanges)
+	minChanges := p.MinChanges
+	if p.MinChangesAlias != 0 {
+		minChanges = p.MinChangesAlias
 	}
-	if p.MaxChanges > 0 {
+	if minChanges < 0 {
+		minChanges = 0
+	}
+	if minChanges > 0 {
+		wh = append(wh, "change_count >= "+next())
+		args = append(args, minChanges)
+	}
+	maxChanges := p.MaxChanges
+	if p.MaxChangesAlias != 0 {
+		maxChanges = p.MaxChangesAlias
+	}
+	if maxChanges < 0 {
+		maxChanges = 0
+	}
+	if maxChanges > 0 {
 		wh = append(wh, "change_count <= "+next())
-		args = append(args, p.MaxChanges)
+		args = append(args, maxChanges)
 	}
 	if p.Cursor != "" {
 		if ts, id, err := decodeCursor(p.Cursor); err == nil {
