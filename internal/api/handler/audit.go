@@ -25,6 +25,12 @@ type AuditHandler struct {
 	Driver string
 }
 
+// auditLogOverfetchMultiplier controls how many extra rows are fetched when
+// applying change-count filters in memory. This compensates for rows that may be
+// discarded after post-processing so that the client still receives up to the
+// requested limit.
+const auditLogOverfetchMultiplier = 4
+
 // auditDiffOutput represents the diff response body.
 type auditDiffOutput struct {
 	Body struct {
@@ -287,7 +293,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	}
 
 	limitPlaceholder := next()
-	args = append(args, limit*4+1)
+	args = append(args, limit*auditLogOverfetchMultiplier+1)
 
 	query := `
       SELECT id, actor, action, table_name, column_name,
@@ -331,16 +337,14 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
 		if chCnt == 0 && it.Action != "snapshot" && it.Action != "rollback" {
-			// compute diff on demand for legacy records
-			_, addCnt, delCnt = auditutil.UnifiedDiff(bj, aj)
-			chCnt = addCnt + delCnt
-		}
-		it.ChangeCount = chCnt
-		if it.Action == "snapshot" || it.Action == "rollback" {
+			// diff unavailable for legacy records; should be backfilled via migration
+			it.Summary = "diff unavailable"
+		} else if it.Action == "snapshot" || it.Action == "rollback" {
 			it.Summary = string(bj)
 		} else {
 			it.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
 		}
+		it.ChangeCount = chCnt
 
 		if !pass(chCnt) {
 			continue

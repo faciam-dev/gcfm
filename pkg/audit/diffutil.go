@@ -48,7 +48,8 @@ func sortKeys(v any) any {
 	}
 }
 
-// UnifiedDiff returns a unified diff and counts of added and removed key lines.
+// UnifiedDiff returns a unified diff of two JSON documents and counts of added and removed key lines.
+// Only lines containing '":' (JSON key lines) are counted as changes in the added and removed totals.
 func UnifiedDiff(beforeJSON, afterJSON []byte) (unified string, added, removed int) {
 	a := difflib.SplitLines(NormalizeJSON(beforeJSON) + "\n")
 	b := difflib.SplitLines(NormalizeJSON(afterJSON) + "\n")
@@ -75,11 +76,11 @@ func countChanges(unified string) (add, del int) {
 		if strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---") {
 			continue
 		}
-		if line[0] == '+' {
+		if strings.HasPrefix(line, "+") {
 			if strings.Contains(line, "\":") {
 				add++
 			}
-		} else if line[0] == '-' {
+		} else if strings.HasPrefix(line, "-") {
 			if strings.Contains(line, "\":") {
 				del++
 			}

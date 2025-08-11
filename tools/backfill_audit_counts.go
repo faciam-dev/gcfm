@@ -26,10 +26,10 @@ func main() {
 	defer db.Close()
 
 	ctx := context.Background()
-	sel := "SELECT id, COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM gcfm_audit_logs WHERE change_count = 0"
+	sel := "SELECT id, COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM gcfm_audit_logs WHERE change_count = 0 OR change_count IS NULL"
 	upd := "UPDATE gcfm_audit_logs SET added_count=$1, removed_count=$2, change_count=$3 WHERE id=$4"
 	if *driver == "mysql" {
-		sel = "SELECT id, COALESCE(JSON_UNQUOTE(before_json), '{}'), COALESCE(JSON_UNQUOTE(after_json), '{}') FROM gcfm_audit_logs WHERE change_count = 0"
+		sel = "SELECT id, COALESCE(JSON_UNQUOTE(before_json), '{}'), COALESCE(JSON_UNQUOTE(after_json), '{}') FROM gcfm_audit_logs WHERE change_count = 0 OR change_count IS NULL"
 		upd = "UPDATE gcfm_audit_logs SET added_count=?, removed_count=?, change_count=? WHERE id=?"
 	}
 
