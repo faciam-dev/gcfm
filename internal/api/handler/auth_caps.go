@@ -41,6 +41,15 @@ var capMatrix = map[string]struct{ Path, Method string }{
 
 	// Metadata
 	"metadata:tables": {"/v1/metadata/tables", "GET"},
+
+	// Snapshots
+	"snapshots:list":   {"/v1/snapshots", "GET"},
+	"snapshots:create": {"/v1/snapshots", "POST"},
+	"snapshots:apply":  {"/v1/snapshots/{ver}/apply", "POST"},
+
+	// Databases
+	"databases:list":  {"/v1/databases", "GET"},
+	"databases:write": {"/v1/databases", "POST"},
 }
 
 func RegisterAuthCaps(api huma.API, h *AuthHandler) {

@@ -40,4 +40,10 @@ func TestMeCaps(t *testing.T) {
 	if out.Body.Capabilities["roles:members:write"] {
 		t.Fatalf("expected roles:members:write false")
 	}
+	if out.Body.Capabilities["snapshots:list"] {
+		t.Fatalf("expected snapshots:list false")
+	}
+	if out.Body.Capabilities["databases:list"] {
+		t.Fatalf("expected databases:list false")
+	}
 }
