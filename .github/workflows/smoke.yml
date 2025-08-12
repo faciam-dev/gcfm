@@ -1,7 +1,9 @@
+---
 name: smoke
-on:
+
+'on':
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -10,7 +12,7 @@ jobs:
     services:
       postgres:
         image: postgres:15
-        ports: [ "5432:5432" ]
+        ports: ["5432:5432"]
         env:
           POSTGRES_DB: gcfm_test
           POSTGRES_USER: postgres
@@ -22,7 +24,8 @@ jobs:
           --health-retries=10
 
     env:
-      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/gcfm_test?sslmode=disable
+      TEST_DATABASE_URL: >-
+        postgres://postgres:postgres@localhost:5432/gcfm_test?sslmode=disable
       CF_ENC_KEY: testtesttesttesttesttesttesttest
       JWT_SECRET: sample
       CF_TABLE_PREFIX: gcfm_
@@ -42,7 +45,13 @@ jobs:
         run: go mod download
 
       - name: Migrate (if needed)
-        run: go run ./cmd/fieldctl db migrate --db "$TEST_DATABASE_URL" --schema public --driver postgres --table-prefix gcfm_ --seed
+        run: |
+          go run ./cmd/fieldctl db migrate \
+            --db "$TEST_DATABASE_URL" \
+            --schema public \
+            --driver postgres \
+            --table-prefix gcfm_ \
+            --seed
 
       - name: Run smoke tests
         run: go test -v ./test/smoke
