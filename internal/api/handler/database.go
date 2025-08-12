@@ -3,11 +3,13 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/casbin/casbin/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	cfmdb "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
@@ -23,6 +25,7 @@ import (
 type DatabaseHandler struct {
 	Repo     *monitordb.Repo
 	Recorder *audit.Recorder
+	Enf      *casbin.Enforcer
 }
 
 type createDBInput struct{ Body schema.CreateDatabase }
@@ -181,15 +184,40 @@ func (h *DatabaseHandler) create(ctx context.Context, in *createDBInput) (*creat
 
 func (h *DatabaseHandler) list(ctx context.Context, _ *struct{}) (*listDBOutput, error) {
 	tid := tenant.FromContext(ctx)
+	sub := middleware.UserFromContext(ctx)
+	canWrite := false
+	if h.Enf != nil {
+		if ok, _ := h.Enf.Enforce(sub, "/v1/databases", http.MethodPost); ok {
+			canWrite = true
+		} else if ok, _ := h.Enf.Enforce(sub, "/v1/databases", http.MethodPut); ok {
+			canWrite = true
+		}
+	}
+
 	dbs, err := h.Repo.List(ctx, tid)
 	if err != nil {
 		return nil, err
 	}
-	res := make([]schema.Database, len(dbs))
+	items := make([]schema.Database, len(dbs))
 	for i, d := range dbs {
-		res[i] = schema.Database{ID: d.ID, Name: d.Name, Driver: d.Driver, CreatedAt: d.CreatedAt}
+		dec, err := crypto.Decrypt(d.DSNEnc)
+		if err != nil {
+			dec = nil
+		}
+		items[i] = schema.Database{
+			ID:        d.ID,
+			Name:      d.Name,
+			Driver:    d.Driver,
+			DSN:       string(dec),
+			DSNEnc:    base64.StdEncoding.EncodeToString(d.DSNEnc),
+			CreatedAt: d.CreatedAt,
+		}
+		if !canWrite {
+			items[i].DSN = ""
+			items[i].DSNEnc = ""
+		}
 	}
-	return &listDBOutput{Body: res}, nil
+	return &listDBOutput{Body: items}, nil
 }
 
 func (h *DatabaseHandler) delete(ctx context.Context, in *idParam) (*struct{}, error) {

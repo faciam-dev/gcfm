@@ -5,4 +5,8 @@ DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.n
 DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='admin' AND p.path='/v1/databases' AND p.method='POST';
 DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='editor' AND p.path='/v1/snapshots' AND p.method='GET';
 DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='editor' AND p.path='/v1/databases' AND p.method='GET';
+DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='viewer' AND p.path='/v1/databases' AND p.method='GET';
+DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='editor' AND p.path='/v1/metadata/tables' AND p.method='GET';
+DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='viewer' AND p.path='/v1/metadata/tables' AND p.method='GET';
+DELETE p FROM gcfm_role_policies p JOIN gcfm_roles r ON p.role_id=r.id WHERE r.name='editor' AND p.path='/v1/databases/{id}/scan' AND p.method='POST';
 DELETE FROM gcfm_registry_schema_version WHERE version=21;

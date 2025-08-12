@@ -365,6 +365,12 @@
           "driver": {
             "type": "string"
           },
+          "dsn": {
+            "type": "string"
+          },
+          "dsnEnc": {
+            "type": "string"
+          },
           "id": {
             "format": "int64",
             "type": "integer"
@@ -377,6 +383,8 @@
           "id",
           "name",
           "driver",
+          "dsn",
+          "dsnEnc",
           "createdAt"
         ],
         "type": "object"

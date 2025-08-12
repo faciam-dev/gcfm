@@ -7,6 +7,8 @@ type Database struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	Driver    string    `json:"driver"`
+	DSN       string    `json:"dsn"`
+	DSNEnc    string    `json:"dsnEnc"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
