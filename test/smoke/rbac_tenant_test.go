@@ -10,7 +10,7 @@ func TestTenantIsolation(t *testing.T) {
 	e := newEnv(t)
 	defer e.close()
 
-	jwt1 := signJWT(e.Secret, "1", "t1", "admin", time.Hour)
+	jwt1 := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 	req1, _ := http.NewRequest("GET", e.URL+"/v1/rbac/users?page=1&per_page=100", nil)
 	req1.Header.Set("Authorization", "Bearer "+jwt1)
 	req1.Header.Set("X-Tenant-ID", "t1")
@@ -20,7 +20,7 @@ func TestTenantIsolation(t *testing.T) {
 		t.Fatalf("t1 should see 30 users, got %d", got1)
 	}
 
-	jwt2 := signJWT(e.Secret, "1", "t2", "admin", time.Hour)
+	jwt2 := signJWT(t, e.Secret, "1", "t2", "admin", time.Hour)
 	req2, _ := http.NewRequest("GET", e.URL+"/v1/rbac/users?page=1&per_page=100", nil)
 	req2.Header.Set("Authorization", "Bearer "+jwt2)
 	req2.Header.Set("X-Tenant-ID", "t2")

@@ -10,7 +10,7 @@ func TestUsersPagingAndSort(t *testing.T) {
 	e := newEnv(t)
 	defer e.close()
 
-	jwt := signJWT(e.Secret, "1", "t1", "admin", time.Hour)
+	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 
 	req, _ := http.NewRequest("GET", e.URL+"/v1/rbac/users?sort=username&order=desc&page=2&per_page=10", nil)
 	req.Header.Set("Authorization", "Bearer "+jwt)

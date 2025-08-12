@@ -127,7 +127,8 @@ func mustExec(t *testing.T, db *sql.DB, q string, args ...any) {
 	}
 }
 
-func signJWT(secret []byte, sub, tenant, role string, ttl time.Duration) string {
+func signJWT(t *testing.T, secret []byte, sub, tenant, role string, ttl time.Duration) string {
+	t.Helper()
 	claims := jwt.MapClaims{
 		"sub":   sub,
 		"tid":   tenant,
@@ -136,7 +137,10 @@ func signJWT(secret []byte, sub, tenant, role string, ttl time.Duration) string 
 		"iat":   time.Now().Unix(),
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	s, _ := tok.SignedString(secret)
+	s, err := tok.SignedString(secret)
+	if err != nil {
+		t.Fatalf("failed to sign JWT: %v", err)
+	}
 	return s
 }
 

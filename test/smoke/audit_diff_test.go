@@ -11,7 +11,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	e := newEnv(t)
 	defer e.close()
 
-	jwt := signJWT(e.Secret, "1", "t1", "admin", time.Hour)
+	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 
 	req, _ := http.NewRequest("GET", e.URL+"/v1/audit-logs?page=1&limit=10", nil)
 	req.Header.Set("Authorization", "Bearer "+jwt)
@@ -44,5 +44,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	req3.Header.Set("Authorization", "Bearer "+jwt)
 	req3.Header.Set("X-Tenant-ID", "t1")
 	zero := doJSON(t, req3)
-	_ = jlen(zero, "items")
+	if n := jlen(zero, "items"); n != 0 {
+		t.Fatalf("expected zero items, got %d", n)
+	}
 }
