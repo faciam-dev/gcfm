@@ -93,8 +93,13 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	// that they remain publicly accessible.
 	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver}, JWT: jwtHandler})
 
-	// Apply authentication & RBAC middleware for the remaining endpoints.
+	// Apply authentication middleware for subsequent endpoints.
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
+
+	// Register authenticated capability endpoint before RBAC enforcement.
+	handler.RegisterAuth(api, &handler.AuthHandler{Enforcer: e})
+
+	// Apply RBAC middleware for the remaining endpoints.
 	if err == nil {
 		api.UseMiddleware(middleware.RBAC(e))
 	}
