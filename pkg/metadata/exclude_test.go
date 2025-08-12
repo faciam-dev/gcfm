@@ -5,6 +5,7 @@ import "testing"
 func TestFilter_Postgres(t *testing.T) {
 	in := []TableInfo{
 		{Schema: "pg_catalog", Name: "pg_proc"},
+		{Schema: "pg_temp_3", Name: "temp_table"},
 		{Schema: "public", Name: "schema_migrations"},
 		{Schema: "public", Name: "gcfm_audit_logs"},
 		{Schema: "public", Name: "users"},

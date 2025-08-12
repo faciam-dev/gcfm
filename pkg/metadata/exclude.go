@@ -54,10 +54,16 @@ var rules = map[string]excludeRule{
 func shouldExclude(driver string, t TableInfo) bool {
 	r, ok := rules[strings.ToLower(driver)]
 	if !ok {
-		r = rules["postgres"]
+		r = excludeRule{}
 	}
 	for _, s := range r.Schemas {
-		if t.Schema == s || strings.HasPrefix(t.Schema, "pg_temp_") {
+		if t.Schema == s {
+			return true
+		}
+	}
+	schemaLower := strings.ToLower(t.Schema)
+	for _, p := range r.Prefix {
+		if p != "" && strings.HasPrefix(schemaLower, strings.ToLower(p)) {
 			return true
 		}
 	}
