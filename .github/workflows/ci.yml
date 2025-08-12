@@ -8,6 +8,8 @@ name: CI
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - name: Clean Go caches
@@ -21,8 +23,6 @@ jobs:
       - run: gofmt -w $(git ls-files '*.go') && git diff --exit-code
       - name: Run tests
         run: go test ./...
-        env:
-          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
       - name: Lint YAML
         uses: ibiqlik/action-yamllint@v3
         with:
