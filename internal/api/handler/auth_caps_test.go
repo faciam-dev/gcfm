@@ -10,7 +10,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 )
 
-func TestMeCapabilities(t *testing.T) {
+func TestMeCaps(t *testing.T) {
 	m := model.NewModel()
 	m.AddDef("r", "r", "sub, obj, act")
 	m.AddDef("p", "p", "sub, obj, act")
@@ -25,16 +25,19 @@ func TestMeCapabilities(t *testing.T) {
 		t.Fatalf("policy: %v", err)
 	}
 
-	h := &AuthHandler{Enforcer: e}
+	h := &AuthHandler{Enf: e}
 	ctx := context.WithValue(context.Background(), middleware.UserKey(), "tester")
-	out, err := h.meCapabilities(ctx, nil)
+	out, err := h.meCaps(ctx, nil)
 	if err != nil {
-		t.Fatalf("meCapabilities: %v", err)
+		t.Fatalf("meCaps: %v", err)
 	}
 	if !out.Body.Capabilities["users:list"] {
 		t.Fatalf("expected users:list true")
 	}
 	if out.Body.Capabilities["roles:list"] {
 		t.Fatalf("expected roles:list false")
+	}
+	if out.Body.Capabilities["roles:members:write"] {
+		t.Fatalf("expected roles:members:write false")
 	}
 }

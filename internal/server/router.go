@@ -97,7 +97,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
 
 	// Register authenticated capability endpoint before RBAC enforcement.
-	handler.RegisterAuth(api, &handler.AuthHandler{Enforcer: e})
+	handler.RegisterAuthCaps(api, &handler.AuthHandler{Enf: e})
 
 	// Apply RBAC middleware for the remaining endpoints.
 	if err == nil {

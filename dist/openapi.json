@@ -184,13 +184,13 @@
         ],
         "type": "object"
       },
-      "CapsOutputBody": {
+      "CapsOutBody": {
         "additionalProperties": false,
         "properties": {
           "$schema": {
             "description": "A URL to the JSON Schema for this object.",
             "examples": [
-              "https://example.com/schemas/CapsOutputBody.json"
+              "https://example.com/schemas/CapsOutBody.json"
             ],
             "format": "uri",
             "readOnly": true,
@@ -1387,7 +1387,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CapsOutputBody"
+                  "$ref": "#/components/schemas/CapsOutBody"
                 }
               }
             },
@@ -1404,7 +1404,7 @@
             "description": "Error"
           }
         },
-        "summary": "Get user capabilities",
+        "summary": "Get current user's capabilities",
         "tags": [
           "Auth"
         ]
