@@ -10,13 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Clean Go module cache
-        run: rm -rf ~/go/pkg/mod
+      - name: Clean Go caches
+        run: |
+          rm -rf ~/go/pkg/mod
+          rm -rf ~/.cache/go-build
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
       - run: gofmt -w $(git ls-files '*.go') && git diff --exit-code
-      - run: go test ./...
+      - name: Run tests
+        run: go test ./...
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
       - name: Lint YAML
         uses: ibiqlik/action-yamllint@v3
         with:
