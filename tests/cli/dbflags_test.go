@@ -9,6 +9,7 @@ import (
 )
 
 func TestDBFlagsParse(t *testing.T) {
+	t.Setenv("CF_TABLE_PREFIX", "")
 	var f dbcmd.DBFlags
 	cmd := &cobra.Command{Run: func(cmd *cobra.Command, args []string) {}}
 	f.AddFlags(cmd)

@@ -1,10 +1,10 @@
-CREATE TABLE gcfm_roles (
+CREATE TABLE IF NOT EXISTS gcfm_roles (
   id BIGSERIAL PRIMARY KEY,
   name VARCHAR(64) UNIQUE NOT NULL,
   comment VARCHAR(128)
 );
 
-CREATE TABLE gcfm_user_roles (
+CREATE TABLE IF NOT EXISTS gcfm_user_roles (
   user_id BIGINT NOT NULL,
   role_id BIGINT NOT NULL,
   PRIMARY KEY (user_id, role_id),
@@ -12,7 +12,7 @@ CREATE TABLE gcfm_user_roles (
   FOREIGN KEY (role_id) REFERENCES gcfm_roles(id) ON DELETE CASCADE
 );
 
-CREATE TABLE gcfm_role_policies (
+CREATE TABLE IF NOT EXISTS gcfm_role_policies (
   role_id BIGINT NOT NULL,
   path VARCHAR(128) NOT NULL,
   method VARCHAR(8) NOT NULL,
@@ -20,10 +20,13 @@ CREATE TABLE gcfm_role_policies (
   FOREIGN KEY(role_id) REFERENCES gcfm_roles(id) ON DELETE CASCADE
 );
 
-INSERT INTO gcfm_roles(name) VALUES ('admin'),('editor'),('viewer');
+INSERT INTO gcfm_roles(name) VALUES ('admin'),('editor'),('viewer') ON CONFLICT (name) DO NOTHING;
 INSERT INTO gcfm_user_roles(user_id, role_id)
   SELECT u.id, r.id
     FROM gcfm_users u
     JOIN gcfm_roles r ON r.name='admin'
-   WHERE u.username='admin';
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (8, '0.8');
+   WHERE u.username='admin'
+ON CONFLICT DO NOTHING;
+INSERT INTO gcfm_registry_schema_version(version, semver)
+  VALUES (8, '0.8')
+ON CONFLICT DO NOTHING;
