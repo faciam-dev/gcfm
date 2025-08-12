@@ -842,16 +842,46 @@
       "TableInfo": {
         "additionalProperties": false,
         "properties": {
-          "reserved": {
-            "type": "boolean"
+          "name": {
+            "type": "string"
           },
-          "table": {
+          "qualified": {
+            "type": "string"
+          },
+          "schema": {
             "type": "string"
           }
         },
         "required": [
-          "table",
-          "reserved"
+          "name",
+          "qualified"
+        ],
+        "type": "object"
+      },
+      "TablesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TablesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TableInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -1873,13 +1903,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TableInfo"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
+                  "$ref": "#/components/schemas/TablesOutputBody"
                 }
               }
             },
