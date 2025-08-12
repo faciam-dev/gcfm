@@ -1,0 +1,42 @@
+name: smoke
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        ports: [ "5432:5432" ]
+        env:
+          POSTGRES_DB: gcfm_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/gcfm_test?sslmode=disable
+      CF_ENC_KEY: testtesttesttesttesttesttesttest
+      JWT_SECRET: sample
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Go mod download
+        run: go mod download
+
+      - name: Migrate (if needed)
+        run: go run ./cmd/fieldctl db migrate --db "$TEST_DATABASE_URL" --schema public --driver postgres --seed
+
+      - name: Run smoke tests
+        run: go test -v ./test/smoke
