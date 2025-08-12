@@ -25,6 +25,7 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/gcfm_test?sslmode=disable
       CF_ENC_KEY: testtesttesttesttesttesttesttest
       JWT_SECRET: sample
+      CF_TABLE_PREFIX: gcfm_
 
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +42,7 @@ jobs:
         run: go mod download
 
       - name: Migrate (if needed)
-        run: go run ./cmd/fieldctl db migrate --db "$TEST_DATABASE_URL" --schema public --driver postgres --seed
+        run: go run ./cmd/fieldctl db migrate --db "$TEST_DATABASE_URL" --schema public --driver postgres --table-prefix gcfm_ --seed
 
       - name: Run smoke tests
         run: go test -v ./test/smoke
