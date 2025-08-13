@@ -17,7 +17,8 @@ func NewScanner(db *sql.DB) *Scanner {
 }
 
 func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.FieldMeta, error) {
-	const q = `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME != 'gcfm_custom_fields' ORDER BY TABLE_NAME, ORDINAL_POSITION`
+	tbl := conf.TablePrefix + "custom_fields"
+	q := fmt.Sprintf("SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME != '%s' ORDER BY TABLE_NAME, ORDINAL_POSITION", tbl)
 	rows, err := s.db.QueryContext(ctx, q, conf.Schema)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)

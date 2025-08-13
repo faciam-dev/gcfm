@@ -38,13 +38,14 @@ type Scanner interface {
 
 func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error) {
 	var query string
-	switch conf.Driver {
-	case "postgres":
-		query = `SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name`
-	default:
-		query = "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name"
-	}
-	rows, err := db.QueryContext(ctx, query)
+        tbl := conf.TablePrefix + "custom_fields"
+        switch conf.Driver {
+        case "postgres":
+                query = fmt.Sprintf("SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, \"unique\", has_default, default_value, validator FROM %s ORDER BY table_name, column_name", tbl)
+        default:
+                query = fmt.Sprintf("SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM %s ORDER BY table_name, column_name", tbl)
+        }
+        rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -83,13 +84,14 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 // LoadSQLByTenant is like LoadSQL but filters by tenant ID.
 func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant string) ([]FieldMeta, error) {
 	var query string
-	switch conf.Driver {
-	case "postgres":
-		query = `SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=$1 ORDER BY table_name, column_name`
-	default:
-		query = "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? ORDER BY table_name, column_name"
-	}
-	rows, err := db.QueryContext(ctx, query, tenant)
+        tbl := conf.TablePrefix + "custom_fields"
+        switch conf.Driver {
+        case "postgres":
+                query = fmt.Sprintf("SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, \"unique\", has_default, default_value, validator FROM %s WHERE tenant_id=$1 ORDER BY table_name, column_name", tbl)
+        default:
+                query = fmt.Sprintf("SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM %s WHERE tenant_id=? ORDER BY table_name, column_name", tbl)
+        }
+        rows, err := db.QueryContext(ctx, query, tenant)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -128,13 +130,14 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 // LoadSQLByDB filters by tenant and database ID.
 func LoadSQLByDB(ctx context.Context, db *sql.DB, conf DBConfig, tenant string, dbID int64) ([]FieldMeta, error) {
 	var query string
-	switch conf.Driver {
-	case "postgres":
-		query = `SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=$1 AND db_id=$2 ORDER BY table_name, column_name`
-	default:
-		query = "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? AND db_id=? ORDER BY table_name, column_name"
-	}
-	rows, err := db.QueryContext(ctx, query, tenant, dbID)
+        tbl := conf.TablePrefix + "custom_fields"
+        switch conf.Driver {
+        case "postgres":
+                query = fmt.Sprintf("SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, \"unique\", has_default, default_value, validator FROM %s WHERE tenant_id=$1 AND db_id=$2 ORDER BY table_name, column_name", tbl)
+        default:
+                query = fmt.Sprintf("SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM %s WHERE tenant_id=? AND db_id=? ORDER BY table_name, column_name", tbl)
+        }
+        rows, err := db.QueryContext(ctx, query, tenant, dbID)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}

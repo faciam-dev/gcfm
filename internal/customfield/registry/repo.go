@@ -7,8 +7,9 @@ import (
 
 // Repo provides helper database operations for metrics.
 type Repo struct {
-	DB     *sql.DB
-	Driver string
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
 }
 
 // CountFieldsByTable returns the number of custom fields per table.
@@ -16,7 +17,8 @@ func (r *Repo) CountFieldsByTable(ctx context.Context) (map[string]int, error) {
 	if r == nil || r.DB == nil {
 		return nil, nil
 	}
-	rows, err := r.DB.QueryContext(ctx, `SELECT table_name, COUNT(*) FROM gcfm_custom_fields GROUP BY table_name`)
+	tbl := r.TablePrefix + "custom_fields"
+	rows, err := r.DB.QueryContext(ctx, "SELECT table_name, COUNT(*) FROM "+tbl+" GROUP BY table_name")
 	if err != nil {
 		return nil, err
 	}

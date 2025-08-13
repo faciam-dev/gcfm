@@ -12,9 +12,10 @@ import (
 )
 
 type AuthHandler struct {
-	Enf    *casbin.Enforcer
-	DB     *sql.DB
-	Driver string
+	Enf         *casbin.Enforcer
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
 }
 
 type Capabilities map[string]bool
@@ -81,7 +82,7 @@ func (h *AuthHandler) meCaps(ctx context.Context, _ *struct{}) (*capsOut, error)
 
 	subjects := []string{user}
 	if h.DB != nil {
-		rs, err := roles.OfUser(ctx, h.DB, h.Driver, user, tid)
+		rs, err := roles.OfUser(ctx, h.DB, h.Driver, h.TablePrefix, user, tid)
 		if err != nil {
 			return nil, err
 		}

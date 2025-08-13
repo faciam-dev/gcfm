@@ -30,7 +30,7 @@ func TestLoad(t *testing.T) {
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
 	m.AddDef("m", "m", "g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act")
 	e, _ := casbin.NewEnforcer(m)
-	if err := rbac.Load(context.Background(), db, e); err != nil {
+	if err := rbac.Load(context.Background(), db, "gcfm_", e); err != nil {
 		t.Fatalf("load: %v", err)
 	}
 	ok, _ := e.Enforce("1", "/v1/test", "GET")

@@ -21,8 +21,9 @@ import (
 )
 
 type AuditHandler struct {
-	DB     *sql.DB
-	Driver string
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
 }
 
 // auditLogOverfetchMultiplier controls how many extra rows are fetched when
@@ -46,9 +47,10 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		ID int64 `path:"id"`
 	}) (*auditDiffOutput, error) {
 	var before, after sql.NullString
-	query := `SELECT COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM gcfm_audit_logs WHERE id = $1`
+	tbl := h.TablePrefix + "audit_logs"
+	query := fmt.Sprintf("SELECT COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM %s WHERE id = $1", tbl)
 	if h.Driver == "mysql" {
-		query = `SELECT COALESCE(JSON_UNQUOTE(before_json), '{}'), COALESCE(JSON_UNQUOTE(after_json), '{}') FROM gcfm_audit_logs WHERE id = ?`
+		query = fmt.Sprintf("SELECT COALESCE(JSON_UNQUOTE(before_json), '{}'), COALESCE(JSON_UNQUOTE(after_json), '{}') FROM %s WHERE id = ?", tbl)
 	}
 	if err := h.DB.QueryRowContext(ctx, query, p.ID).Scan(&before, &after); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -295,16 +297,16 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	limitPlaceholder := next()
 	args = append(args, limit*auditLogOverfetchMultiplier+1)
 
-	query := `
+	query := fmt.Sprintf(`
       SELECT id, actor, action, table_name, column_name,
-             ` + coalesceBefore + ` AS before_json,
-             ` + coalesceAfter + ` AS after_json,
+             `+coalesceBefore+` AS before_json,
+             `+coalesceAfter+` AS after_json,
              added_count, removed_count, change_count,
              applied_at
-        FROM gcfm_audit_logs
-      ` + where + `
+        FROM %s
+      `+where+`
         ORDER BY applied_at DESC, id DESC
-        LIMIT ` + limitPlaceholder
+        LIMIT `+limitPlaceholder, tbl)
 
 	rows, err := h.DB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -380,7 +382,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 }
 
 func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOutput, error) {
-	repo := auditlog.Repo{DB: h.DB, Driver: h.Driver}
+	repo := auditlog.Repo{DB: h.DB, Driver: h.Driver, TablePrefix: h.TablePrefix}
 	rec, err := repo.FindByID(ctx, p.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

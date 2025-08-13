@@ -3,6 +3,7 @@ package auditlog
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // Record represents a single audit log entry in the database.
@@ -22,32 +23,31 @@ type Record struct {
 
 // Repo provides access to audit log records.
 type Repo struct {
-	DB     *sql.DB
-	Driver string
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
 }
-
-const findByIDQueryPg = `
-SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
-       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
-FROM gcfm_audit_logs l
-LEFT JOIN gcfm_users u ON u.id::text = l.actor
-WHERE l.id=$1`
-
-const findByIDQueryMy = `
-SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
-       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
-FROM gcfm_audit_logs l
-LEFT JOIN gcfm_users u ON u.id = CAST(l.actor AS UNSIGNED)
-WHERE l.id=?`
 
 // FindByID returns a record by its ID.
 func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	if r == nil || r.DB == nil {
 		return Record{}, sql.ErrConnDone
 	}
-	q := findByIDQueryPg
+	logs := r.TablePrefix + "audit_logs"
+	users := r.TablePrefix + "users"
+	var q string
 	if r.Driver == "mysql" {
-		q = findByIDQueryMy
+		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
+       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
+FROM %s l
+LEFT JOIN %s u ON u.id = CAST(l.actor AS UNSIGNED)
+WHERE l.id=?`, logs, users)
+	} else {
+		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
+       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
+FROM %s l
+LEFT JOIN %s u ON u.id::text = l.actor
+WHERE l.id=$1`, logs, users)
 	}
 	var rec Record
 	err := r.DB.QueryRowContext(ctx, q, id).Scan(

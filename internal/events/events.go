@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -97,8 +98,9 @@ func (d *Dispatcher) retrySend(ctx context.Context, s Sink, e Event) {
 
 // SQLDLQ stores failed events in the database.
 type SQLDLQ struct {
-	DB     *sql.DB
-	Driver string
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
 }
 
 // Store inserts the failed event.
@@ -110,11 +112,12 @@ func (q *SQLDLQ) Store(ctx context.Context, e Event, attempts int, lastErr strin
 	if err != nil {
 		return err
 	}
+	tbl := q.TablePrefix + "events_failed"
 	var stmt string
 	if q.Driver == "postgres" {
-		stmt = "INSERT INTO gcfm_events_failed(name, payload, attempts, last_error) VALUES ($1, $2, $3, $4)"
+		stmt = fmt.Sprintf("INSERT INTO %s(name, payload, attempts, last_error) VALUES ($1, $2, $3, $4)", tbl)
 	} else {
-		stmt = "INSERT INTO gcfm_events_failed(name, payload, attempts, last_error) VALUES (?, ?, ?, ?)"
+		stmt = fmt.Sprintf("INSERT INTO %s(name, payload, attempts, last_error) VALUES (?, ?, ?, ?)", tbl)
 	}
 	_, err = q.DB.ExecContext(ctx, stmt, e.Name, string(data), attempts, lastErr)
 	return err
