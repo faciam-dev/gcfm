@@ -40,6 +40,18 @@ func TestMeCaps(t *testing.T) {
 	if out.Body.Capabilities["roles:members:write"] {
 		t.Fatalf("expected roles:members:write false")
 	}
+	if out.Body.Capabilities["custom_fields:list"] {
+		t.Fatalf("expected custom_fields:list false")
+	}
+	if out.Body.Capabilities["custom_fields:create"] {
+		t.Fatalf("expected custom_fields:create false")
+	}
+	if out.Body.Capabilities["custom_fields:update"] {
+		t.Fatalf("expected custom_fields:update false")
+	}
+	if out.Body.Capabilities["custom_fields:delete"] {
+		t.Fatalf("expected custom_fields:delete false")
+	}
 	if out.Body.Capabilities["snapshots:list"] {
 		t.Fatalf("expected snapshots:list false")
 	}

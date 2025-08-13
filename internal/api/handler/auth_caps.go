@@ -45,6 +45,12 @@ var capMatrix = map[string]struct{ Path, Method string }{
 	// Metadata
 	"metadata:tables": {"/v1/metadata/tables", "GET"},
 
+	// Custom Fields
+	"custom_fields:list":   {"/v1/custom-fields", "GET"},
+	"custom_fields:create": {"/v1/custom-fields", "POST"},
+	"custom_fields:update": {"/v1/custom-fields", "PUT"},
+	"custom_fields:delete": {"/v1/custom-fields", "DELETE"},
+
 	// Snapshots
 	"snapshots:list":   {"/v1/snapshots", "GET"},
 	"snapshots:create": {"/v1/snapshots", "POST"},
