@@ -1,9 +1,9 @@
 package registry
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
+        "context"
+        "database/sql"
+        "fmt"
 
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
 	"go.mongodb.org/mongo-driver/bson"
@@ -12,10 +12,22 @@ import (
 )
 
 type DBConfig struct {
-	DSN         string
-	Schema      string
-	Driver      string
-	TablePrefix string
+        DSN         string
+        Schema      string
+        Driver      string
+        TablePrefix string
+}
+
+var tablePrefix = "gcfm_"
+
+// SetTablePrefix updates the global table prefix used for SQL operations.
+func SetTablePrefix(p string) {
+        tablePrefix = p
+}
+
+// T returns the prefixed table name.
+func T(name string) string {
+        return tablePrefix + name
 }
 
 type FieldMeta struct {
@@ -180,16 +192,17 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 		return fmt.Errorf("begin tx: %w", err)
 	}
 
-	var stmt *sql.Stmt
-	switch driver {
-	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`)
-	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
-	default:
-		tx.Rollback()
-		return fmt.Errorf("unsupported driver: %s", driver)
-	}
+        tbl := T("custom_fields")
+        var stmt *sql.Stmt
+        switch driver {
+        case "postgres":
+                stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`, tbl))
+        case "mysql":
+                stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
+        default:
+                tx.Rollback()
+                return fmt.Errorf("unsupported driver: %s", driver)
+        }
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("prepare: %w", err)
@@ -229,16 +242,17 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 	if err != nil {
 		return 0, 0, fmt.Errorf("begin tx: %w", err)
 	}
-	var stmt *sql.Stmt
-	switch driver {
-	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `INSERT INTO gcfm_custom_fields (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`)
-	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, "INSERT INTO gcfm_custom_fields (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()")
-	default:
-		tx.Rollback()
-		return 0, 0, fmt.Errorf("unsupported driver: %s", driver)
-	}
+        tbl := T("custom_fields")
+        var stmt *sql.Stmt
+        switch driver {
+        case "postgres":
+                stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`, tbl))
+        case "mysql":
+                stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
+        default:
+                tx.Rollback()
+                return 0, 0, fmt.Errorf("unsupported driver: %s", driver)
+        }
 	if err != nil {
 		tx.Rollback()
 		return 0, 0, fmt.Errorf("prepare: %w", err)
@@ -297,16 +311,17 @@ func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	var stmt *sql.Stmt
-	switch driver {
-	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE db_id = $1 AND table_name = $2 AND column_name = $3`)
-	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, `DELETE FROM gcfm_custom_fields WHERE db_id = ? AND table_name = ? AND column_name = ?`)
-	default:
-		tx.Rollback()
-		return fmt.Errorf("unsupported driver: %s", driver)
-	}
+        tbl := T("custom_fields")
+        var stmt *sql.Stmt
+        switch driver {
+        case "postgres":
+                stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE db_id = $1 AND table_name = $2 AND column_name = $3`, tbl))
+        case "mysql":
+                stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE db_id = ? AND table_name = ? AND column_name = ?`, tbl))
+        default:
+                tx.Rollback()
+                return fmt.Errorf("unsupported driver: %s", driver)
+        }
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("prepare: %w", err)

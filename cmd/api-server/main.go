@@ -18,7 +18,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
-	md "github.com/faciam-dev/gcfm/pkg/metadata"
+        md "github.com/faciam-dev/gcfm/pkg/metadata"
+        cfregistry "github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/go-co-op/gocron"
 )
 
@@ -53,7 +54,8 @@ func main() {
 	}
 
 	cfg := config.Config{TablePrefix: *tblPrefix}
-	md.SetTablePrefix(cfg.TablePrefix)
+        md.SetTablePrefix(cfg.TablePrefix)
+        cfregistry.SetTablePrefix(cfg.TablePrefix)
 
 	dbCfg := server.DBConfig{Driver: *driver, DSN: *dsn, TablePrefix: cfg.TablePrefix}
 	log.Printf("table prefix: %q", dbCfg.TablePrefix)
