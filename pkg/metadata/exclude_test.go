@@ -29,6 +29,19 @@ func TestFilter_MySQL(t *testing.T) {
 	compare(t, got, want)
 }
 
+func TestSetTablePrefix_Empty(t *testing.T) {
+        // backup original rules
+        orig := rules["postgres"]
+        SetTablePrefix("")
+        in := []TableInfo{{Schema: "public", Name: "users"}}
+        out := FilterTables("postgres", in)
+        got := names(out)
+        want := []string{"users"}
+        compare(t, got, want)
+        // restore original rules
+        rules["postgres"] = orig
+}
+
 func names(ts []TableInfo) []string {
 	r := make([]string, 0, len(ts))
 	for _, t := range ts {
