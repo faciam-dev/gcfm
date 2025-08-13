@@ -185,14 +185,6 @@ func (h *DatabaseHandler) create(ctx context.Context, in *createDBInput) (*creat
 func (h *DatabaseHandler) list(ctx context.Context, _ *struct{}) (*listDBOutput, error) {
 	tid := tenant.FromContext(ctx)
 	sub := middleware.UserFromContext(ctx)
-	canWrite := false
-	if h.Enf != nil {
-		if ok, _ := h.Enf.Enforce(sub, "/v1/databases", http.MethodPost); ok {
-			canWrite = true
-		} else if ok, _ := h.Enf.Enforce(sub, "/v1/databases", http.MethodPut); ok {
-			canWrite = true
-		}
-	}
 
 	dbs, err := h.Repo.List(ctx, tid)
 	if err != nil {
@@ -200,9 +192,19 @@ func (h *DatabaseHandler) list(ctx context.Context, _ *struct{}) (*listDBOutput,
 	}
 	items := make([]schema.Database, len(dbs))
 	for i, d := range dbs {
+		canWrite := false
+		if h.Enf != nil {
+			if ok, _ := h.Enf.Enforce(sub, "/v1/databases", http.MethodPost); ok {
+				canWrite = true
+			} else if ok, _ := h.Enf.Enforce(sub, fmt.Sprintf("/v1/databases/%d", d.ID), http.MethodPut); ok {
+				canWrite = true
+			} else if ok, _ := h.Enf.Enforce(sub, fmt.Sprintf("/v1/databases/%d", d.ID), http.MethodDelete); ok {
+				canWrite = true
+			}
+		}
 		dec, err := crypto.Decrypt(d.DSNEnc)
 		if err != nil {
-			dec = nil
+			return nil, huma.NewError(http.StatusInternalServerError, fmt.Sprintf("failed to decrypt DSN for database ID %d: %v", d.ID, err))
 		}
 		items[i] = schema.Database{
 			ID:        d.ID,
