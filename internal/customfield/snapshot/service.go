@@ -11,8 +11,8 @@ import (
 )
 
 // SnapshotYaml dumps registry metadata as YAML using the provided DB connection.
-func SnapshotYaml(ctx context.Context, db *sql.DB, driver, tenant string) ([]byte, error) {
-	metas, err := registry.LoadSQLByTenant(ctx, db, registry.DBConfig{Schema: "public", Driver: driver}, tenant)
+func SnapshotYaml(ctx context.Context, db *sql.DB, driver, prefix, tenant string) ([]byte, error) {
+	metas, err := registry.LoadSQLByTenant(ctx, db, registry.DBConfig{Schema: "public", Driver: driver, TablePrefix: prefix}, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -20,9 +20,9 @@ func SnapshotYaml(ctx context.Context, db *sql.DB, driver, tenant string) ([]byt
 }
 
 // ApplyYaml applies the given YAML to the registry using Service.Apply.
-func ApplyYaml(ctx context.Context, dsn, driver, tenant string, yaml []byte, rec *audit.Recorder) (sdk.DiffReport, error) {
+func ApplyYaml(ctx context.Context, dsn, driver, prefix, tenant string, yaml []byte, rec *audit.Recorder) (sdk.DiffReport, error) {
 	svc := sdk.New(sdk.ServiceConfig{Recorder: rec})
-	return svc.Apply(ctx, sdk.DBConfig{Driver: driver, DSN: dsn, Schema: "public"}, yaml, sdk.ApplyOptions{})
+	return svc.Apply(ctx, sdk.DBConfig{Driver: driver, DSN: dsn, Schema: "public", TablePrefix: prefix}, yaml, sdk.ApplyOptions{})
 }
 
 // DiffYaml returns the registry changes between two YAML documents.

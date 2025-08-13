@@ -85,7 +85,7 @@ func (h *RegistryHandler) snapshot(ctx context.Context, in *snapshotInput) (*str
 	if err != nil || strings.HasPrefix(relPath, "..") {
 		return nil, huma.Error400BadRequest("invalid dest path")
 	}
-	if err := snapshot.Export(ctx, h.DB, "public", h.Driver, snapshot.LocalDir{Path: absDest}); err != nil {
+	if err := snapshot.Export(ctx, h.DB, "public", h.Driver, h.TablePrefix, snapshot.LocalDir{Path: absDest}); err != nil {
 		return nil, err
 	}
 	actor := middleware.UserFromContext(ctx)

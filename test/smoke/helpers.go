@@ -62,7 +62,7 @@ func (e *Env) close() {
 
 func buildRouterForTest(t *testing.T, db *sql.DB) http.Handler {
 	t.Helper()
-	cfg := server.DBConfig{Driver: "postgres", DSN: os.Getenv("TEST_DATABASE_URL")}
+	cfg := server.DBConfig{Driver: "postgres", DSN: os.Getenv("TEST_DATABASE_URL"), TablePrefix: "gcfm_"}
 	api := server.New(db, cfg)
 	return api.Adapter()
 }

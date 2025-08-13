@@ -20,8 +20,7 @@ type excludeRule struct {
 	Regex   []*regexp.Regexp
 }
 
-// defaultPrefix is the system reserved table prefix.
-var defaultPrefix = "gcfm_"
+const defaultPrefix = "gcfm_"
 
 var rules = map[string]excludeRule{
 	"postgres": {
@@ -51,6 +50,27 @@ var rules = map[string]excludeRule{
 	},
 }
 
+// SetTablePrefix updates the exclusion rules with the provided table prefix.
+// An empty prefix is ignored to avoid filtering out every table.
+func SetTablePrefix(p string) {
+	lp := strings.ToLower(p)
+	if lp == "" {
+		return
+	}
+	if r, ok := rules["postgres"]; ok {
+		if len(r.Prefix) > 0 {
+			r.Prefix[0] = lp
+			rules["postgres"] = r
+		}
+	}
+	if r, ok := rules["mysql"]; ok {
+		if len(r.Prefix) > 0 {
+			r.Prefix[0] = lp
+			rules["mysql"] = r
+		}
+	}
+}
+
 func shouldExclude(driver string, t TableInfo) bool {
 	r, ok := rules[strings.ToLower(driver)]
 	if !ok {
@@ -63,7 +83,7 @@ func shouldExclude(driver string, t TableInfo) bool {
 	}
 	schemaLower := strings.ToLower(t.Schema)
 	for _, p := range r.Prefix {
-		if p != "" && strings.HasPrefix(schemaLower, strings.ToLower(p)) {
+		if strings.HasPrefix(schemaLower, strings.ToLower(p)) {
 			return true
 		}
 	}
@@ -72,7 +92,7 @@ func shouldExclude(driver string, t TableInfo) bool {
 		return true
 	}
 	for _, p := range r.Prefix {
-		if p != "" && strings.HasPrefix(name, strings.ToLower(p)) {
+		if strings.HasPrefix(name, strings.ToLower(p)) {
 			return true
 		}
 	}

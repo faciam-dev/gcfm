@@ -8,6 +8,7 @@ import (
 	"github.com/faciam-dev/goquent/orm"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
+	"github.com/faciam-dev/gcfm/internal/config"
 )
 
 // NewDeleteCmd creates the user delete subcommand.
@@ -38,7 +39,12 @@ func NewDeleteCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			_, err = db.Table("gcfm_users").
+			prefix := flags.TablePrefix
+			if prefix == "" {
+				prefix = "gcfm_"
+			}
+			cfg := config.Config{TablePrefix: prefix}
+			_, err = db.Table(cfg.T("users")).
 				Where("id", id).
 				Update(map[string]any{"is_deleted": true})
 			return err

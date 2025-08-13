@@ -256,12 +256,13 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, co
 			query string
 			args  []any
 		)
+		tbl := h.TablePrefix + "custom_fields"
 		switch h.Driver {
 		case "postgres":
-			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=$1 AND table_name=$2 AND column_name=$3`
+			query = fmt.Sprintf("SELECT data_type FROM %s WHERE db_id=$1 AND table_name=$2 AND column_name=$3", tbl)
 			args = []any{dbID, table, column}
 		case "mysql":
-			query = `SELECT data_type FROM gcfm_custom_fields WHERE db_id=? AND table_name=? AND column_name=?`
+			query = fmt.Sprintf("SELECT data_type FROM %s WHERE db_id=? AND table_name=? AND column_name=?", tbl)
 			args = []any{dbID, table, column}
 		default:
 			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
@@ -470,12 +471,13 @@ func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, d
 		query string
 		args  []any
 	)
+	tbl := h.TablePrefix + "custom_fields"
 	switch h.Driver {
 	case "postgres":
-		query = `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4`
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4", tbl)
 		args = []any{tenantID, dbID, table, column}
 	default:
-		query = `SELECT COUNT(*) FROM gcfm_custom_fields WHERE tenant_id=? AND db_id=? AND table_name=? AND column_name=?`
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE tenant_id=? AND db_id=? AND table_name=? AND column_name=?", tbl)
 		args = []any{tenantID, dbID, table, column}
 	}
 	var n int

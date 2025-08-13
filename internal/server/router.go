@@ -79,7 +79,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		e.AddPolicy("admin", "/v1/*", "DELETE")
 		e.AddPolicy("admin", "/v1/audit-logs/*/diff", "GET")
 		if db != nil {
-			if err := rbac.Load(context.Background(), db, e); err != nil {
+			if err := rbac.Load(context.Background(), db, cfg.TablePrefix, e); err != nil {
 				logger.L.Error("load rbac", "err", err)
 			}
 		}
@@ -93,7 +93,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 
 	// Register login & refresh handlers before applying auth middleware so
 	// that they remain publicly accessible.
-	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver}, JWT: jwtHandler})
+	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, JWT: jwtHandler})
 
 	// Apply authentication middleware for subsequent endpoints.
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
@@ -101,11 +101,11 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	// ---- role resolver used by RBAC and capabilities ----
 	resolver := func(ctx context.Context, user string) ([]string, error) {
 		tid := tenant.FromContext(ctx)
-		return roles.OfUser(ctx, db, driver, user, tid)
+		return roles.OfUser(ctx, db, driver, cfg.TablePrefix, user, tid)
 	}
 
 	// Register authenticated capability endpoint before RBAC enforcement.
-	handler.RegisterAuthCaps(api, &handler.AuthHandler{Enf: e, DB: db, Driver: driver})
+	handler.RegisterAuthCaps(api, &handler.AuthHandler{Enf: e, DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 
 	// Apply RBAC middleware for the remaining endpoints.
 	if err == nil {
@@ -134,7 +134,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	} else if err != nil {
 		logger.L.Error("kafka sink", "err", err)
 	}
-	events.Default = events.NewDispatcher(evtConf, &events.SQLDLQ{DB: db, Driver: driver}, sinks...)
+	events.Default = events.NewDispatcher(evtConf, &events.SQLDLQ{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, sinks...)
 	var mongoCli *mongo.Client
 	if driver == "mongo" && dsn != "" {
 		cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI(dsn))
@@ -155,12 +155,12 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
-	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
-	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver, PasswordCost: bcrypt.DefaultCost})
+	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
+	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver, PasswordCost: bcrypt.DefaultCost, TablePrefix: cfg.TablePrefix, Recorder: rec})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}, Recorder: rec, Enf: e})
 	if db != nil {
-		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver})
+		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 	}
 	return api
 }

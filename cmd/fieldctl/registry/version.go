@@ -3,6 +3,7 @@ package registrycmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -13,8 +14,9 @@ import (
 // NewVersionCmd creates the version subcommand.
 func NewVersionCmd() *cobra.Command {
 	var (
-		dbDSN  string
-		driver string
+		dbDSN       string
+		driver      string
+		tablePrefix string
 	)
 	cmd := &cobra.Command{
 		Use:   "version",
@@ -23,19 +25,31 @@ func NewVersionCmd() *cobra.Command {
 			if dbDSN == "" {
 				return fmt.Errorf("--db is required")
 			}
+			prefix := tablePrefix
+			if prefix == "" {
+				prefix = "gcfm_"
+			}
 			svc := sdk.New(sdk.ServiceConfig{})
 			ctx := context.Background()
-			cur, err := svc.RegistryVersion(ctx, sdk.DBConfig{Driver: driver, DSN: dbDSN})
+			cur, err := svc.RegistryVersion(ctx, sdk.DBConfig{Driver: driver, DSN: dbDSN, TablePrefix: prefix})
 			if err != nil {
 				return err
 			}
-			m := migrator.NewWithDriverAndPrefix(driver, "gcfm_")
+			m := migrator.NewWithDriverAndPrefix(driver, prefix)
 			fmt.Fprintln(cmd.OutOrStdout(), m.SemVer(cur))
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	cmd.Flags().StringVar(&driver, "driver", "", "database driver")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "registry table prefix")
 	cmd.MarkFlagRequired("db")
 	return cmd
+}
+
+func getenv(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
 }

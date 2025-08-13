@@ -28,7 +28,7 @@ func TestRBACHandler_listRoles(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.role_id, COUNT(*) FROM gcfm_user_roles ur JOIN gcfm_users u ON ur.user_id=u.id WHERE u.tenant_id=? GROUP BY ur.role_id")).
 		WithArgs("t1").
 		WillReturnRows(sqlmock.NewRows([]string{"role_id", "count"}).AddRow(1, 1))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	out, err := h.listRoles(ctx, nil)
 	if err != nil {
@@ -56,7 +56,7 @@ func TestRBACHandler_ListUsers_Basic(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id = ur.role_id WHERE ur.user_id IN (?) ORDER BY r.name")).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}).AddRow(1, "admin"))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	out, err := h.ListUsers(ctx, &schema.ListUsersParams{})
 	if err != nil {
@@ -85,7 +85,7 @@ func TestRBACHandler_ListUsers_Search(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id = ur.role_id WHERE ur.user_id IN (?) ORDER BY r.name")).
 			WithArgs(int64(1)).
 			WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}).AddRow(1, "admin"))
-		h := &RBACHandler{DB: db, Driver: "mysql"}
+		h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		out, err := h.ListUsers(ctx, &schema.ListUsersParams{Search: "adm"})
 		if err != nil {
@@ -110,7 +110,7 @@ func TestRBACHandler_ListUsers_Search(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta("SELECT u.id, u.username FROM gcfm_users u WHERE u.tenant_id = ? AND u.username LIKE ? ORDER BY u.username ASC LIMIT ? OFFSET ?")).
 			WithArgs("t1", "%zzz%", 20, 0).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "username"}))
-		h := &RBACHandler{DB: db, Driver: "mysql"}
+		h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		out, err := h.ListUsers(ctx, &schema.ListUsersParams{Search: "zzz"})
 		if err != nil {
@@ -137,7 +137,7 @@ func TestRBACHandler_ListUsers_ExcludeRole(t *testing.T) {
 		WithArgs("t1", int64(1), 20, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "username"}))
 	rid := int64(1)
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	out, err := h.ListUsers(ctx, &schema.ListUsersParams{ExcludeRoleID: rid})
 	if err != nil {
@@ -165,7 +165,7 @@ func TestRBACHandler_ListUsers_Paging(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id = ur.role_id WHERE ur.user_id IN (?) ORDER BY r.name")).
 		WithArgs(int64(2)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	out, err := h.ListUsers(ctx, &schema.ListUsersParams{Page: 2, PerPage: 1})
 	if err != nil {
@@ -194,7 +194,7 @@ func TestRBACHandler_ListUsers_SortOrder(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id = ur.role_id WHERE ur.user_id IN (?,?) ORDER BY r.name")).
 			WithArgs(int64(1), int64(2)).
 			WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}))
-		h := &RBACHandler{DB: db, Driver: "mysql"}
+		h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		out, err := h.ListUsers(ctx, &schema.ListUsersParams{Sort: "username", Order: "asc"})
 		if err != nil {
@@ -222,7 +222,7 @@ func TestRBACHandler_ListUsers_SortOrder(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id = ur.role_id WHERE ur.user_id IN (?,?) ORDER BY r.name")).
 			WithArgs(int64(2), int64(1)).
 			WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}))
-		h := &RBACHandler{DB: db, Driver: "mysql"}
+		h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		out, err := h.ListUsers(ctx, &schema.ListUsersParams{Sort: "username", Order: "desc"})
 		if err != nil {
@@ -250,7 +250,7 @@ func TestRBACHandler_ListUsers_SortOrder(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta("SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id = ur.role_id WHERE ur.user_id IN (?,?) ORDER BY r.name")).
 			WithArgs(int64(1), int64(2)).
 			WillReturnRows(sqlmock.NewRows([]string{"user_id", "name"}))
-		h := &RBACHandler{DB: db, Driver: "mysql"}
+		h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		out, err := h.ListUsers(ctx, &schema.ListUsersParams{Sort: "created_at", Order: "asc"})
 		if err != nil {
@@ -265,7 +265,7 @@ func TestRBACHandler_ListUsers_SortOrder(t *testing.T) {
 	})
 
 	t.Run("invalid sort", func(t *testing.T) {
-		h := &RBACHandler{}
+		h := &RBACHandler{TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		_, err := h.ListUsers(ctx, &schema.ListUsersParams{Sort: "email"})
 		var se huma.StatusError
@@ -275,7 +275,7 @@ func TestRBACHandler_ListUsers_SortOrder(t *testing.T) {
 	})
 
 	t.Run("invalid order", func(t *testing.T) {
-		h := &RBACHandler{}
+		h := &RBACHandler{TablePrefix: "gcfm_"}
 		ctx := tenant.WithTenant(context.Background(), "t1")
 		_, err := h.ListUsers(ctx, &schema.ListUsersParams{Order: "up"})
 		var se huma.StatusError
@@ -309,8 +309,8 @@ func TestRBACHandler_createUser(t *testing.T) {
 		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, 0, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	rec := &audit.Recorder{DB: db, Driver: "mysql"}
-	h := &RBACHandler{DB: db, Driver: "mysql", PasswordCost: 4, Recorder: rec}
+	rec := &audit.Recorder{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_", PasswordCost: 4, Recorder: rec}
 	ctx := context.WithValue(context.Background(), middleware.UserKey(), "bob")
 	ctx = tenant.WithTenant(ctx, "t1")
 	in := &createUserInput{}
@@ -354,8 +354,8 @@ func TestRBACHandler_createUser_parseTimeBytes(t *testing.T) {
 		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, 0, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	rec := &audit.Recorder{DB: db, Driver: "mysql"}
-	h := &RBACHandler{DB: db, Driver: "mysql", PasswordCost: 4, Recorder: rec}
+	rec := &audit.Recorder{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_", PasswordCost: 4, Recorder: rec}
 	ctx := context.WithValue(context.Background(), middleware.UserKey(), "bob")
 	ctx = tenant.WithTenant(ctx, "t1")
 	in := &createUserInput{}
@@ -387,7 +387,7 @@ func TestRBACHandler_createUser_duplicate(t *testing.T) {
 		WithArgs("t1", "alice", sqlmock.AnyArg()).
 		WillReturnError(errors.New("duplicate"))
 	mock.ExpectRollback()
-	h := &RBACHandler{DB: db, Driver: "mysql", PasswordCost: 4}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_", PasswordCost: 4}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	in := &createUserInput{}
 	in.Body.Username = "alice"
@@ -413,7 +413,7 @@ func TestRBACHandler_createRole_duplicate(t *testing.T) {
 	}
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_roles(name, comment) VALUES(?, ?)")).
 		WithArgs("admin", nil).WillReturnError(errors.New("duplicate"))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	in := &createRoleInput{}
 	in.Body.Name = "admin"
 	_, err = h.createRole(context.Background(), in)
@@ -436,7 +436,7 @@ func TestRBACHandler_deleteRole_referenced(t *testing.T) {
 	}
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) FROM gcfm_user_roles WHERE role_id=?")).
 		WithArgs(int64(1)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	_, err = h.deleteRole(context.Background(), &roleIDParam{ID: 1})
 	if err == nil {
 		t.Fatalf("expected error")
@@ -463,7 +463,7 @@ func TestRBACHandler_createDeleteRole(t *testing.T) {
 		WithArgs(int64(2)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM gcfm_roles WHERE id=?")).
 		WithArgs(int64(2)).WillReturnResult(sqlmock.NewResult(0, 1))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	in := &createRoleInput{}
 	in.Body.Name = "dev"
 	out, err := h.createRole(context.Background(), in)
@@ -500,7 +500,7 @@ func TestRBACHandler_putRoleMembers(t *testing.T) {
 		WithArgs(int64(3), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	in := &roleMembersInput{ID: 1}
 	in.Body.UserIDs = []int64{2, 3}
 	ctx := tenant.WithTenant(context.Background(), "t1")
@@ -525,7 +525,7 @@ func TestRBACHandler_putRoleMembers_invalidUser(t *testing.T) {
 		WithArgs(int64(2), "t1").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectRollback()
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	in := &roleMembersInput{ID: 1}
 	in.Body.UserIDs = []int64{2}
@@ -550,7 +550,7 @@ func TestRBACHandler_addRolePolicy_duplicate(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_role_policies(role_id, path, method) VALUES(?,?,?)")).
 		WithArgs(int64(1), "/foo", "GET").
 		WillReturnError(errors.New("duplicate"))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	in := &policyInput{ID: 1}
 	in.Body.Path = "/foo"
 	in.Body.Method = "GET"
@@ -575,7 +575,7 @@ func TestRBACHandler_deleteRolePolicy_idempotent(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM gcfm_role_policies WHERE role_id=? AND path=? AND method=?")).
 		WithArgs(int64(1), "/foo", "GET").
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	h := &RBACHandler{DB: db, Driver: "mysql"}
+	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	p := &policyParams{ID: 1, Path: "/foo", Method: "GET"}
 	if _, err := h.deleteRolePolicy(context.Background(), p); err != nil {
 		t.Fatalf("deleteRolePolicy: %v", err)

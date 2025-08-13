@@ -14,12 +14,13 @@ import (
 
 func newSnapshotCmd() *cobra.Command {
 	var (
-		dbDSN      string
-		schema     string
-		tenant     string
-		bump       string
-		driverFlag string
-		message    string
+		dbDSN       string
+		schema      string
+		tenant      string
+		bump        string
+		driverFlag  string
+		message     string
+		tablePrefix string
 	)
 	cmd := &cobra.Command{
 		Use:   "snapshot",
@@ -41,7 +42,7 @@ func newSnapshotCmd() *cobra.Command {
 			defer db.Close()
 			ctx := context.Background()
 			svc := sdk.New(sdk.ServiceConfig{})
-			data, err := svc.Export(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema})
+			data, err := svc.Export(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: tablePrefix})
 			if err != nil {
 				return err
 			}
@@ -49,7 +50,7 @@ func newSnapshotCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			last, err := snapshot.LatestSemver(ctx, db, driverFlag, tenant)
+			last, err := snapshot.LatestSemver(ctx, db, driverFlag, tablePrefix, tenant)
 			if err != nil {
 				return err
 			}
@@ -57,7 +58,7 @@ func newSnapshotCmd() *cobra.Command {
 				bump = "patch"
 			}
 			ver := snapshot.NextSemver(last, bump)
-			rec, err := snapshot.Insert(ctx, db, driverFlag, tenant, ver, message, comp)
+			rec, err := snapshot.Insert(ctx, db, driverFlag, tablePrefix, tenant, ver, message, comp)
 			if err != nil {
 				return err
 			}
@@ -71,6 +72,7 @@ func newSnapshotCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tenant, "tenant", getenv("CF_TENANT", "default"), "tenant id")
 	cmd.Flags().StringVar(&bump, "bump", "patch", "semver bump type")
 	cmd.Flags().StringVar(&message, "message", "", "snapshot message")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("schema")
 	return cmd

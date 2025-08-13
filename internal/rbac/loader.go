@@ -9,11 +9,13 @@ import (
 )
 
 // Load fills the Casbin enforcer with policies and groupings from the database.
-func Load(ctx context.Context, db *sql.DB, e *casbin.Enforcer) error {
+func Load(ctx context.Context, db *sql.DB, prefix string, e *casbin.Enforcer) error {
 	if db == nil || e == nil {
 		return nil
 	}
-	rows, err := db.QueryContext(ctx, `SELECT r.name, p.path, p.method FROM gcfm_roles r JOIN gcfm_role_policies p ON r.id=p.role_id`)
+	roles := prefix + "roles"
+	policies := prefix + "role_policies"
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT r.name, p.path, p.method FROM %s r JOIN %s p ON r.id=p.role_id", roles, policies))
 	if err != nil {
 		return err
 	}
@@ -28,11 +30,13 @@ func Load(ctx context.Context, db *sql.DB, e *casbin.Enforcer) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	return loadGroupPolicies(ctx, db, e)
+	return loadGroupPolicies(ctx, db, prefix, e)
 }
 
-func loadGroupPolicies(ctx context.Context, db *sql.DB, e *casbin.Enforcer) error {
-	rows, err := db.QueryContext(ctx, `SELECT ur.user_id, r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id`)
+func loadGroupPolicies(ctx context.Context, db *sql.DB, prefix string, e *casbin.Enforcer) error {
+	userRoles := prefix + "user_roles"
+	roles := prefix + "roles"
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT ur.user_id, r.name FROM %s ur JOIN %s r ON ur.role_id=r.id", userRoles, roles))
 	if err != nil {
 		return err
 	}

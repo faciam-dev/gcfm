@@ -15,8 +15,9 @@ import (
 
 // Recorder writes audit logs to the database.
 type Recorder struct {
-	DB     *sql.DB
-	Driver string // mysql or postgres
+	DB          *sql.DB
+	Driver      string // mysql or postgres
+	TablePrefix string
 }
 
 // enableVerboseAuditLogs controls whether detailed diff information is logged
@@ -74,9 +75,10 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 		logger.L.Debug("audit diff", "summary", summary, "before", beforeNorm, "after", afterNorm, "diff", strings.Join(lines, "\n"), "added", addCnt, "removed", delCnt)
 	}
 
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
+	tbl := r.TablePrefix + "audit_logs"
+	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
+		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
 	}
 	var beforeJSON sql.NullString
 	if before != nil {
@@ -106,9 +108,10 @@ func (r *Recorder) WriteAction(ctx context.Context, actor, action, targetVer, di
 	if r == nil || r.DB == nil {
 		return nil
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
+	tbl := r.TablePrefix + "audit_logs"
+	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
+		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
 	}
 	before := sql.NullString{Valid: diffSummary != "", String: diffSummary}
 	_, err := r.DB.ExecContext(ctx, q, actor, action, "registry", targetVer, before, sql.NullString{Valid: false}, 0, 0, 0)
@@ -129,9 +132,10 @@ func (r *Recorder) WriteJSON(ctx context.Context, actor, action string, payload 
 	if err != nil {
 		return err
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
+	tbl := r.TablePrefix + "audit_logs"
+	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
+		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
 	}
 	_, err = r.DB.ExecContext(ctx, q, actor, action, sql.NullString{Valid: false}, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data), 0, 0, 0)
 	if err == nil {
@@ -151,9 +155,10 @@ func (r *Recorder) WriteTableJSON(ctx context.Context, actor, action, table stri
 	if err != nil {
 		return err
 	}
-	q := "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)"
+	tbl := r.TablePrefix + "audit_logs"
+	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
 	if r.Driver == "postgres" {
-		q = "INSERT INTO gcfm_audit_logs(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)"
+		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
 	}
 	_, err = r.DB.ExecContext(ctx, q, actor, action, table, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data), 0, 0, 0)
 	if err == nil {

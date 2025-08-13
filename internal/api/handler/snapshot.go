@@ -87,7 +87,7 @@ func RegisterSnapshot(api huma.API, h *SnapshotHandler) {
 
 func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*snapshotListOutput, error) {
 	tid := tenant.FromContext(ctx)
-	recs, err := snapshot.List(ctx, h.DB, h.Driver, tid, 20)
+	recs, err := snapshot.List(ctx, h.DB, h.Driver, h.TablePrefix, tid, 20)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (h *SnapshotHandler) list(ctx context.Context, _ *snapshotListParams) (*sna
 
 func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (*snapshotCreateOutput, error) {
 	tid := tenant.FromContext(ctx)
-	reg, err := snapshot.ExportRegistry(ctx, h.DB, h.Driver, tid)
+	reg, err := snapshot.ExportRegistry(ctx, h.DB, h.Driver, h.TablePrefix, tid)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if err != nil {
 		return nil, err
 	}
-	last, err := snapshot.LatestSemver(ctx, h.DB, h.Driver, tid)
+	last, err := snapshot.LatestSemver(ctx, h.DB, h.Driver, h.TablePrefix, tid)
 	if err != nil {
 		return nil, err
 	}
@@ -127,14 +127,14 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if ver == "" {
 		ver = snapshot.NextSemver(last, bump)
 	}
-	rec, err := snapshot.Insert(ctx, h.DB, h.Driver, tid, ver, "", comp)
+	rec, err := snapshot.Insert(ctx, h.DB, h.Driver, h.TablePrefix, tid, ver, "", comp)
 	if err != nil {
 		return nil, err
 	}
 	// audit log diff against previous snapshot
 	var summary string
 	if last != "0.0.0" {
-		prev, err := snapshot.Get(ctx, h.DB, h.Driver, tid, last)
+		prev, err := snapshot.Get(ctx, h.DB, h.Driver, h.TablePrefix, tid, last)
 		if err == nil {
 			prevY, err := snapshot.Decode(prev.YAML)
 			if err == nil {
@@ -152,7 +152,7 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 }
 func (h *SnapshotHandler) get(ctx context.Context, p *snapshotDetailParams) (*snapshotDetailOutput, error) {
 	tid := tenant.FromContext(ctx)
-	rec, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
+	rec, err := snapshot.Get(ctx, h.DB, h.Driver, h.TablePrefix, tid, p.Ver)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (h *SnapshotHandler) get(ctx context.Context, p *snapshotDetailParams) (*sn
 
 func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*struct{}, error) {
 	tid := tenant.FromContext(ctx)
-	rec, err := snapshot.Get(ctx, h.DB, h.Driver, tid, p.Ver)
+	rec, err := snapshot.Get(ctx, h.DB, h.Driver, h.TablePrefix, tid, p.Ver)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (h *SnapshotHandler) apply(ctx context.Context, p *snapshotApplyParams) (*s
 	if err != nil {
 		return nil, err
 	}
-	current, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, tid)
+	current, err := snapshot.SnapshotYaml(ctx, h.DB, h.Driver, h.TablePrefix, tid)
 	if err != nil {
 		return nil, err
 	}
