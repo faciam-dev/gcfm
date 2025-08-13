@@ -39,7 +39,7 @@ func TestApplyHooks(t *testing.T) {
 	disable := false
 	svc := sdk.New(sdk.ServiceConfig{Recorder: &audit.Recorder{DB: db, Driver: "mysql"}, Notifier: nt, PluginEnabled: &disable})
 	yamlData := []byte("version: 0.4\nfields:\n  - table: posts\n    column: title\n    type: text\n")
-	rep, err := svc.Apply(context.Background(), sdk.DBConfig{Driver: "sqlmock", DSN: "sqlmock_db"}, yamlData, sdk.ApplyOptions{Actor: "alice"})
+	rep, err := svc.Apply(context.Background(), sdk.DBConfig{Driver: "sqlmock", DSN: "sqlmock_db", TablePrefix: "gcfm_"}, yamlData, sdk.ApplyOptions{Actor: "alice"})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestApplyHooksDryRun(t *testing.T) {
 	disable := false
 	svc := sdk.New(sdk.ServiceConfig{Recorder: &audit.Recorder{DB: db, Driver: "mysql"}, Notifier: nt, PluginEnabled: &disable})
 	yamlData := []byte("version: 0.4\nfields:\n  - table: posts\n    column: title\n    type: text\n")
-	_, err = svc.Apply(context.Background(), sdk.DBConfig{Driver: "sqlmock", DSN: "sqlmock_db2"}, yamlData, sdk.ApplyOptions{Actor: "alice", DryRun: true})
+	_, err = svc.Apply(context.Background(), sdk.DBConfig{Driver: "sqlmock", DSN: "sqlmock_db2", TablePrefix: "gcfm_"}, yamlData, sdk.ApplyOptions{Actor: "alice", DryRun: true})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}

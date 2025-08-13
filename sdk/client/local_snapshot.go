@@ -51,7 +51,7 @@ func (l *snapshotLocal) Create(ctx context.Context, tenant, bump, msg string) (s
 	}
 	defer db.Close()
 	svc := sdk.New(sdk.ServiceConfig{})
-	data, err := svc.Export(ctx, sdk.DBConfig{Driver: l.driver, DSN: l.dsn, Schema: l.schema})
+	data, err := svc.Export(ctx, sdk.DBConfig{Driver: l.driver, DSN: l.dsn, Schema: l.schema, TablePrefix: l.prefix})
 	if err != nil {
 		return sdk.Snapshot{}, err
 	}
@@ -89,7 +89,7 @@ func (l *snapshotLocal) Apply(ctx context.Context, tenant, ver string) error {
 		return err
 	}
 	svc := sdk.New(sdk.ServiceConfig{})
-	_, err = svc.Apply(ctx, sdk.DBConfig{Driver: l.driver, DSN: l.dsn, Schema: l.schema}, data, sdk.ApplyOptions{})
+	_, err = svc.Apply(ctx, sdk.DBConfig{Driver: l.driver, DSN: l.dsn, Schema: l.schema, TablePrefix: l.prefix}, data, sdk.ApplyOptions{})
 	return err
 }
 

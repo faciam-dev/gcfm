@@ -53,8 +53,8 @@ func (s S3) Write(ctx context.Context, name string, data []byte) error {
 	return err
 }
 
-func Export(ctx context.Context, db *sql.DB, schema, driver string, dest Dest) error {
-	metas, err := registry.LoadSQL(ctx, db, registry.DBConfig{Schema: schema, Driver: driver})
+func Export(ctx context.Context, db *sql.DB, schema, driver, prefix string, dest Dest) error {
+	metas, err := registry.LoadSQL(ctx, db, registry.DBConfig{Schema: schema, Driver: driver, TablePrefix: prefix})
 	if err != nil {
 		return err
 	}

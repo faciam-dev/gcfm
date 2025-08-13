@@ -31,7 +31,7 @@ func TestDiffCmdNoChange(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newDiffCmd()
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"--db", "sqlmock_nochange", "--schema", "public", "--driver", "sqlmock", "--file", f})
+	cmd.SetArgs([]string{"--db", "sqlmock_nochange", "--schema", "public", "--driver", "sqlmock", "--file", f, "--table-prefix", "gcfm_"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestDiffCmdChangeFail(t *testing.T) {
 	cmd := newDiffCmd()
 	cmd.SilenceUsage = true
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"--db", "sqlmock_change", "--schema", "public", "--driver", "sqlmock", "--file", f, "--fail-on-change"})
+	cmd.SetArgs([]string{"--db", "sqlmock_change", "--schema", "public", "--driver", "sqlmock", "--file", f, "--fail-on-change", "--table-prefix", "gcfm_"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestDiffCmdMarkdown(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newDiffCmd()
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"--db", "sqlmock_md", "--schema", "public", "--driver", "sqlmock", "--file", f, "--format", "markdown"})
+	cmd.SetArgs([]string{"--db", "sqlmock_md", "--schema", "public", "--driver", "sqlmock", "--file", f, "--format", "markdown", "--table-prefix", "gcfm_"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestDiffCmdChangeTextNoFail(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newDiffCmd()
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"--db", "sqlmock_change_text", "--schema", "public", "--driver", "sqlmock", "--file", f})
+	cmd.SetArgs([]string{"--db", "sqlmock_change_text", "--schema", "public", "--driver", "sqlmock", "--file", f, "--table-prefix", "gcfm_"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestDiffCmdIgnoreRegex(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newDiffCmd()
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"--db", "sqlmock_ignore", "--schema", "public", "--driver", "sqlmock", "--file", f, "--ignore-regex", "^gcfm_"})
+	cmd.SetArgs([]string{"--db", "sqlmock_ignore", "--schema", "public", "--driver", "sqlmock", "--file", f, "--ignore-regex", "^gcfm_", "--table-prefix", "gcfm_"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestDiffCmdSkipReserved(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cmd := newDiffCmd()
 	cmd.SetOut(buf)
-	cmd.SetArgs([]string{"--db", "sqlmock_skip_reserved", "--schema", "public", "--driver", "sqlmock", "--file", f})
+	cmd.SetArgs([]string{"--db", "sqlmock_skip_reserved", "--schema", "public", "--driver", "sqlmock", "--file", f, "--table-prefix", "gcfm_"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}

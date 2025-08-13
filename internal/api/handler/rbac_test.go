@@ -309,7 +309,7 @@ func TestRBACHandler_createUser(t *testing.T) {
 		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, 0, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	rec := &audit.Recorder{DB: db, Driver: "mysql"}
+	rec := &audit.Recorder{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_", PasswordCost: 4, Recorder: rec}
 	ctx := context.WithValue(context.Background(), middleware.UserKey(), "bob")
 	ctx = tenant.WithTenant(ctx, "t1")
@@ -354,7 +354,7 @@ func TestRBACHandler_createUser_parseTimeBytes(t *testing.T) {
 		WithArgs("bob", "CREATE", "gcfm_users", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), 0, 0, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	rec := &audit.Recorder{DB: db, Driver: "mysql"}
+	rec := &audit.Recorder{DB: db, Driver: "mysql", TablePrefix: "gcfm_"}
 	h := &RBACHandler{DB: db, Driver: "mysql", TablePrefix: "gcfm_", PasswordCost: 4, Recorder: rec}
 	ctx := context.WithValue(context.Background(), middleware.UserKey(), "bob")
 	ctx = tenant.WithTenant(ctx, "t1")
