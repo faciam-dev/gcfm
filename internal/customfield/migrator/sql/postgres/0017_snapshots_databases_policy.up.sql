@@ -24,6 +24,21 @@ SELECT r.id, '/v1/databases', 'POST'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO gcfm_role_policies(role_id, path, method)
+SELECT r.id, '/v1/databases/{id}', 'PUT'
+  FROM gcfm_roles r WHERE r.name='admin'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO gcfm_role_policies(role_id, path, method)
+SELECT r.id, '/v1/databases/{id}', 'DELETE'
+  FROM gcfm_roles r WHERE r.name='admin'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO gcfm_role_policies(role_id, path, method)
+SELECT r.id, '/v1/databases/{id}/scan', 'POST'
+  FROM gcfm_roles r WHERE r.name='admin'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO gcfm_role_policies(role_id, path, method)
 SELECT r.id, '/v1/snapshots', 'GET'
   FROM gcfm_roles r WHERE r.name='editor'
 ON CONFLICT DO NOTHING;

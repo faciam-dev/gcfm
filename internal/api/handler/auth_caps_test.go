@@ -46,6 +46,15 @@ func TestMeCaps(t *testing.T) {
 	if out.Body.Capabilities["databases:list"] {
 		t.Fatalf("expected databases:list false")
 	}
+	if out.Body.Capabilities["databases:create"] {
+		t.Fatalf("expected databases:create false")
+	}
+	if out.Body.Capabilities["databases:update"] {
+		t.Fatalf("expected databases:update false")
+	}
+	if out.Body.Capabilities["databases:delete"] {
+		t.Fatalf("expected databases:delete false")
+	}
 	if out.Body.Capabilities["databases:scan"] {
 		t.Fatalf("expected databases:scan false")
 	}
