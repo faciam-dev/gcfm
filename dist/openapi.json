@@ -184,6 +184,30 @@
         ],
         "type": "object"
       },
+      "CapsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CapsOutBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "capabilities": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "capabilities"
+        ],
+        "type": "object"
+      },
       "CreateDatabase": {
         "additionalProperties": false,
         "properties": {
@@ -341,6 +365,12 @@
           "driver": {
             "type": "string"
           },
+          "dsn": {
+            "type": "string"
+          },
+          "dsnEnc": {
+            "type": "string"
+          },
           "id": {
             "format": "int64",
             "type": "integer"
@@ -353,6 +383,8 @@
           "id",
           "name",
           "driver",
+          "dsn",
+          "dsnEnc",
           "createdAt"
         ],
         "type": "object"
@@ -1350,6 +1382,37 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/me/capabilities": {
+      "get": {
+        "operationId": "meCapabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get current user's capabilities",
         "tags": [
           "Auth"
         ]

@@ -24,6 +24,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
+	"github.com/faciam-dev/gcfm/internal/server/roles"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -93,10 +95,21 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	// that they remain publicly accessible.
 	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver}, JWT: jwtHandler})
 
-	// Apply authentication & RBAC middleware for the remaining endpoints.
+	// Apply authentication middleware for subsequent endpoints.
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
+
+	// ---- role resolver used by RBAC and capabilities ----
+	resolver := func(ctx context.Context, user string) ([]string, error) {
+		tid := tenant.FromContext(ctx)
+		return roles.OfUser(ctx, db, driver, user, tid)
+	}
+
+	// Register authenticated capability endpoint before RBAC enforcement.
+	handler.RegisterAuthCaps(api, &handler.AuthHandler{Enf: e, DB: db, Driver: driver})
+
+	// Apply RBAC middleware for the remaining endpoints.
 	if err == nil {
-		api.UseMiddleware(middleware.RBAC(e))
+		api.UseMiddleware(middleware.RBAC(e, resolver))
 	}
 	api.UseMiddleware(middleware.MetricsMW)
 
@@ -145,7 +158,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver})
 	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver, PasswordCost: bcrypt.DefaultCost})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db})
-	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}, Recorder: rec})
+	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver}, Recorder: rec, Enf: e})
 	if db != nil {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver})
 	}
