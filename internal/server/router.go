@@ -114,8 +114,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 				q = `
   SELECT r.name
     FROM gcfm_user_roles ur
+    JOIN gcfm_users u ON u.id = ur.user_id
     JOIN gcfm_roles r ON r.id = ur.role_id
-   WHERE ur.user_id = ? AND ur.tenant_id = ?
+   WHERE ur.user_id = ? AND u.tenant_id = ?
    ORDER BY r.name`
 				args = []any{user, tid}
 			} else {
@@ -124,7 +125,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
     FROM gcfm_user_roles ur
     JOIN gcfm_users u ON u.id = ur.user_id
     JOIN gcfm_roles r ON r.id = ur.role_id
-   WHERE u.username = ? AND ur.tenant_id = ?
+   WHERE u.username = ? AND u.tenant_id = ?
    ORDER BY r.name`
 				args = []any{user, tid}
 			}
@@ -133,8 +134,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 				q = `
   SELECT r.name
     FROM gcfm_user_roles ur
+    JOIN gcfm_users u ON u.id = ur.user_id
     JOIN gcfm_roles r ON r.id = ur.role_id
-   WHERE ur.user_id = $1 AND ur.tenant_id = $2
+   WHERE ur.user_id = $1 AND u.tenant_id = $2
    ORDER BY r.name`
 				args = []any{user, tid}
 			} else {
@@ -143,7 +145,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
     FROM gcfm_user_roles ur
     JOIN gcfm_users u ON u.id = ur.user_id
     JOIN gcfm_roles r ON r.id = ur.role_id
-   WHERE u.username = $1 AND ur.tenant_id = $2
+   WHERE u.username = $1 AND u.tenant_id = $2
    ORDER BY r.name`
 				args = []any{user, tid}
 			}
