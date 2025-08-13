@@ -57,7 +57,6 @@ func main() {
 
 	dbCfg := server.DBConfig{Driver: *driver, DSN: *dsn, TablePrefix: cfg.TablePrefix}
 	log.Printf("table prefix: %q", dbCfg.TablePrefix)
-	_ = cfg.T("users") // example usage
 
 	api := server.New(db, dbCfg)
 

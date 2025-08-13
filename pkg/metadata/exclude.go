@@ -20,6 +20,8 @@ type excludeRule struct {
 	Regex   []*regexp.Regexp
 }
 
+const defaultPrefix = "gcfm_"
+
 var rules = map[string]excludeRule{
 	"postgres": {
 		Schemas: []string{"pg_catalog", "information_schema", "pg_toast"},
@@ -29,7 +31,7 @@ var rules = map[string]excludeRule{
 			"flyway_schema_history": true,
 		},
 		Prefix: []string{
-			"",
+			defaultPrefix,
 			"pg_temp_",
 		},
 		Regex: []*regexp.Regexp{
@@ -43,7 +45,7 @@ var rules = map[string]excludeRule{
 			"flyway_schema_history": true,
 		},
 		Prefix: []string{
-			"",
+			defaultPrefix,
 		},
 	},
 }
@@ -65,10 +67,6 @@ func SetTablePrefix(p string) {
 	}
 }
 
-func init() {
-	SetTablePrefix("gcfm_")
-}
-
 func shouldExclude(driver string, t TableInfo) bool {
 	r, ok := rules[strings.ToLower(driver)]
 	if !ok {
@@ -81,7 +79,7 @@ func shouldExclude(driver string, t TableInfo) bool {
 	}
 	schemaLower := strings.ToLower(t.Schema)
 	for _, p := range r.Prefix {
-		if p != "" && strings.HasPrefix(schemaLower, strings.ToLower(p)) {
+		if strings.HasPrefix(schemaLower, strings.ToLower(p)) {
 			return true
 		}
 	}
@@ -90,7 +88,7 @@ func shouldExclude(driver string, t TableInfo) bool {
 		return true
 	}
 	for _, p := range r.Prefix {
-		if p != "" && strings.HasPrefix(name, strings.ToLower(p)) {
+		if strings.HasPrefix(name, strings.ToLower(p)) {
 			return true
 		}
 	}
