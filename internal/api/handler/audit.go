@@ -213,23 +213,23 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 
 	min := p.EffMin()
 	max := p.EffMax()
-        pass := func(v int) bool {
-                if min != nil && v < *min {
-                        return false
-                }
-                if max != nil && v > *max {
-                        return false
-                }
-                return true
-        }
+	pass := func(v int) bool {
+		if min != nil && v < *min {
+			return false
+		}
+		if max != nil && v > *max {
+			return false
+		}
+		return true
+	}
 
-        tbl := h.TablePrefix + "audit_logs"
+	tbl := h.TablePrefix + "audit_logs"
 
-        args := []any{}
-        next := func() string {
-                if h.Driver == "postgres" {
-                        return fmt.Sprintf("$%d", len(args)+1)
-                }
+	args := []any{}
+	next := func() string {
+		if h.Driver == "postgres" {
+			return fmt.Sprintf("$%d", len(args)+1)
+		}
 		return "?"
 	}
 

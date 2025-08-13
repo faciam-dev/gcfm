@@ -30,16 +30,16 @@ func TestFilter_MySQL(t *testing.T) {
 }
 
 func TestSetTablePrefix_Empty(t *testing.T) {
-        // backup original rules
-        orig := rules["postgres"]
-        SetTablePrefix("")
-        in := []TableInfo{{Schema: "public", Name: "users"}}
-        out := FilterTables("postgres", in)
-        got := names(out)
-        want := []string{"users"}
-        compare(t, got, want)
-        // restore original rules
-        rules["postgres"] = orig
+	// backup original rules
+	orig := rules["postgres"]
+	SetTablePrefix("")
+	in := []TableInfo{{Schema: "public", Name: "users"}}
+	out := FilterTables("postgres", in)
+	got := names(out)
+	want := []string{"users"}
+	compare(t, got, want)
+	// restore original rules
+	rules["postgres"] = orig
 }
 
 func names(ts []TableInfo) []string {

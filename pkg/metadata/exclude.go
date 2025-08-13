@@ -53,22 +53,22 @@ var rules = map[string]excludeRule{
 // SetTablePrefix updates the exclusion rules with the provided table prefix.
 // An empty prefix is ignored to avoid filtering out every table.
 func SetTablePrefix(p string) {
-        lp := strings.ToLower(p)
-        if lp == "" {
-                return
-        }
-        if r, ok := rules["postgres"]; ok {
-                if len(r.Prefix) > 0 {
-                        r.Prefix[0] = lp
-                        rules["postgres"] = r
-                }
-        }
-        if r, ok := rules["mysql"]; ok {
-                if len(r.Prefix) > 0 {
-                        r.Prefix[0] = lp
-                        rules["mysql"] = r
-                }
-        }
+	lp := strings.ToLower(p)
+	if lp == "" {
+		return
+	}
+	if r, ok := rules["postgres"]; ok {
+		if len(r.Prefix) > 0 {
+			r.Prefix[0] = lp
+			rules["postgres"] = r
+		}
+	}
+	if r, ok := rules["mysql"]; ok {
+		if len(r.Prefix) > 0 {
+			r.Prefix[0] = lp
+			rules["mysql"] = r
+		}
+	}
 }
 
 func shouldExclude(driver string, t TableInfo) bool {
