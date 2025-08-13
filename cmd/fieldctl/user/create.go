@@ -9,6 +9,7 @@ import (
 	"github.com/faciam-dev/goquent/orm"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
+	"github.com/faciam-dev/gcfm/internal/config"
 )
 
 // NewCreateCmd creates the user create subcommand.
@@ -43,7 +44,12 @@ func NewCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = db.Table("gcfm_users").
+			prefix := flags.TablePrefix
+			if prefix == "" {
+				prefix = "gcfm_"
+			}
+			cfg := config.Config{TablePrefix: prefix}
+			_, err = db.Table(cfg.T("users")).
 				Insert(map[string]any{"username": username, "password_hash": string(hash), "role": role})
 			return err
 		},

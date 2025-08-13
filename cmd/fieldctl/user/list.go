@@ -9,6 +9,7 @@ import (
 	"github.com/faciam-dev/goquent/orm"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
+	"github.com/faciam-dev/gcfm/internal/config"
 )
 
 type listUser struct {
@@ -41,7 +42,12 @@ func NewListCmd() *cobra.Command {
 			defer db.Close()
 
 			var us []listUser
-			err = db.Table("gcfm_users").
+			prefix := flags.TablePrefix
+			if prefix == "" {
+				prefix = "gcfm_"
+			}
+			cfg := config.Config{TablePrefix: prefix}
+			err = db.Table(cfg.T("users")).
 				Select("id", "username", "role").
 				WhereRaw("COALESCE(is_deleted,false) = :f", map[string]any{
 					"f": false,
