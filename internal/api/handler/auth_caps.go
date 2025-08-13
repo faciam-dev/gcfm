@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/casbin/casbin/v2"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
@@ -10,7 +11,9 @@ import (
 )
 
 type AuthHandler struct {
-	Enf *casbin.Enforcer
+	Enf    *casbin.Enforcer
+	DB     *sql.DB
+	Driver string
 }
 
 type Capabilities map[string]bool
@@ -66,15 +69,76 @@ func RegisterAuthCaps(api huma.API, h *AuthHandler) {
 }
 
 func (h *AuthHandler) meCaps(ctx context.Context, _ *struct{}) (*capsOut, error) {
-	sub := middleware.UserFromContext(ctx)
-	_ = tenant.FromContext(ctx)
+	user := middleware.UserFromContext(ctx)
+	tid := tenant.FromContext(ctx)
+
+	subjects := []string{user}
+	if h.DB != nil {
+		roles, err := h.rolesOfUser(ctx, user, tid)
+		if err != nil {
+			return nil, err
+		}
+		subjects = append(subjects, roles...)
+	}
 
 	caps := Capabilities{}
 	for key, v := range capMatrix {
-		ok, _ := h.Enf.Enforce(sub, v.Path, v.Method)
-		caps[key] = ok
+		allow := false
+		for _, s := range subjects {
+			if ok, _ := h.Enf.Enforce(s, v.Path, v.Method); ok {
+				allow = true
+				break
+			}
+		}
+		caps[key] = allow
 	}
 	out := &capsOut{}
 	out.Body.Capabilities = caps
 	return out, nil
+}
+
+func (h *AuthHandler) rolesOfUser(ctx context.Context, user, tenantID string) ([]string, error) {
+	if h.DB == nil {
+		return nil, nil
+	}
+	isID := true
+	for _, c := range user {
+		if c < '0' || c > '9' {
+			isID = false
+			break
+		}
+	}
+	var q string
+	var args []any
+	if h.Driver == "mysql" {
+		if isID {
+			q = `SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id=ur.role_id WHERE ur.user_id=? AND ur.tenant_id=? ORDER BY r.name`
+			args = []any{user, tenantID}
+		} else {
+			q = `SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_users u ON u.id=ur.user_id JOIN gcfm_roles r ON r.id=ur.role_id WHERE u.username=? AND ur.tenant_id=? ORDER BY r.name`
+			args = []any{user, tenantID}
+		}
+	} else {
+		if isID {
+			q = `SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON r.id=ur.role_id WHERE ur.user_id=$1 AND ur.tenant_id=$2 ORDER BY r.name`
+			args = []any{user, tenantID}
+		} else {
+			q = `SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_users u ON u.id=ur.user_id JOIN gcfm_roles r ON r.id=ur.role_id WHERE u.username=$1 AND ur.tenant_id=$2 ORDER BY r.name`
+			args = []any{user, tenantID}
+		}
+	}
+	rows, err := h.DB.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var roles []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		roles = append(roles, name)
+	}
+	return roles, rows.Err()
 }

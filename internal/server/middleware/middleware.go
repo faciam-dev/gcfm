@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/casbin/casbin/v2"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/golang-jwt/jwt/v5"
@@ -64,24 +63,4 @@ func UserFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
-}
-
-// RBAC returns middleware that enforces access using the provided enforcer.
-func RBAC(e *casbin.Enforcer) func(huma.Context, func(huma.Context)) {
-	return func(ctx huma.Context, next func(huma.Context)) {
-		r, w := humachi.Unwrap(ctx)
-		sub := UserFromContext(r.Context())
-		obj := r.URL.Path
-		act := r.Method
-		ok, err := e.Enforce(sub, obj, act)
-		if err != nil {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		if !ok {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		next(ctx)
-	}
 }
