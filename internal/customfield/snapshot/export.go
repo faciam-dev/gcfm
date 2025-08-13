@@ -3,6 +3,7 @@ package snapshot
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 )
@@ -16,13 +17,14 @@ type Registry struct {
 }
 
 // ExportRegistry retrieves registry information for a tenant from the database.
-func ExportRegistry(ctx context.Context, db *sql.DB, drv, tid string) (*Registry, error) {
+func ExportRegistry(ctx context.Context, db *sql.DB, drv, prefix, tid string) (*Registry, error) {
+	table := prefix + "custom_fields"
 	var query string
 	switch drv {
 	case "postgres":
-		query = `SELECT table_name, column_name, data_type FROM gcfm_custom_fields WHERE tenant_id=$1 ORDER BY db_id, table_name, column_name`
+		query = fmt.Sprintf(`SELECT table_name, column_name, data_type FROM %s WHERE tenant_id=$1 ORDER BY db_id, table_name, column_name`, table)
 	default:
-		query = `SELECT table_name, column_name, data_type FROM gcfm_custom_fields WHERE tenant_id=? ORDER BY db_id, table_name, column_name`
+		query = fmt.Sprintf(`SELECT table_name, column_name, data_type FROM %s WHERE tenant_id=? ORDER BY db_id, table_name, column_name`, table)
 	}
 	rows, err := db.QueryContext(ctx, query, tid)
 	if err != nil {

@@ -14,12 +14,13 @@ import (
 
 func newDiffSnapCmd() *cobra.Command {
 	var (
-		dbDSN      string
-		schema     string
-		driverFlag string
-		tenant     string
-		fromVer    string
-		toVer      string
+		dbDSN       string
+		schema      string
+		driverFlag  string
+		tenant      string
+		fromVer     string
+		toVer       string
+		tablePrefix string
 	)
 	cmd := &cobra.Command{
 		Use:   "diff-snap",
@@ -43,11 +44,11 @@ func newDiffSnapCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
-			a, err := snapshot.Get(ctx, db, driverFlag, tenant, fromVer)
+			a, err := snapshot.Get(ctx, db, driverFlag, tablePrefix, tenant, fromVer)
 			if err != nil {
 				return err
 			}
-			b, err := snapshot.Get(ctx, db, driverFlag, tenant, toVer)
+			b, err := snapshot.Get(ctx, db, driverFlag, tablePrefix, tenant, toVer)
 			if err != nil {
 				return err
 			}
@@ -64,6 +65,7 @@ func newDiffSnapCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tenant, "tenant", getenv("CF_TENANT", "default"), "tenant id")
 	cmd.Flags().StringVar(&fromVer, "from", "", "from version")
 	cmd.Flags().StringVar(&toVer, "to", "", "to version")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("schema")
 	cmd.MarkFlagRequired("from")

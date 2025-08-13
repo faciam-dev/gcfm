@@ -13,11 +13,12 @@ import (
 
 func newRevertCmd() *cobra.Command {
 	var (
-		dbDSN      string
-		schema     string
-		driverFlag string
-		tenant     string
-		toVer      string
+		dbDSN       string
+		schema      string
+		driverFlag  string
+		tenant      string
+		toVer       string
+		tablePrefix string
 	)
 	cmd := &cobra.Command{
 		Use:   "revert",
@@ -41,7 +42,7 @@ func newRevertCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
-			rec, err := snapshot.Get(ctx, db, driverFlag, tenant, toVer)
+			rec, err := snapshot.Get(ctx, db, driverFlag, tablePrefix, tenant, toVer)
 			if err != nil {
 				return err
 			}
@@ -50,7 +51,7 @@ func newRevertCmd() *cobra.Command {
 				return err
 			}
 			svc := sdk.New(sdk.ServiceConfig{})
-			_, err = svc.Apply(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema}, data, sdk.ApplyOptions{})
+			_, err = svc.Apply(ctx, sdk.DBConfig{Driver: driverFlag, DSN: dbDSN, Schema: schema, TablePrefix: tablePrefix}, data, sdk.ApplyOptions{})
 			return err
 		},
 	}
@@ -59,6 +60,7 @@ func newRevertCmd() *cobra.Command {
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
 	cmd.Flags().StringVar(&tenant, "tenant", getenv("CF_TENANT", "default"), "tenant id")
 	cmd.Flags().StringVar(&toVer, "to", "", "target snapshot version")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("schema")
 	cmd.MarkFlagRequired("to")

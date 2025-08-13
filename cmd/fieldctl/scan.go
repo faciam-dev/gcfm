@@ -56,7 +56,7 @@ func newScanCmd() *cobra.Command {
 						return err
 					}
 					dsn = string(b)
-					fmt.Fprintf(cmd.ErrOrStderr(), "driver=%s tenant=%s table_prefix=gcfm_ dsn=%s\n", d.Driver, d.TenantID, dsn)
+					fmt.Fprintf(cmd.ErrOrStderr(), "driver=%s tenant=%s dsn=%s\n", d.Driver, d.TenantID, dsn)
 				}
 				tables, inserted, updated, skipped, err := monitordb.ScanDatabase(ctx, repo, scanDBID, d.TenantID)
 				if err != nil {

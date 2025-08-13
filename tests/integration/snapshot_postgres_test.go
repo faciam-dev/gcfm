@@ -60,7 +60,7 @@ func TestSnapshot_Postgres(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	snap := client.NewLocalSnapshot(dsn, "postgres", "public")
+	snap := client.NewLocalSnapshot(dsn, "postgres", "public", "gcfm_")
 	s1, err := snap.Create(ctx, "t1", "patch", "")
 	if err != nil {
 		t.Fatalf("create snap1: %v", err)

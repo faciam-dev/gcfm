@@ -1,29 +1,29 @@
-CREATE TABLE gcfm_roles (
+CREATE TABLE {{ .Prefix }}roles (
   id {{.IDType}} PRIMARY KEY,
   name VARCHAR(64) UNIQUE NOT NULL,
   comment VARCHAR(128)
 );
 
-CREATE TABLE gcfm_user_roles (
+CREATE TABLE {{ .Prefix }}user_roles (
   user_id BIGINT NOT NULL,
   role_id BIGINT NOT NULL,
   PRIMARY KEY (user_id, role_id),
-  FOREIGN KEY (user_id) REFERENCES gcfm_users(id) ON DELETE CASCADE,
-  FOREIGN KEY (role_id) REFERENCES gcfm_roles(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES {{ .Prefix }}users(id) ON DELETE CASCADE,
+  FOREIGN KEY (role_id) REFERENCES {{ .Prefix }}roles(id) ON DELETE CASCADE
 );
 
-CREATE TABLE gcfm_role_policies (
+CREATE TABLE {{ .Prefix }}role_policies (
   role_id BIGINT NOT NULL,
   path VARCHAR(128) NOT NULL,
   method VARCHAR(8) NOT NULL,
   PRIMARY KEY(role_id, path, method),
-  FOREIGN KEY(role_id) REFERENCES gcfm_roles(id) ON DELETE CASCADE
+  FOREIGN KEY(role_id) REFERENCES {{ .Prefix }}roles(id) ON DELETE CASCADE
 );
 
-INSERT INTO gcfm_roles(name) VALUES ('admin'),('editor'),('viewer');
-INSERT INTO gcfm_user_roles(user_id, role_id)
+INSERT INTO {{ .Prefix }}roles(name) VALUES ('admin'),('editor'),('viewer');
+INSERT INTO {{ .Prefix }}user_roles(user_id, role_id)
   SELECT u.id, r.id
-    FROM gcfm_users u
-    JOIN gcfm_roles r ON r.name='admin'
+    FROM {{ .Prefix }}users u
+    JOIN {{ .Prefix }}roles r ON r.name='admin'
    WHERE u.username='admin';
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (8, '0.8');
+INSERT INTO {{ .Prefix }}registry_schema_version(version, semver) VALUES (8, '0.8');

@@ -44,10 +44,11 @@ func decompress(data []byte) ([]byte, error) {
 	return io.ReadAll(zr)
 }
 
-func Insert(ctx context.Context, db *sql.DB, driver, tenant, semver, author string, yaml []byte) (Record, error) {
-	q := "INSERT INTO gcfm_registry_snapshots(tenant_id, semver, yaml, author) VALUES ($1,$2,$3,$4) RETURNING id, taken_at"
+func Insert(ctx context.Context, db *sql.DB, driver, prefix, tenant, semver, author string, yaml []byte) (Record, error) {
+	table := prefix + "registry_snapshots"
+	q := fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES ($1,$2,$3,$4) RETURNING id, taken_at", table)
 	if driver != "postgres" {
-		q = "INSERT INTO gcfm_registry_snapshots(tenant_id, semver, yaml, author) VALUES (?,?,?,?)"
+		q = fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES (?,?,?,?)", table)
 	}
 	res := Record{Semver: semver, Author: author}
 	if driver == "postgres" {
@@ -62,7 +63,8 @@ func Insert(ctx context.Context, db *sql.DB, driver, tenant, semver, author stri
 		id, _ := r.LastInsertId()
 		res.ID = id
 		var t any
-		if err := db.QueryRowContext(ctx, "SELECT taken_at FROM gcfm_registry_snapshots WHERE id=?", id).Scan(&t); err == nil {
+		sel := fmt.Sprintf("SELECT taken_at FROM %s WHERE id=?", table)
+		if err := db.QueryRowContext(ctx, sel, id).Scan(&t); err == nil {
 			if ts, err := parseDBTime(t); err == nil {
 				res.TakenAt = ts
 			} else {
@@ -75,10 +77,11 @@ func Insert(ctx context.Context, db *sql.DB, driver, tenant, semver, author stri
 	return res, nil
 }
 
-func Get(ctx context.Context, db *sql.DB, driver, tenant, ver string) (Record, error) {
-	q := "SELECT id, semver, yaml, taken_at, author FROM gcfm_registry_snapshots WHERE tenant_id=$1 AND semver=$2"
+func Get(ctx context.Context, db *sql.DB, driver, prefix, tenant, ver string) (Record, error) {
+	table := prefix + "registry_snapshots"
+	q := fmt.Sprintf("SELECT id, semver, yaml, taken_at, author FROM %s WHERE tenant_id=$1 AND semver=$2", table)
 	if driver != "postgres" {
-		q = "SELECT id, semver, yaml, taken_at, author FROM gcfm_registry_snapshots WHERE tenant_id=? AND semver=?"
+		q = fmt.Sprintf("SELECT id, semver, yaml, taken_at, author FROM %s WHERE tenant_id=? AND semver=?", table)
 	}
 	var r Record
 	var t any
@@ -90,13 +93,14 @@ func Get(ctx context.Context, db *sql.DB, driver, tenant, ver string) (Record, e
 	return r, err
 }
 
-func List(ctx context.Context, db *sql.DB, driver, tenant string, limit int) ([]Record, error) {
+func List(ctx context.Context, db *sql.DB, driver, prefix, tenant string, limit int) ([]Record, error) {
 	if limit == 0 {
 		limit = 20
 	}
-	q := "SELECT id, semver, taken_at, author FROM gcfm_registry_snapshots WHERE tenant_id=$1 ORDER BY id DESC LIMIT $2"
+	table := prefix + "registry_snapshots"
+	q := fmt.Sprintf("SELECT id, semver, taken_at, author FROM %s WHERE tenant_id=$1 ORDER BY id DESC LIMIT $2", table)
 	if driver != "postgres" {
-		q = "SELECT id, semver, taken_at, author FROM gcfm_registry_snapshots WHERE tenant_id=? ORDER BY id DESC LIMIT ?"
+		q = fmt.Sprintf("SELECT id, semver, taken_at, author FROM %s WHERE tenant_id=? ORDER BY id DESC LIMIT ?", table)
 	}
 	rows, err := db.QueryContext(ctx, q, tenant, limit)
 	if err != nil {
@@ -120,10 +124,11 @@ func List(ctx context.Context, db *sql.DB, driver, tenant string, limit int) ([]
 	return out, rows.Err()
 }
 
-func LatestSemver(ctx context.Context, db *sql.DB, driver, tenant string) (string, error) {
-	q := "SELECT semver FROM gcfm_registry_snapshots WHERE tenant_id=$1 ORDER BY id DESC LIMIT 1"
+func LatestSemver(ctx context.Context, db *sql.DB, driver, prefix, tenant string) (string, error) {
+	table := prefix + "registry_snapshots"
+	q := fmt.Sprintf("SELECT semver FROM %s WHERE tenant_id=$1 ORDER BY id DESC LIMIT 1", table)
 	if driver != "postgres" {
-		q = "SELECT semver FROM gcfm_registry_snapshots WHERE tenant_id=? ORDER BY id DESC LIMIT 1"
+		q = fmt.Sprintf("SELECT semver FROM %s WHERE tenant_id=? ORDER BY id DESC LIMIT 1", table)
 	}
 	var s string
 	err := db.QueryRowContext(ctx, q, tenant).Scan(&s)
