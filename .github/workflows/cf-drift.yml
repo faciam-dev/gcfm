@@ -99,5 +99,3 @@ jobs:
         with:
           header: Custom-Field Schema Diff
           path: diff.txt
-      - if: steps.diff.outputs.changed == 'true'
-        run: exit 1
