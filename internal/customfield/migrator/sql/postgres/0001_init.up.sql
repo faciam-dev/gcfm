@@ -253,4 +253,4 @@ INSERT INTO authz.casbin_rule(ptype,v0,v1,v2,v3,v4,v5) VALUES
     ('g','admin','admin','','','','')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (1,'0.17');
+INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (1,'0.3');

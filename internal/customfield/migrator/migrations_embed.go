@@ -19,9 +19,9 @@ var pg0001Up string
 var pg0001Down string
 
 var defaultMigrations = []Migration{
-	{Version: 1, SemVer: "0.17", UpSQL: mysql0001Up, DownSQL: mysql0001Down},
+	{Version: 1, SemVer: "0.3", UpSQL: mysql0001Up, DownSQL: mysql0001Down},
 }
 
 var postgresMigrations = []Migration{
-	{Version: 1, SemVer: "0.17", UpSQL: pg0001Up, DownSQL: pg0001Down},
+	{Version: 1, SemVer: "0.3", UpSQL: pg0001Up, DownSQL: pg0001Down},
 }

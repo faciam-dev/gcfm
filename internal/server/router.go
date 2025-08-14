@@ -113,7 +113,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 	api.UseMiddleware(middleware.MetricsMW)
 
-	rec := &audit.Recorder{DB: db, Driver: driver}
+	rec := &audit.Recorder{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}
 
 	evtConf, err := events.LoadConfig(os.Getenv("CF_EVENTS_CONFIG"))
 	if err != nil {
