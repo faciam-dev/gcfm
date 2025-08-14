@@ -67,7 +67,10 @@ jobs:
             --table-prefix $TABLE_PREFIX
       - name: Check table prefix
         run: |
-          missing=$(psql "$DB_DSN" -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT LIKE '${TABLE_PREFIX}%';")
+          missing=$(psql "$DB_DSN" -Atc \
+            "SELECT tablename FROM pg_tables \
+            WHERE schemaname='public' \
+            AND tablename NOT LIKE '${TABLE_PREFIX}%';")
           if [ -n "$missing" ]; then
             echo "found tables without expected prefix:"
             echo "$missing"
