@@ -444,16 +444,20 @@ func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, db
 	if dbID <= 0 {
 		return fmt.Errorf("must be positive integer")
 	}
+	tbl := h.TablePrefix + "monitored_databases"
+	if h.TablePrefix == "" {
+		tbl = "gcfm_monitored_databases"
+	}
 	var (
 		query string
 		args  []any
 	)
 	switch h.Driver {
 	case "postgres":
-		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=$1 AND tenant_id=$2`
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=$1 AND tenant_id=$2", tbl)
 		args = []any{dbID, tenantID}
 	default:
-		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=? AND tenant_id=?`
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=? AND tenant_id=?", tbl)
 		args = []any{dbID, tenantID}
 	}
 	var n int
