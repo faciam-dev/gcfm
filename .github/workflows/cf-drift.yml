@@ -68,9 +68,13 @@ jobs:
       - name: Check table prefix
         run: |
           missing=$(psql "$DB_DSN" -Atc \
-            "SELECT tablename FROM pg_tables \
-            WHERE schemaname='public' \
-            AND tablename NOT LIKE '${TABLE_PREFIX}%';")
+            "SELECT tablename FROM pg_tables
+            WHERE schemaname='public'
+            AND tablename NOT LIKE '${TABLE_PREFIX}%'
+            AND tablename NOT IN (
+              'schema_migrations',
+              'gcfm_registry_schema_version'
+            );")
           if [ -n "$missing" ]; then
             echo "found tables without expected prefix:"
             echo "$missing"
