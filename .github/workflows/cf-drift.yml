@@ -86,6 +86,9 @@ jobs:
           fi
           [ -s diff.txt ] || echo "✅ No schema drift detected." > diff.txt
           exit 0
+      - name: Print Schema Drift Diff
+        if: steps.diff.outputs.changed == 'true'
+        run: cat diff.txt
       - if: steps.diff.outputs.changed == 'true'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
