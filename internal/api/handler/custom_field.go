@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -448,6 +449,9 @@ func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, db
 	if h.TablePrefix == "" {
 		tbl = "gcfm_monitored_databases"
 	}
+	if err := validateIdentifier(tbl); err != nil {
+		return err
+	}
 	var (
 		query string
 		args  []any
@@ -476,6 +480,9 @@ func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, d
 		args  []any
 	)
 	tbl := h.TablePrefix + "custom_fields"
+	if err := validateIdentifier(tbl); err != nil {
+		return false, err
+	}
 	switch h.Driver {
 	case "postgres":
 		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4", tbl)
@@ -489,4 +496,13 @@ func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, d
 		return false, err
 	}
 	return n > 0, nil
+}
+
+var identPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
+
+func validateIdentifier(name string) error {
+	if !identPattern.MatchString(name) {
+		return fmt.Errorf("invalid identifier: %s", name)
+	}
+	return nil
 }

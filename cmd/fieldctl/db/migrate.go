@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -71,11 +72,23 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	users := prefix + "users"
 	roles := prefix + "roles"
 	userRoles := prefix + "user_roles"
+	if err := validateIdentifier(users); err != nil {
+		return err
+	}
+	if err := validateIdentifier(roles); err != nil {
+		return err
+	}
+	if err := validateIdentifier(userRoles); err != nil {
+		return err
+	}
 	var casbin string
 	if f.Driver == "postgres" {
 		casbin = "authz.casbin_rule"
 	} else {
 		casbin = "casbin_rule"
+	}
+	if err := validateIdentifier(casbin); err != nil {
+		return err
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte("admin123"), 12)
@@ -132,5 +145,14 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	}
 
 	fmt.Fprintln(out, "seeded admin user: admin / admin123")
+	return nil
+}
+
+var identPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
+
+func validateIdentifier(name string) error {
+	if !identPattern.MatchString(name) {
+		return fmt.Errorf("invalid identifier: %s", name)
+	}
 	return nil
 }
