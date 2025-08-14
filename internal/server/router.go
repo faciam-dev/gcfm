@@ -21,6 +21,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
+	"github.com/faciam-dev/gcfm/internal/plugin"
+	"github.com/faciam-dev/gcfm/internal/plugin/fsrepo"
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
@@ -159,6 +161,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver, PasswordCost: bcrypt.DefaultCost, TablePrefix: cfg.TablePrefix, Recorder: rec})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
+	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
 	if db != nil {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 	}
