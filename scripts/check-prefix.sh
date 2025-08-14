@@ -8,14 +8,28 @@ DB_DRIVER="${DB_DRIVER:-postgres}"
 missing=""
 case "$DB_DRIVER" in
   postgres)
-    SQL="SELECT n.nspname||'.'||c.relname\n         FROM pg_class c\n         JOIN pg_namespace n ON n.oid=c.relnamespace\n        WHERE c.relkind='r'\n          AND n.nspname NOT IN ('pg_catalog','information_schema')\n          AND (n.nspname||'.'||c.relname) NOT LIKE '%.gcfm_%';"
+    SQL=$(cat <<'SQL'
+SELECT n.nspname||'.'||c.relname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid=c.relnamespace
+WHERE c.relkind='r'
+  AND n.nspname NOT IN ('pg_catalog','information_schema')
+  AND (n.nspname||'.'||c.relname) NOT LIKE '%.gcfm_%';
+SQL
+)
     missing=$(psql "$TEST_DATABASE_URL" -At -c "$SQL" | sort -u)
     for ok in "${ALLOWLIST_PG[@]}"; do
       missing=$(echo "$missing" | grep -v -E "^${ok}$" || true)
     done
     ;;
   mysql)
-    SQL="SELECT TABLE_NAME FROM information_schema.TABLES\n          WHERE TABLE_SCHEMA = DATABASE()\n            AND TABLE_TYPE='BASE TABLE'\n            AND TABLE_NAME NOT LIKE 'gcfm\\_%' ESCAPE '\\';"
+    SQL=$(cat <<'SQL'
+SELECT TABLE_NAME FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_TYPE='BASE TABLE'
+    AND TABLE_NAME NOT LIKE 'gcfm\_%' ESCAPE '\';
+SQL
+)
     missing=$(mysql --batch --skip-column-names "$TEST_MYSQL_DSN" -e "$SQL" | sort -u)
     for ok in "${ALLOWLIST_MYSQL[@]}"; do
       missing=$(echo "$missing" | grep -v -E "^${ok}$" || true)
