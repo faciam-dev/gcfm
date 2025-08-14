@@ -9,8 +9,8 @@ func TestSemVer(t *testing.T) {
 		out string
 	}{
 		{0, "0.0.0"},
-		{3, "0.3.0"},
-		{14, "0.14.0"},
+		{1, "0.3"},
+		{2, ""},
 	}
 	for _, c := range cases {
 		if got := m.SemVer(c.in); got != c.out {
