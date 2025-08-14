@@ -78,7 +78,7 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 		casbin = "casbin_rule"
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte("admin"), 12)
+	hash, err := bcrypt.GenerateFromPassword([]byte("admin123"), 12)
 	if err != nil {
 		return err
 	}

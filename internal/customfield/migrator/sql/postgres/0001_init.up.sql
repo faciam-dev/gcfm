@@ -121,7 +121,7 @@ INSERT INTO gcfm_roles(id, name) VALUES (1,'admin') ON CONFLICT (id) DO NOTHING;
 INSERT INTO gcfm_roles(id, name) VALUES (2,'editor') ON CONFLICT (id) DO NOTHING;
 INSERT INTO gcfm_roles(id, name) VALUES (3,'viewer') ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO gcfm_users(id, tenant_id, username, password_hash) VALUES (1,'default','admin','$2a$12$g5eqQ4Y0AIV/nS45itmLYO5LuNwcSJvLaKMYCKngS7O7XKjHfbgeW')
+INSERT INTO gcfm_users(id, tenant_id, username, password_hash) VALUES (1,'default','admin','$2a$12$m6067tTF2aFUNYum/PPEeONElY.Ohk34KWBrvCNcYzs5nB0j.L/N.')
 ON CONFLICT (id) DO UPDATE SET password_hash=EXCLUDED.password_hash;
 
 INSERT INTO gcfm_user_roles(user_id, role_id) VALUES (1,1) ON CONFLICT DO NOTHING;
