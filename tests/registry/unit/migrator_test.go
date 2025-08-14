@@ -15,7 +15,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	m := migrator.NewWithDriver("mysql")
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
@@ -31,7 +31,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("unmet: %v", err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
