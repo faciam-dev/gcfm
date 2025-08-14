@@ -300,7 +300,9 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	args = append(args, limit*auditLogOverfetchMultiplier+1)
 
 	query := fmt.Sprintf(`
-      SELECT id, actor, action, table_name, column_name,
+      SELECT id, actor, action,
+             COALESCE(table_name, '') AS table_name,
+             COALESCE(column_name, '') AS column_name,
              `+coalesceBefore+` AS before_json,
              `+coalesceAfter+` AS after_json,
              added_count, removed_count, change_count,
