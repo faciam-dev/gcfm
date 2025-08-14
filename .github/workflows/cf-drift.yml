@@ -65,21 +65,11 @@ jobs:
             --schema public \
             --seed \
             --table-prefix $TABLE_PREFIX
-      - name: Check table prefix
-        run: |
-          missing=$(psql "$DB_DSN" -Atc \
-            "SELECT tablename FROM pg_tables
-            WHERE schemaname='public'
-            AND tablename NOT LIKE '${TABLE_PREFIX}%'
-            AND tablename NOT IN (
-              'schema_migrations',
-              'gcfm_registry_schema_version'
-            );")
-          if [ -n "$missing" ]; then
-            echo "found tables without expected prefix:"
-            echo "$missing"
-            exit 1
-          fi
+      - name: Prefix guard
+        env:
+          DB_DRIVER: postgres
+          TEST_DATABASE_URL: ${{ env.DB_DSN }}
+        run: bash scripts/check-prefix.sh
       - name: Schema diff
         id: diff
         run: |

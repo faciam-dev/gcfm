@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS public;
+SET search_path TO public;
+
 CREATE TABLE IF NOT EXISTS gcfm_registry_schema_version (
     version INT PRIMARY KEY,
     semver TEXT NOT NULL,
@@ -102,7 +105,8 @@ CREATE TABLE IF NOT EXISTS gcfm_audit_logs (
 
 CREATE INDEX idx_gcfm_audit_tenant_time ON gcfm_audit_logs(tenant_id, applied_at DESC, id DESC);
 
-CREATE TABLE IF NOT EXISTS gcfm_casbin_rule (
+CREATE SCHEMA IF NOT EXISTS authz;
+CREATE TABLE IF NOT EXISTS authz.casbin_rule (
     id SERIAL PRIMARY KEY,
     ptype VARCHAR(100),
     v0 VARCHAR(100),
@@ -244,7 +248,7 @@ SELECT r.id, '/v1/custom-fields/:name', 'GET'
   FROM gcfm_roles r WHERE r.name='editor'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO gcfm_casbin_rule(ptype,v0,v1,v2,v3,v4,v5) VALUES
+INSERT INTO authz.casbin_rule(ptype,v0,v1,v2,v3,v4,v5) VALUES
     ('p','admin','*','*','*','*','*'),
     ('g','admin','admin','','','','')
 ON CONFLICT DO NOTHING;
