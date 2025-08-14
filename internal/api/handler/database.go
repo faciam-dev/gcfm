@@ -66,7 +66,7 @@ type dbTablesOutput struct{ Body []string }
 // GET /v1/databases/{id}/tables returns the list of tables for the monitored DB specified by db_id
 func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*dbTablesOutput, error) {
 	tid := tenant.FromContext(ctx)
-	mdb, err := cfmdb.GetByID(ctx, h.Repo.DB, tid, p.ID)
+	mdb, err := cfmdb.GetByID(ctx, h.Repo.DB, h.Repo.Driver, h.Repo.TablePrefix, tid, p.ID)
 	if err != nil {
 		if errors.Is(err, cfmdb.ErrNotFound) {
 			return nil, huma.Error422("id", "database not found")

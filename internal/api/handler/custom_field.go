@@ -112,7 +112,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if exists {
 		return nil, huma.Error422("body", "field already exists for this db/table/column")
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, *in.Body.DBID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, *in.Body.DBID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -295,7 +295,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		}
 		dbID = *in.Body.DBID
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -393,7 +393,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if oldMeta != nil {
 		dbID = oldMeta.DBID
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")

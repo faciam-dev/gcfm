@@ -131,6 +131,6 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 		}
 	}
 
-	fmt.Fprintln(out, "seeded admin user: admin / admin")
+	fmt.Fprintln(out, "seeded admin user: admin / admin123")
 	return nil
 }

@@ -63,7 +63,7 @@ func main() {
 	api := server.New(db, dbCfg)
 
 	if db != nil {
-		repo := &monitordb.Repo{DB: db, Driver: dbCfg.Driver}
+		repo := &monitordb.Repo{DB: db, Driver: dbCfg.Driver, TablePrefix: dbCfg.TablePrefix}
 		s := gocron.NewScheduler(time.UTC)
 		s.Cron("0 3 * * *").Do(func() {
 			ctx := context.Background()

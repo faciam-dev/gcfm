@@ -44,12 +44,16 @@ func RegisterMetadata(api humago.API, h *MetadataHandler) {
 }
 
 // MetadataHandler handles metadata endpoints.
-type MetadataHandler struct{ DB *sql.DB }
+type MetadataHandler struct {
+	DB          *sql.DB
+	Driver      string
+	TablePrefix string
+}
 
 // listTables returns tables from the monitored database identified by db_id.
 func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (*tablesOutput, error) {
 	tid := tenant.FromContext(ctx)
-	mdb, err := monitordb.GetByID(ctx, h.DB, tid, p.DBID)
+	mdb, err := monitordb.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, p.DBID)
 	if err != nil {
 		if errors.Is(err, monitordb.ErrNotFound) {
 			return nil, huma.Error422("db_id", "database not found")

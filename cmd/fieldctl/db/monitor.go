@@ -24,7 +24,7 @@ func NewAddMonCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		repo := &monitordb.Repo{DB: db, Driver: f.Driver}
+		repo := &monitordb.Repo{DB: db, Driver: f.Driver, TablePrefix: f.TablePrefix}
 		enc, err := crypto.Encrypt([]byte(dsn))
 		if err != nil {
 			return err
@@ -57,7 +57,7 @@ func NewListMonCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		repo := &monitordb.Repo{DB: db, Driver: f.Driver}
+		repo := &monitordb.Repo{DB: db, Driver: f.Driver, TablePrefix: f.TablePrefix}
 		dbs, err := repo.List(cmd.Context(), tenant)
 		if err != nil {
 			return err
@@ -83,7 +83,7 @@ func NewRemoveMonCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		repo := &monitordb.Repo{DB: db, Driver: f.Driver}
+		repo := &monitordb.Repo{DB: db, Driver: f.Driver, TablePrefix: f.TablePrefix}
 		return repo.Delete(context.Background(), tenant, id)
 	}}
 	f.AddFlags(cmd)

@@ -44,7 +44,7 @@ func newScanCmd() *cobra.Command {
 					return err
 				}
 				defer db.Close()
-				repo := &monitordb.Repo{DB: db, Driver: driverFlag}
+				repo := &monitordb.Repo{DB: db, Driver: driverFlag, TablePrefix: "gcfm_"}
 				d, err := repo.Get(ctx, "default", scanDBID)
 				if err != nil {
 					return err

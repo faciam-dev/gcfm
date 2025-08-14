@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
 	ccrypto "github.com/faciam-dev/gcfm/internal/customfield/crypto"
 )
 
@@ -18,12 +19,18 @@ type Record struct {
 
 var ErrNotFound = errors.New("monitored database not found")
 
-func GetByID(ctx context.Context, db *sql.DB, tenant string, id int64) (Record, error) {
+func GetByID(ctx context.Context, db *sql.DB, driver, prefix, tenant string, id int64) (Record, error) {
+	tbl := prefix + "monitored_databases"
+	if prefix == "" {
+		tbl = "gcfm_monitored_databases"
+	}
+	q := fmt.Sprintf(`SELECT id, driver, dsn, COALESCE(schema_name,''), dsn_enc FROM %s WHERE id=? AND tenant_id=?`, tbl)
+	if driver == "postgres" {
+		q = fmt.Sprintf(`SELECT id, driver, dsn, COALESCE(schema_name,''), dsn_enc FROM %s WHERE id=$1 AND tenant_id=$2`, tbl)
+	}
 	var rec Record
 	// if monitored_databases table lacks tenant_id, remove tenant condition accordingly
-	err := db.QueryRowContext(ctx,
-		`SELECT id, driver, dsn, COALESCE(schema_name,''), dsn_enc FROM monitored_databases WHERE id=? AND tenant_id=?`,
-		id, tenant).Scan(&rec.ID, &rec.Driver, &rec.DSN, &rec.Schema, &rec.DSNEnc)
+	err := db.QueryRowContext(ctx, q, id, tenant).Scan(&rec.ID, &rec.Driver, &rec.DSN, &rec.Schema, &rec.DSNEnc)
 	if err == sql.ErrNoRows {
 		return Record{}, ErrNotFound
 	}
