@@ -19,11 +19,11 @@ func TestMigratorUpDownTx(t *testing.T) {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
-       mock.ExpectBegin()
-       for i := 0; i < 43; i++ {
-               mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
-       }
-       mock.ExpectCommit()
+	mock.ExpectBegin()
+	for i := 0; i < 43; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
+	}
+	mock.ExpectCommit()
 	if err := m.Up(context.Background(), db, 1); err != nil {
 		t.Fatalf("up: %v", err)
 	}
@@ -35,11 +35,11 @@ func TestMigratorUpDownTx(t *testing.T) {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
-       mock.ExpectBegin()
-       for i := 0; i < 11; i++ {
-               mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
-       }
-       mock.ExpectCommit()
+	mock.ExpectBegin()
+	for i := 0; i < 11; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
+	}
+	mock.ExpectCommit()
 	if err := m.Down(context.Background(), db, 0); err != nil {
 		t.Fatalf("down: %v", err)
 	}
