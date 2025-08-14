@@ -68,7 +68,7 @@ jobs:
       - name: Prefix guard
         env:
           DB_DRIVER: postgres
-          TEST_DATABASE_URL: ${{ env.DB_DSN }}
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
         run: bash scripts/check-prefix.sh
       - name: Schema diff
         id: diff
