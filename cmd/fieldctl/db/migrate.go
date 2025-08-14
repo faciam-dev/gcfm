@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -67,10 +68,26 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 		return err
 	}
 	defer db.Close()
-	tbl := f.TablePrefix + "users"
-	var count int
-	row := db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE username='admin'", tbl))
-	if err := row.Scan(&count); err != nil {
+	prefix := f.TablePrefix
+	users := prefix + "users"
+	roles := prefix + "roles"
+	userRoles := prefix + "user_roles"
+	if err := validateIdentifier(users); err != nil {
+		return err
+	}
+	if err := validateIdentifier(roles); err != nil {
+		return err
+	}
+	if err := validateIdentifier(userRoles); err != nil {
+		return err
+	}
+	var casbin string
+	if f.Driver == "postgres" {
+		casbin = "authz.casbin_rule"
+	} else {
+		casbin = "casbin_rule"
+	}
+	if err := validateIdentifier(casbin); err != nil {
 		return err
 	}
 
@@ -78,28 +95,64 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	var q string
+
+	// ensure admin role exists
 	switch f.Driver {
 	case "postgres":
-		if count > 0 {
-			q = fmt.Sprintf("UPDATE %s SET password_hash=$1 WHERE username='admin'", tbl)
-		} else {
-			q = fmt.Sprintf("INSERT INTO %s (username,password_hash,role) VALUES ('admin',$1,'admin')", tbl)
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id,name) VALUES (1,'admin') ON CONFLICT (id) DO NOTHING", roles)); err != nil {
+			return err
 		}
 	default:
-		if count > 0 {
-			q = fmt.Sprintf("UPDATE %s SET password_hash=? WHERE username='admin'", tbl)
-		} else {
-			q = fmt.Sprintf("INSERT INTO %s (username,password_hash,role) VALUES ('admin',?,'admin')", tbl)
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id,name) VALUES (1,'admin') ON DUPLICATE KEY UPDATE name=VALUES(name)", roles)); err != nil {
+			return err
 		}
 	}
-	if _, err := db.ExecContext(ctx, q, string(hash)); err != nil {
-		return err
+
+	// upsert admin user
+	switch f.Driver {
+	case "postgres":
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id,tenant_id,username,password_hash) VALUES (1,'default','admin',$1) ON CONFLICT (id) DO UPDATE SET password_hash=EXCLUDED.password_hash", users), string(hash)); err != nil {
+			return err
+		}
+	default:
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id,tenant_id,username,password_hash) VALUES (1,'default','admin',?) ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash)", users), string(hash)); err != nil {
+			return err
+		}
 	}
-	if count > 0 {
-		fmt.Fprintln(out, "updated admin password: admin / admin123")
-	} else {
-		fmt.Fprintln(out, "created admin user: admin / admin123")
+
+	// link user to admin role
+	switch f.Driver {
+	case "postgres":
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (user_id,role_id) VALUES (1,1) ON CONFLICT DO NOTHING", userRoles)); err != nil {
+			return err
+		}
+	default:
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s (user_id,role_id) VALUES (1,1)", userRoles)); err != nil {
+			return err
+		}
+	}
+
+	// seed casbin rules giving admin full access
+	switch f.Driver {
+	case "postgres":
+		if _, err := db.ExecContext(ctx, "INSERT INTO "+casbin+"(ptype,v0,v1,v2,v3,v4,v5) VALUES ('p','admin','*','*','*','*','*'),('g','admin','admin','','','','') ON CONFLICT DO NOTHING"); err != nil {
+			return err
+		}
+	default:
+		if _, err := db.ExecContext(ctx, "INSERT IGNORE INTO "+casbin+"(ptype,v0,v1,v2,v3,v4,v5) VALUES ('p','admin','*','*','*','*','*'),('g','admin','admin','','','','')"); err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintln(out, "seeded admin user: admin / admin123")
+	return nil
+}
+
+var identPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
+
+func validateIdentifier(name string) error {
+	if !identPattern.MatchString(name) {
+		return fmt.Errorf("invalid identifier: %s", name)
 	}
 	return nil
 }

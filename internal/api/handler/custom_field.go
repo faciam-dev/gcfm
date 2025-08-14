@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -112,7 +113,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if exists {
 		return nil, huma.Error422("body", "field already exists for this db/table/column")
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, *in.Body.DBID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, *in.Body.DBID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -295,7 +296,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		}
 		dbID = *in.Body.DBID
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -393,7 +394,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if oldMeta != nil {
 		dbID = oldMeta.DBID
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, tid, dbID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -444,16 +445,23 @@ func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, db
 	if dbID <= 0 {
 		return fmt.Errorf("must be positive integer")
 	}
+	tbl := h.TablePrefix + "monitored_databases"
+	if h.TablePrefix == "" {
+		tbl = "gcfm_monitored_databases"
+	}
+	if err := validateIdentifier(tbl); err != nil {
+		return err
+	}
 	var (
 		query string
 		args  []any
 	)
 	switch h.Driver {
 	case "postgres":
-		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=$1 AND tenant_id=$2`
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=$1 AND tenant_id=$2", tbl)
 		args = []any{dbID, tenantID}
 	default:
-		query = `SELECT COUNT(*) FROM monitored_databases WHERE id=? AND tenant_id=?`
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=? AND tenant_id=?", tbl)
 		args = []any{dbID, tenantID}
 	}
 	var n int
@@ -472,6 +480,9 @@ func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, d
 		args  []any
 	)
 	tbl := h.TablePrefix + "custom_fields"
+	if err := validateIdentifier(tbl); err != nil {
+		return false, err
+	}
 	switch h.Driver {
 	case "postgres":
 		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4", tbl)
@@ -485,4 +496,13 @@ func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, d
 		return false, err
 	}
 	return n > 0, nil
+}
+
+var identPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
+
+func validateIdentifier(name string) error {
+	if !identPattern.MatchString(name) {
+		return fmt.Errorf("invalid identifier: %s", name)
+	}
+	return nil
 }

@@ -49,13 +49,13 @@ func TestMySQLMigrationIdempotent(t *testing.T) {
 	defer db.Close()
 
 	mig := migrator.NewWithDriver("mysql")
-	if err := mig.Up(ctx, db, 13); err != nil {
+	if err := mig.Up(ctx, db, 1); err != nil {
 		t.Fatalf("first migrate: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM gcfm_registry_schema_version WHERE version=13`); err != nil {
+	if _, err := db.ExecContext(ctx, `DELETE FROM gcfm_registry_schema_version WHERE version=1`); err != nil {
 		t.Fatalf("delete version: %v", err)
 	}
-	if err := mig.Up(ctx, db, 13); err != nil {
+	if err := mig.Up(ctx, db, 1); err != nil {
 		t.Fatalf("second migrate: %v", err)
 	}
 }

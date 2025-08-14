@@ -65,6 +65,11 @@ jobs:
             --schema public \
             --seed \
             --table-prefix $TABLE_PREFIX
+      - name: Prefix guard
+        env:
+          DB_DRIVER: postgres
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+        run: bash scripts/check-prefix.sh
       - name: Schema diff
         id: diff
         run: |
@@ -86,10 +91,11 @@ jobs:
           fi
           [ -s diff.txt ] || echo "✅ No schema drift detected." > diff.txt
           exit 0
+      - name: Print Schema Drift Diff
+        if: steps.diff.outputs.changed == 'true'
+        run: cat diff.txt
       - if: steps.diff.outputs.changed == 'true'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: Custom-Field Schema Diff
           path: diff.txt
-      - if: steps.diff.outputs.changed == 'true'
-        run: exit 1

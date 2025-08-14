@@ -37,13 +37,15 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	users := r.TablePrefix + "users"
 	var q string
 	if r.Driver == "mysql" {
-		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
+		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action,
+       COALESCE(l.table_name, '') AS table_name, COALESCE(l.column_name, '') AS column_name,
        l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
 FROM %s l
 LEFT JOIN %s u ON u.id = CAST(l.actor AS UNSIGNED)
 WHERE l.id=?`, logs, users)
 	} else {
-		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action, l.table_name, l.column_name,
+		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action,
+       COALESCE(l.table_name, '') AS table_name, COALESCE(l.column_name, '') AS column_name,
        l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
 FROM %s l
 LEFT JOIN %s u ON u.id::text = l.actor

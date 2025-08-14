@@ -42,6 +42,15 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 	if _, err := db.ExecContext(ctx, stmt); err != nil && !isDuplicateEntryErr(err) {
 		return err
 	}
+
+	if len(m.migrations) == 0 {
+		return fmt.Errorf("no migrations available to set latest version")
+	}
+	latest := m.migrations[len(m.migrations)-1]
+	upd := fmt.Sprintf(`UPDATE %s SET semver='%s' WHERE version=%d`, tbl, latest.SemVer, latest.Version)
+	if _, err := db.ExecContext(ctx, upd); err != nil {
+		return err
+	}
 	return nil
 }
 

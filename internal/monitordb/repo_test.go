@@ -19,7 +19,7 @@ func TestListParsesCreatedAt(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "name", "driver", "dsn_enc", "created_at"}).
 		AddRow(1, "t1", "db1", "mysql", []byte("enc"), []byte("2024-01-02 03:04:05"))
 
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, tenant_id, name, driver, dsn_enc, created_at FROM monitored_databases WHERE tenant_id=? ORDER BY id")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, tenant_id, name, driver, dsn_enc, created_at FROM gcfm_monitored_databases WHERE tenant_id=? ORDER BY id")).
 		WithArgs("t1").WillReturnRows(rows)
 
 	dbs, err := r.List(context.Background(), "t1")
