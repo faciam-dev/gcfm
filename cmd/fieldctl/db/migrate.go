@@ -71,10 +71,7 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	users := prefix + "users"
 	roles := prefix + "roles"
 	userRoles := prefix + "user_roles"
-	casbin := "casbin_rule"
-	if f.Driver == "postgres" {
-		casbin = "authz.casbin_rule"
-	}
+	casbin := prefix + "casbin_rule"
 
 	hash, err := bcrypt.GenerateFromPassword([]byte("admin"), 12)
 	if err != nil {

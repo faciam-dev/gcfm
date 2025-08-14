@@ -1,4 +1,4 @@
-DROP SCHEMA IF EXISTS authz CASCADE;
+DROP TABLE IF EXISTS gcfm_casbin_rule;
 DROP TABLE IF EXISTS gcfm_role_policies;
 DROP TABLE IF EXISTS gcfm_user_roles;
 DROP TABLE IF EXISTS gcfm_roles;

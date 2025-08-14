@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS gcfm_audit_logs (
 
 CREATE INDEX idx_gcfm_audit_tenant_time ON gcfm_audit_logs(tenant_id, applied_at DESC, id DESC);
 
-CREATE TABLE IF NOT EXISTS casbin_rule (
+CREATE TABLE IF NOT EXISTS gcfm_casbin_rule (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ptype VARCHAR(100),
     v0 VARCHAR(100),
@@ -248,7 +248,7 @@ SELECT r.id, '/v1/custom-fields/:name', 'GET'
   FROM gcfm_roles r WHERE r.name='editor'
 ON DUPLICATE KEY UPDATE path=VALUES(path);
 
-INSERT INTO casbin_rule (ptype,v0,v1,v2,v3,v4,v5) VALUES
+INSERT INTO gcfm_casbin_rule (ptype,v0,v1,v2,v3,v4,v5) VALUES
     ('p','admin','*','*','*','*','*'),
     ('g','admin','admin','','','','')
 ON DUPLICATE KEY UPDATE v0=VALUES(v0);
