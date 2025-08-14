@@ -1,0 +1,12 @@
+{
+  "Sign in": "Sign in",
+  "Tenant": "Tenant",
+  "Username": "Username",
+  "Password": "Password",
+  "Login": "Login",
+  "Logging in...": "Logging in...",
+  "Remember tenant": "Remember tenant",
+  "Invalid credentials": "Invalid credentials",
+  "Missing tenant": "Tenant is required",
+  "Required": "This field is required"
+}
