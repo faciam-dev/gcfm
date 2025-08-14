@@ -21,7 +21,7 @@ func (f *DBFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.DSN, "db", "", "database DSN")
 	cmd.Flags().StringVar(&f.Schema, "schema", "", "database schema")
 	cmd.Flags().StringVar(&f.Driver, "driver", "", "database driver")
-	cmd.Flags().StringVar(&f.TablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", ""), "table name prefix")
+	cmd.Flags().StringVar(&f.TablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
 }
 
 // DetectDriver returns the driver based on DSN scheme.

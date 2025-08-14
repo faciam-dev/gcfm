@@ -9,20 +9,18 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
 )
 
-const expectedExecCalls = 3
-
 func TestMigratorUpDownTx(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	m := migrator.NewWithDriver("mysql")
-	for i := 0; i < expectedExecCalls; i++ {
+	for i := 0; i < 3; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
 	mock.ExpectBegin()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 17; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectCommit()
@@ -33,12 +31,14 @@ func TestMigratorUpDownTx(t *testing.T) {
 		t.Fatalf("unmet: %v", err)
 	}
 
-	for i := 0; i < expectedExecCalls; i++ {
+	for i := 0; i < 3; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
 	mock.ExpectBegin()
-	mock.ExpectExec("DROP TABLE").WillReturnResult(sqlmock.NewResult(0, 0))
+	for i := 0; i < 9; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
+	}
 	mock.ExpectCommit()
 	if err := m.Down(context.Background(), db, 0); err != nil {
 		t.Fatalf("down: %v", err)

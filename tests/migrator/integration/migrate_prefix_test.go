@@ -64,8 +64,8 @@ func TestMigrateBootstrap(t *testing.T) {
 	if err := db.QueryRow(`SELECT version FROM ` + prefix + `registry_schema_version`).Scan(&v); err != nil {
 		t.Fatalf("select version: %v", err)
 	}
-	if v != 0 {
-		t.Fatalf("expected version 0 got %d", v)
+	if v != 1 {
+		t.Fatalf("expected version 1 got %d", v)
 	}
 }
 

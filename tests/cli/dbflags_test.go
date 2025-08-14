@@ -18,7 +18,7 @@ func TestDBFlagsParse(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	want := dbcmd.DBFlags{DSN: "dsn", Schema: "s", Driver: "postgres"}
+	want := dbcmd.DBFlags{DSN: "dsn", Schema: "s", Driver: "postgres", TablePrefix: "gcfm_"}
 	if !reflect.DeepEqual(f, want) {
 		t.Fatalf("mismatch: %#v != %#v", f, want)
 	}

@@ -63,7 +63,7 @@ func TestAuthLoginAndProtectedEndpoint(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"username":"admin","password":"admin123"}`
+	body := `{"username":"admin","password":"admin"}`
 	reqLogin, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/auth/login", strings.NewReader(body))
 	reqLogin.Header.Set("Content-Type", "application/json")
 	reqLogin.Header.Set("X-Tenant-ID", "default")
@@ -132,7 +132,7 @@ func TestAuthLoginMissingTenant(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"username":"admin","password":"admin123"}`
+	body := `{"username":"admin","password":"admin"}`
 	reqLogin, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/auth/login", strings.NewReader(body))
 	reqLogin.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(reqLogin)
