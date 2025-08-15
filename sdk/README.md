@@ -18,15 +18,24 @@ import "github.com/faciam-dev/gcfm/sdk"
   - [func CalculateDiff\(changes \[\]registry.Change\) DiffReport](<#CalculateDiff>)
 - [type DisplayMeta](<#DisplayMeta>)
 - [type DisplayOptions](<#DisplayOptions>)
+- [type EqExpr](<#EqExpr>)
+  - [func \(e EqExpr\) Eval\(has func\(label string\) bool\) bool](<#EqExpr.Eval>)
 - [type FieldDef](<#FieldDef>)
 - [type FieldMeta](<#FieldMeta>)
 - [type FileProvider](<#FileProvider>)
   - [func NewFileProvider\(path string\) \*FileProvider](<#NewFileProvider>)
   - [func \(p \*FileProvider\) Fetch\(ctx context.Context\) \(map\[string\]TargetConfig, string, string, error\)](<#FileProvider.Fetch>)
+- [type HasExpr](<#HasExpr>)
+  - [func \(e HasExpr\) Eval\(has func\(label string\) bool\) bool](<#HasExpr.Eval>)
 - [type HotReloadRegistry](<#HotReloadRegistry>)
   - [func NewHotReloadRegistry\(defaultConn \*TargetConn\) \*HotReloadRegistry](<#NewHotReloadRegistry>)
   - [func \(r \*HotReloadRegistry\) Default\(\) \(TargetConn, bool\)](<#HotReloadRegistry.Default>)
   - [func \(r \*HotReloadRegistry\) DefaultKey\(\) string](<#HotReloadRegistry.DefaultKey>)
+  - [func \(r \*HotReloadRegistry\) FindAllByLabels\(labels ...string\) \[\]string](<#HotReloadRegistry.FindAllByLabels>)
+  - [func \(r \*HotReloadRegistry\) FindAnyByLabels\(labels ...string\) \[\]string](<#HotReloadRegistry.FindAnyByLabels>)
+  - [func \(r \*HotReloadRegistry\) FindByLabel\(label string\) \[\]string](<#HotReloadRegistry.FindByLabel>)
+  - [func \(r \*HotReloadRegistry\) FindByQuery\(q Query\) \[\]string](<#HotReloadRegistry.FindByQuery>)
+  - [func \(r \*HotReloadRegistry\) ForEachByQuery\(q Query, fn func\(key string, t TargetConn\) error\) error](<#HotReloadRegistry.ForEachByQuery>)
   - [func \(r \*HotReloadRegistry\) Get\(key string\) \(TargetConn, bool\)](<#HotReloadRegistry.Get>)
   - [func \(r \*HotReloadRegistry\) Keys\(\) \[\]string](<#HotReloadRegistry.Keys>)
   - [func \(r \*HotReloadRegistry\) Register\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Register>)
@@ -35,6 +44,13 @@ import "github.com/faciam-dev/gcfm/sdk"
   - [func \(r \*HotReloadRegistry\) Snapshot\(\) map\[string\]TargetConn](<#HotReloadRegistry.Snapshot>)
   - [func \(r \*HotReloadRegistry\) Unregister\(key string\) \(err error\)](<#HotReloadRegistry.Unregister>)
   - [func \(r \*HotReloadRegistry\) Update\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Update>)
+- [type InExpr](<#InExpr>)
+  - [func \(e InExpr\) Eval\(has func\(label string\) bool\) bool](<#InExpr.Eval>)
+- [type LabelExpr](<#LabelExpr>)
+- [type NotExpr](<#NotExpr>)
+  - [func \(e NotExpr\) Eval\(has func\(label string\) bool\) bool](<#NotExpr.Eval>)
+- [type Query](<#Query>)
+  - [func ParseQuery\(s string\) \(Query, error\)](<#ParseQuery>)
 - [type ScanResult](<#ScanResult>)
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
@@ -163,6 +179,24 @@ type DisplayMeta = registry.DisplayMeta
 type DisplayOptions = registry.DisplayOption
 ```
 
+<a name="EqExpr"></a>
+## type EqExpr
+
+
+
+```go
+type EqExpr struct{ Label, Value string }
+```
+
+<a name="EqExpr.Eval"></a>
+### func \(EqExpr\) Eval
+
+```go
+func (e EqExpr) Eval(has func(label string) bool) bool
+```
+
+
+
 <a name="FieldDef"></a>
 ## type FieldDef
 
@@ -210,6 +244,24 @@ func (p *FileProvider) Fetch(ctx context.Context) (map[string]TargetConfig, stri
 
 Fetch loads target configs from the file, expanding environment variables in DSNs.
 
+<a name="HasExpr"></a>
+## type HasExpr
+
+
+
+```go
+type HasExpr struct{ Label string }
+```
+
+<a name="HasExpr.Eval"></a>
+### func \(HasExpr\) Eval
+
+```go
+func (e HasExpr) Eval(has func(label string) bool) bool
+```
+
+
+
 <a name="HotReloadRegistry"></a>
 ## type HotReloadRegistry
 
@@ -247,6 +299,51 @@ func (r *HotReloadRegistry) DefaultKey() string
 ```
 
 DefaultKey returns the current default key.
+
+<a name="HotReloadRegistry.FindAllByLabels"></a>
+### func \(\*HotReloadRegistry\) FindAllByLabels
+
+```go
+func (r *HotReloadRegistry) FindAllByLabels(labels ...string) []string
+```
+
+FindAllByLabels returns keys of targets containing all the specified labels.
+
+<a name="HotReloadRegistry.FindAnyByLabels"></a>
+### func \(\*HotReloadRegistry\) FindAnyByLabels
+
+```go
+func (r *HotReloadRegistry) FindAnyByLabels(labels ...string) []string
+```
+
+FindAnyByLabels returns keys of targets containing any of the specified labels.
+
+<a name="HotReloadRegistry.FindByLabel"></a>
+### func \(\*HotReloadRegistry\) FindByLabel
+
+```go
+func (r *HotReloadRegistry) FindByLabel(label string) []string
+```
+
+FindByLabel returns keys of targets having the given label.
+
+<a name="HotReloadRegistry.FindByQuery"></a>
+### func \(\*HotReloadRegistry\) FindByQuery
+
+```go
+func (r *HotReloadRegistry) FindByQuery(q Query) []string
+```
+
+FindByQuery returns keys of targets matching q.
+
+<a name="HotReloadRegistry.ForEachByQuery"></a>
+### func \(\*HotReloadRegistry\) ForEachByQuery
+
+```go
+func (r *HotReloadRegistry) ForEachByQuery(q Query, fn func(key string, t TargetConn) error) error
+```
+
+ForEachByQuery executes fn for each target matching q.
 
 <a name="HotReloadRegistry.Get"></a>
 ### func \(\*HotReloadRegistry\) Get
@@ -319,6 +416,77 @@ func (r *HotReloadRegistry) Update(ctx context.Context, key string, cfg TargetCo
 ```
 
 Update replaces an existing target's connection.
+
+<a name="InExpr"></a>
+## type InExpr
+
+
+
+```go
+type InExpr struct {
+    Label  string
+    Values []string
+}
+```
+
+<a name="InExpr.Eval"></a>
+### func \(InExpr\) Eval
+
+```go
+func (e InExpr) Eval(has func(label string) bool) bool
+```
+
+
+
+<a name="LabelExpr"></a>
+## type LabelExpr
+
+
+
+```go
+type LabelExpr interface {
+    Eval(has func(label string) bool) bool
+}
+```
+
+<a name="NotExpr"></a>
+## type NotExpr
+
+
+
+```go
+type NotExpr struct{ Label string }
+```
+
+<a name="NotExpr.Eval"></a>
+### func \(NotExpr\) Eval
+
+```go
+func (e NotExpr) Eval(has func(label string) bool) bool
+```
+
+
+
+<a name="Query"></a>
+## type Query
+
+
+
+```go
+type Query struct {
+    AND []LabelExpr
+    OR  [][]LabelExpr
+}
+```
+
+<a name="ParseQuery"></a>
+### func ParseQuery
+
+```go
+func ParseQuery(s string) (Query, error)
+```
+
+
 
 <a name="ScanResult"></a>
 ## type ScanResult
@@ -618,6 +786,11 @@ type TargetRegistry interface {
     Default() (TargetConn, bool)
     SetDefault(key string)
     Keys() []string
+    FindByLabel(label string) []string
+    FindAllByLabels(labels ...string) []string
+    FindAnyByLabels(labels ...string) []string
+    FindByQuery(q Query) []string
+    ForEachByQuery(q Query, fn func(key string, t TargetConn) error) error
 }
 ```
 
