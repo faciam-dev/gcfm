@@ -9,10 +9,18 @@ import "github.com/faciam-dev/gcfm/sdk"
 ## Index
 
 - [Variables](<#variables>)
+- [func LabelsFromContext\(ctx context.Context, rules CtxValueRules\) \[\]string](<#LabelsFromContext>)
+- [func LabelsFromGRPC\(ctx context.Context, rules GRPCLabelRules\) \[\]string](<#LabelsFromGRPC>)
+- [func LabelsFromHTTP\(r \*http.Request, rules HTTPLabelRules\) \[\]string](<#LabelsFromHTTP>)
+- [func LabelsFromJWT\(claims map\[string\]any, rules JWTLabelRules\) \[\]string](<#LabelsFromJWT>)
 - [func UnifiedDiff\(a, b string\) string](<#UnifiedDiff>)
+- [func WithHTTPRequest\(ctx context.Context, r \*http.Request\) context.Context](<#WithHTTPRequest>)
+- [func WithJWTClaims\(ctx context.Context, claims map\[string\]any\) context.Context](<#WithJWTClaims>)
 - [func WithTenantID\(ctx context.Context, tenantID string\) context.Context](<#WithTenantID>)
 - [type ApplyOptions](<#ApplyOptions>)
+- [type AutoLabelResolverOptions](<#AutoLabelResolverOptions>)
 - [type Connector](<#Connector>)
+- [type CtxValueRules](<#CtxValueRules>)
 - [type DBConfig](<#DBConfig>)
 - [type DiffReport](<#DiffReport>)
   - [func CalculateDiff\(changes \[\]registry.Change\) DiffReport](<#CalculateDiff>)
@@ -25,6 +33,8 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type FileProvider](<#FileProvider>)
   - [func NewFileProvider\(path string\) \*FileProvider](<#NewFileProvider>)
   - [func \(p \*FileProvider\) Fetch\(ctx context.Context\) \(map\[string\]TargetConfig, string, string, error\)](<#FileProvider.Fetch>)
+- [type GRPCLabelRules](<#GRPCLabelRules>)
+- [type HTTPLabelRules](<#HTTPLabelRules>)
 - [type HasExpr](<#HasExpr>)
   - [func \(e HasExpr\) Eval\(has func\(label string\) bool\) bool](<#HasExpr.Eval>)
 - [type HotReloadRegistry](<#HotReloadRegistry>)
@@ -46,12 +56,16 @@ import "github.com/faciam-dev/gcfm/sdk"
   - [func \(r \*HotReloadRegistry\) Update\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Update>)
 - [type InExpr](<#InExpr>)
   - [func \(e InExpr\) Eval\(has func\(label string\) bool\) bool](<#InExpr.Eval>)
+- [type JWTLabelRules](<#JWTLabelRules>)
 - [type LabelExpr](<#LabelExpr>)
 - [type NotExpr](<#NotExpr>)
   - [func \(e NotExpr\) Eval\(has func\(label string\) bool\) bool](<#NotExpr.Eval>)
 - [type Query](<#Query>)
   - [func ParseQuery\(s string\) \(Query, error\)](<#ParseQuery>)
+  - [func QueryFromLabels\(labels \[\]string\) Query](<#QueryFromLabels>)
 - [type ScanResult](<#ScanResult>)
+- [type SelectionHint](<#SelectionHint>)
+- [type SelectionStrategy](<#SelectionStrategy>)
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
 - [type ServiceConfig](<#ServiceConfig>)
@@ -59,11 +73,15 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type SnapshotClient](<#SnapshotClient>)
 - [type TargetConfig](<#TargetConfig>)
 - [type TargetConn](<#TargetConn>)
+- [type TargetDecision](<#TargetDecision>)
 - [type TargetProvider](<#TargetProvider>)
 - [type TargetRegistry](<#TargetRegistry>)
 - [type TargetResolver](<#TargetResolver>)
   - [func TenantResolverFromPrefix\(prefix string\) TargetResolver](<#TenantResolverFromPrefix>)
+- [type TargetResolverV2](<#TargetResolverV2>)
+  - [func AutoLabelResolver\(opts AutoLabelResolverOptions\) TargetResolverV2](<#AutoLabelResolver>)
 - [type TargetWatcher](<#TargetWatcher>)
+- [type TenantIDKey](<#TenantIDKey>)
 
 
 ## Variables
@@ -82,6 +100,42 @@ var (
 )
 ```
 
+<a name="LabelsFromContext"></a>
+## func LabelsFromContext
+
+```go
+func LabelsFromContext(ctx context.Context, rules CtxValueRules) []string
+```
+
+LabelsFromContext extracts labels from context values according to rules.
+
+<a name="LabelsFromGRPC"></a>
+## func LabelsFromGRPC
+
+```go
+func LabelsFromGRPC(ctx context.Context, rules GRPCLabelRules) []string
+```
+
+LabelsFromGRPC extracts labels from gRPC metadata within a context.
+
+<a name="LabelsFromHTTP"></a>
+## func LabelsFromHTTP
+
+```go
+func LabelsFromHTTP(r *http.Request, rules HTTPLabelRules) []string
+```
+
+LabelsFromHTTP extracts labels from an \*http.Request based on rules.
+
+<a name="LabelsFromJWT"></a>
+## func LabelsFromJWT
+
+```go
+func LabelsFromJWT(claims map[string]any, rules JWTLabelRules) []string
+```
+
+LabelsFromJWT extracts labels from a claims map based on rules.
+
 <a name="UnifiedDiff"></a>
 ## func UnifiedDiff
 
@@ -90,6 +144,24 @@ func UnifiedDiff(a, b string) string
 ```
 
 UnifiedDiff returns a unified diff string of two inputs.
+
+<a name="WithHTTPRequest"></a>
+## func WithHTTPRequest
+
+```go
+func WithHTTPRequest(ctx context.Context, r *http.Request) context.Context
+```
+
+WithHTTPRequest stores \*http.Request in context for AutoLabelResolver.
+
+<a name="WithJWTClaims"></a>
+## func WithJWTClaims
+
+```go
+func WithJWTClaims(ctx context.Context, claims map[string]any) context.Context
+```
+
+WithJWTClaims stores JWT claims in context for AutoLabelResolver.
 
 <a name="WithTenantID"></a>
 ## func WithTenantID
@@ -113,6 +185,21 @@ type ApplyOptions struct {
 }
 ```
 
+<a name="AutoLabelResolverOptions"></a>
+## type AutoLabelResolverOptions
+
+AutoLabelResolverOptions configures AutoLabelResolver sources.
+
+```go
+type AutoLabelResolverOptions struct {
+    HTTP *HTTPLabelRules
+    GRPC *GRPCLabelRules
+    JWT  *JWTLabelRules
+    Ctx  *CtxValueRules
+    Hint *SelectionHint
+}
+```
+
 <a name="Connector"></a>
 ## type Connector
 
@@ -120,6 +207,18 @@ Connector is responsible for establishing physical database connections.
 
 ```go
 type Connector func(ctx context.Context, driver, dsnOrURL string) (*sql.DB, error)
+```
+
+<a name="CtxValueRules"></a>
+## type CtxValueRules
+
+CtxValueRules configures label extraction from context values.
+
+```go
+type CtxValueRules struct {
+    KeyMap map[any]string // context key -> label name
+    Fixed  map[string]string
+}
 ```
 
 <a name="DBConfig"></a>
@@ -243,6 +342,30 @@ func (p *FileProvider) Fetch(ctx context.Context) (map[string]TargetConfig, stri
 ```
 
 Fetch loads target configs from the file, expanding environment variables in DSNs.
+
+<a name="GRPCLabelRules"></a>
+## type GRPCLabelRules
+
+GRPCLabelRules configures label extraction from gRPC metadata.
+
+```go
+type GRPCLabelRules struct {
+    MetaMap map[string]string // metadata key -> label name
+    Fixed   map[string]string
+}
+```
+
+<a name="HTTPLabelRules"></a>
+## type HTTPLabelRules
+
+HTTPLabelRules configures label extraction from HTTP headers.
+
+```go
+type HTTPLabelRules struct {
+    HeaderMap map[string]string // header name -> label name
+    Fixed     map[string]string
+}
+```
 
 <a name="HasExpr"></a>
 ## type HasExpr
@@ -438,6 +561,18 @@ func (e InExpr) Eval(has func(label string) bool) bool
 
 
 
+<a name="JWTLabelRules"></a>
+## type JWTLabelRules
+
+JWTLabelRules configures label extraction from JWT claims.
+
+```go
+type JWTLabelRules struct {
+    ClaimMap map[string]string // claim name -> label name
+    Fixed    map[string]string
+}
+```
+
 <a name="LabelExpr"></a>
 ## type LabelExpr
 
@@ -488,6 +623,15 @@ func ParseQuery(s string) (Query, error)
 
 
 
+<a name="QueryFromLabels"></a>
+### func QueryFromLabels
+
+```go
+func QueryFromLabels(labels []string) Query
+```
+
+QueryFromLabels builds a Query that ANDs all label strings. "k=v" becomes EqExpr and plain "k" becomes HasExpr.
+
 <a name="ScanResult"></a>
 ## type ScanResult
 
@@ -495,6 +639,42 @@ func ParseQuery(s string) (Query, error)
 
 ```go
 type ScanResult = schema.ScanResult
+```
+
+<a name="SelectionHint"></a>
+## type SelectionHint
+
+SelectionHint provides optional parameters for selection strategies.
+
+```go
+type SelectionHint struct {
+    Strategy    SelectionStrategy
+    PreferLabel string
+    HashSource  string
+}
+```
+
+<a name="SelectionStrategy"></a>
+## type SelectionStrategy
+
+SelectionStrategy indicates how to choose a key from multiple matches.
+
+```go
+type SelectionStrategy int
+```
+
+<a name="SelectFirst"></a>
+
+```go
+const (
+    // SelectFirst picks the first key in sorted order.
+    SelectFirst SelectionStrategy = iota
+    // SelectPreferLabel prioritizes targets with a given label.
+    SelectPreferLabel
+    // SelectConsistentHash chooses a target based on a consistent hash of
+    // a provided source string.
+    SelectConsistentHash
+)
 ```
 
 <a name="Service"></a>
@@ -686,6 +866,18 @@ type ServiceConfig struct {
     // nil, operations fall back to the default target.
     TargetResolver TargetResolver
 
+    // TargetResolverV2 returns either a direct key or a query. When both
+    // V1 and V2 are provided, V2 takes precedence.
+    TargetResolverV2 TargetResolverV2
+
+    // DefaultStrategy determines how to choose among multiple candidates
+    // returned by a query. The zero value means SelectFirst.
+    DefaultStrategy SelectionStrategy
+
+    // DefaultPreferLabel is used when DefaultStrategy is SelectPreferLabel
+    // and no hint is supplied.
+    DefaultPreferLabel string
+
     // Connector creates new DB connections. When nil, a default
     // implementation based on sql.Open and PingContext is used.
     Connector Connector
@@ -759,6 +951,19 @@ type TargetConn struct {
 }
 ```
 
+<a name="TargetDecision"></a>
+## type TargetDecision
+
+TargetDecision represents a proposal for selecting a target. Either Key or Query \(or both\) may be specified.
+
+```go
+type TargetDecision struct {
+    Key   string
+    Query *Query
+    Hint  *SelectionHint
+}
+```
+
 <a name="TargetProvider"></a>
 ## type TargetProvider
 
@@ -812,6 +1017,24 @@ func TenantResolverFromPrefix(prefix string) TargetResolver
 
 TenantResolverFromPrefix returns a TargetResolver that looks up tenant ID with given prefix.
 
+<a name="TargetResolverV2"></a>
+## type TargetResolverV2
+
+TargetResolverV2 returns a TargetDecision derived from the request context. It returns false when no decision could be made.
+
+```go
+type TargetResolverV2 func(ctx context.Context) (TargetDecision, bool)
+```
+
+<a name="AutoLabelResolver"></a>
+### func AutoLabelResolver
+
+```go
+func AutoLabelResolver(opts AutoLabelResolverOptions) TargetResolverV2
+```
+
+AutoLabelResolver builds a TargetResolverV2 that aggregates labels from various sources and turns them into a Query.
+
 <a name="TargetWatcher"></a>
 ## type TargetWatcher
 
@@ -821,6 +1044,15 @@ TargetWatcher periodically applies configuration updates from a provider.
 type TargetWatcher struct {
     // contains filtered or unexported fields
 }
+```
+
+<a name="TenantIDKey"></a>
+## type TenantIDKey
+
+TenantIDKey is the context key used by WithTenantID.
+
+```go
+type TenantIDKey struct{}
 ```
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
