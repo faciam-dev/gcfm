@@ -12,6 +12,7 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [func UnifiedDiff\(a, b string\) string](<#UnifiedDiff>)
 - [func WithTenantID\(ctx context.Context, tenantID string\) context.Context](<#WithTenantID>)
 - [type ApplyOptions](<#ApplyOptions>)
+- [type Connector](<#Connector>)
 - [type DBConfig](<#DBConfig>)
 - [type DiffReport](<#DiffReport>)
   - [func CalculateDiff\(changes \[\]registry.Change\) DiffReport](<#CalculateDiff>)
@@ -19,6 +20,21 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type DisplayOptions](<#DisplayOptions>)
 - [type FieldDef](<#FieldDef>)
 - [type FieldMeta](<#FieldMeta>)
+- [type FileProvider](<#FileProvider>)
+  - [func NewFileProvider\(path string\) \*FileProvider](<#NewFileProvider>)
+  - [func \(p \*FileProvider\) Fetch\(ctx context.Context\) \(map\[string\]TargetConfig, string, string, error\)](<#FileProvider.Fetch>)
+- [type HotReloadRegistry](<#HotReloadRegistry>)
+  - [func NewHotReloadRegistry\(defaultConn \*TargetConn\) \*HotReloadRegistry](<#NewHotReloadRegistry>)
+  - [func \(r \*HotReloadRegistry\) Default\(\) \(TargetConn, bool\)](<#HotReloadRegistry.Default>)
+  - [func \(r \*HotReloadRegistry\) DefaultKey\(\) string](<#HotReloadRegistry.DefaultKey>)
+  - [func \(r \*HotReloadRegistry\) Get\(key string\) \(TargetConn, bool\)](<#HotReloadRegistry.Get>)
+  - [func \(r \*HotReloadRegistry\) Keys\(\) \[\]string](<#HotReloadRegistry.Keys>)
+  - [func \(r \*HotReloadRegistry\) Register\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Register>)
+  - [func \(r \*HotReloadRegistry\) ReplaceAll\(ctx context.Context, cfgs map\[string\]TargetConfig, mk Connector, defaultKey string\) \(err error\)](<#HotReloadRegistry.ReplaceAll>)
+  - [func \(r \*HotReloadRegistry\) SetDefault\(key string\)](<#HotReloadRegistry.SetDefault>)
+  - [func \(r \*HotReloadRegistry\) Snapshot\(\) map\[string\]TargetConn](<#HotReloadRegistry.Snapshot>)
+  - [func \(r \*HotReloadRegistry\) Unregister\(key string\) \(err error\)](<#HotReloadRegistry.Unregister>)
+  - [func \(r \*HotReloadRegistry\) Update\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Update>)
 - [type ScanResult](<#ScanResult>)
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
@@ -27,10 +43,11 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type SnapshotClient](<#SnapshotClient>)
 - [type TargetConfig](<#TargetConfig>)
 - [type TargetConn](<#TargetConn>)
+- [type TargetProvider](<#TargetProvider>)
 - [type TargetRegistry](<#TargetRegistry>)
-  - [func NewTargetRegistry\(defaultConn TargetConn\) TargetRegistry](<#NewTargetRegistry>)
 - [type TargetResolver](<#TargetResolver>)
   - [func TenantResolverFromPrefix\(prefix string\) TargetResolver](<#TenantResolverFromPrefix>)
+- [type TargetWatcher](<#TargetWatcher>)
 
 
 ## Variables
@@ -78,6 +95,15 @@ type ApplyOptions struct {
     DryRun bool
     Actor  string
 }
+```
+
+<a name="Connector"></a>
+## type Connector
+
+Connector is responsible for establishing physical database connections.
+
+```go
+type Connector func(ctx context.Context, driver, dsnOrURL string) (*sql.DB, error)
 ```
 
 <a name="DBConfig"></a>
@@ -155,6 +181,145 @@ type FieldDef = registry.FieldMeta
 type FieldMeta = registry.FieldMeta
 ```
 
+<a name="FileProvider"></a>
+## type FileProvider
+
+FileProvider reads target configurations from a JSON file.
+
+```go
+type FileProvider struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewFileProvider"></a>
+### func NewFileProvider
+
+```go
+func NewFileProvider(path string) *FileProvider
+```
+
+NewFileProvider creates a provider for the given file path.
+
+<a name="FileProvider.Fetch"></a>
+### func \(\*FileProvider\) Fetch
+
+```go
+func (p *FileProvider) Fetch(ctx context.Context) (map[string]TargetConfig, string, string, error)
+```
+
+Fetch loads target configs from the file, expanding environment variables in DSNs.
+
+<a name="HotReloadRegistry"></a>
+## type HotReloadRegistry
+
+HotReloadRegistry is an RCU\-style implementation of TargetRegistry.
+
+```go
+type HotReloadRegistry struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewHotReloadRegistry"></a>
+### func NewHotReloadRegistry
+
+```go
+func NewHotReloadRegistry(defaultConn *TargetConn) *HotReloadRegistry
+```
+
+NewHotReloadRegistry creates a registry initialized with the default connection.
+
+<a name="HotReloadRegistry.Default"></a>
+### func \(\*HotReloadRegistry\) Default
+
+```go
+func (r *HotReloadRegistry) Default() (TargetConn, bool)
+```
+
+Default returns the default target connection.
+
+<a name="HotReloadRegistry.DefaultKey"></a>
+### func \(\*HotReloadRegistry\) DefaultKey
+
+```go
+func (r *HotReloadRegistry) DefaultKey() string
+```
+
+DefaultKey returns the current default key.
+
+<a name="HotReloadRegistry.Get"></a>
+### func \(\*HotReloadRegistry\) Get
+
+```go
+func (r *HotReloadRegistry) Get(key string) (TargetConn, bool)
+```
+
+Get retrieves a target by key.
+
+<a name="HotReloadRegistry.Keys"></a>
+### func \(\*HotReloadRegistry\) Keys
+
+```go
+func (r *HotReloadRegistry) Keys() []string
+```
+
+Keys returns a copy of available keys.
+
+<a name="HotReloadRegistry.Register"></a>
+### func \(\*HotReloadRegistry\) Register
+
+```go
+func (r *HotReloadRegistry) Register(ctx context.Context, key string, cfg TargetConfig, mk Connector) (err error)
+```
+
+Register adds a new target.
+
+<a name="HotReloadRegistry.ReplaceAll"></a>
+### func \(\*HotReloadRegistry\) ReplaceAll
+
+```go
+func (r *HotReloadRegistry) ReplaceAll(ctx context.Context, cfgs map[string]TargetConfig, mk Connector, defaultKey string) (err error)
+```
+
+ReplaceAll swaps the registry contents atomically.
+
+<a name="HotReloadRegistry.SetDefault"></a>
+### func \(\*HotReloadRegistry\) SetDefault
+
+```go
+func (r *HotReloadRegistry) SetDefault(key string)
+```
+
+SetDefault marks the given key as default if it exists.
+
+<a name="HotReloadRegistry.Snapshot"></a>
+### func \(\*HotReloadRegistry\) Snapshot
+
+```go
+func (r *HotReloadRegistry) Snapshot() map[string]TargetConn
+```
+
+Snapshot returns a copy of the current targets.
+
+<a name="HotReloadRegistry.Unregister"></a>
+### func \(\*HotReloadRegistry\) Unregister
+
+```go
+func (r *HotReloadRegistry) Unregister(key string) (err error)
+```
+
+Unregister removes a target. The connection is closed after publishing the snapshot.
+
+<a name="HotReloadRegistry.Update"></a>
+### func \(\*HotReloadRegistry\) Update
+
+```go
+func (r *HotReloadRegistry) Update(ctx context.Context, key string, cfg TargetConfig, mk Connector) (err error)
+```
+
+Update replaces an existing target's connection.
+
 <a name="ScanResult"></a>
 ## type ScanResult
 
@@ -189,6 +354,8 @@ type Service interface {
     UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
     // DeleteCustomField removes a field from the registry.
     DeleteCustomField(ctx context.Context, table, column string) error
+    // StartTargetWatcher periodically fetches target configurations from a provider.
+    StartTargetWatcher(ctx context.Context, p TargetProvider, interval time.Duration) (stop func())
 }
 ```
 
@@ -350,6 +517,10 @@ type ServiceConfig struct {
     // TargetResolver selects a target based on the request context. When
     // nil, operations fall back to the default target.
     TargetResolver TargetResolver
+
+    // Connector creates new DB connections. When nil, a default
+    // implementation based on sql.Open and PingContext is used.
+    Connector Connector
 }
 ```
 
@@ -389,10 +560,20 @@ TargetConfig defines an individual monitored database.
 ```go
 type TargetConfig struct {
     Key    string // unique identifier like "tenant:foo" or "db:orders"
-    DB     *sql.DB
     Driver string
     Schema string
     Labels []string // optional tags such as "tenant:foo" or "region:tokyo"
+
+    // Physical connection information (hot reload target).
+    DSN          string
+    MaxOpenConns int
+    MaxIdleConns int
+    ConnMaxIdle  time.Duration
+    ConnMaxLife  time.Duration
+
+    // Backward compatibility: pre-established connection. Connections
+    // provided via DB are not subject to hot reload.
+    DB  *sql.DB
 }
 ```
 
@@ -410,6 +591,17 @@ type TargetConn struct {
 }
 ```
 
+<a name="TargetProvider"></a>
+## type TargetProvider
+
+TargetProvider fetches target configurations from an external source.
+
+```go
+type TargetProvider interface {
+    Fetch(ctx context.Context) (cfgs map[string]TargetConfig, defaultKey string, version string, err error)
+}
+```
+
 <a name="TargetRegistry"></a>
 ## type TargetRegistry
 
@@ -417,22 +609,17 @@ TargetRegistry manages monitored database connections.
 
 ```go
 type TargetRegistry interface {
-    Register(cfg TargetConfig) error
+    Register(ctx context.Context, key string, cfg TargetConfig, mk Connector) error
+    Unregister(key string) error
+    Update(ctx context.Context, key string, cfg TargetConfig, mk Connector) error
+    ReplaceAll(ctx context.Context, cfgs map[string]TargetConfig, mk Connector, defaultKey string) error
+    Snapshot() map[string]TargetConn
     Get(key string) (TargetConn, bool)
     Default() (TargetConn, bool)
+    SetDefault(key string)
     Keys() []string
-    ForEach(func(key string, t TargetConn) error) error
 }
 ```
-
-<a name="NewTargetRegistry"></a>
-### func NewTargetRegistry
-
-```go
-func NewTargetRegistry(defaultConn TargetConn) TargetRegistry
-```
-
-NewTargetRegistry creates a registry initialized with the default connection.
 
 <a name="TargetResolver"></a>
 ## type TargetResolver
@@ -451,5 +638,16 @@ func TenantResolverFromPrefix(prefix string) TargetResolver
 ```
 
 TenantResolverFromPrefix returns a TargetResolver that looks up tenant ID with given prefix.
+
+<a name="TargetWatcher"></a>
+## type TargetWatcher
+
+TargetWatcher periodically applies configuration updates from a provider.
+
+```go
+type TargetWatcher struct {
+    // contains filtered or unexported fields
+}
+```
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
