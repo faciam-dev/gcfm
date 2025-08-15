@@ -53,6 +53,13 @@ var capMatrix = map[string]struct{ Path, Method string }{
 	"custom_fields:update": {"/v1/custom-fields", "PUT"},
 	"custom_fields:delete": {"/v1/custom-fields", "DELETE"},
 
+	// Plugins
+	// Both "plugins:list" and "widgets:list" map to the same endpoint and method.
+	// This is intentional: the UI checks for both capabilities to toggle features for plugins and widgets,
+	// even though they are served from the same endpoint. If future separation is needed, update accordingly.
+	"plugins:list": {"/v1/plugins", "GET"},
+	"widgets:list": {"/v1/plugins", "GET"},
+
 	// Snapshots
 	"snapshots:list":   {"/v1/snapshots", "GET"},
 	"snapshots:create": {"/v1/snapshots", "POST"},
