@@ -41,7 +41,33 @@ func newTestStore(t *testing.T) *SQLMetaStore {
         started_at TIMESTAMP,
         finished_at TIMESTAMP,
         details TEXT
-    );`
+    );
+    CREATE TABLE gcfm_targets (
+        key TEXT PRIMARY KEY,
+        driver TEXT NOT NULL,
+        dsn TEXT NOT NULL,
+        schema_name TEXT DEFAULT '',
+        max_open_conns INT DEFAULT 0,
+        max_idle_conns INT DEFAULT 0,
+        conn_max_idle_ms BIGINT DEFAULT 0,
+        conn_max_life_ms BIGINT DEFAULT 0,
+        is_default BOOLEAN DEFAULT FALSE,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE gcfm_target_labels (
+        key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        PRIMARY KEY (key, label),
+        FOREIGN KEY (key) REFERENCES gcfm_targets(key) ON DELETE CASCADE
+    );
+    CREATE TABLE gcfm_target_config_version (
+        id INTEGER PRIMARY KEY,
+        version TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO gcfm_target_config_version(id, version) VALUES (1, 'init');
+    CREATE UNIQUE INDEX gcfm_targets_one_default ON gcfm_targets(is_default) WHERE is_default;
+    `
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatal(err)
 	}
@@ -94,5 +120,58 @@ func TestSQLMetaStore_RecordScanResult(t *testing.T) {
 	}
 	if cnt != 1 {
 		t.Fatalf("expected 1 row, got %d", cnt)
+	}
+}
+
+func TestSQLMetaStore_Targets(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	rowA := metapkg.TargetRow{Key: "a", Driver: "sqlite3", DSN: "dsnA"}
+	if err := store.UpsertTarget(ctx, nil, rowA, []string{"region=tokyo"}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	rowB := metapkg.TargetRow{Key: "b", Driver: "sqlite3", DSN: "dsnB"}
+	if err := store.UpsertTarget(ctx, nil, rowB, nil); err != nil {
+		t.Fatalf("upsert b: %v", err)
+	}
+	if err := store.SetDefaultTarget(ctx, nil, "a"); err != nil {
+		t.Fatalf("set default: %v", err)
+	}
+	ver1, err := store.BumpTargetsVersion(ctx, nil)
+	if err != nil {
+		t.Fatalf("bump version: %v", err)
+	}
+	rows, ver, def, err := store.ListTargets(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if ver != ver1 {
+		t.Fatalf("version mismatch: %s vs %s", ver, ver1)
+	}
+	if def != "a" {
+		t.Fatalf("default key: want a got %s", def)
+	}
+	if len(rows[0].Labels) == 0 {
+		t.Fatalf("labels not loaded")
+	}
+	if err := store.DeleteTarget(ctx, nil, "b"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	ver2, err := store.BumpTargetsVersion(ctx, nil)
+	if err != nil {
+		t.Fatalf("bump2: %v", err)
+	}
+	if ver1 == ver2 {
+		t.Fatalf("version not changed")
+	}
+	rows, _, _, err = store.ListTargets(ctx)
+	if err != nil {
+		t.Fatalf("list2: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
 	}
 }

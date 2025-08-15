@@ -253,4 +253,37 @@ INSERT INTO casbin_rule (ptype,v0,v1,v2,v3,v4,v5) VALUES
     ('g','admin','admin','','','','')
 ON DUPLICATE KEY UPDATE v0=VALUES(v0);
 
+-- targets configuration tables
+CREATE TABLE IF NOT EXISTS gcfm_targets (
+  `key`          VARCHAR(255) PRIMARY KEY,
+  driver       TEXT NOT NULL,
+  dsn          TEXT NOT NULL,
+  schema_name  VARCHAR(64) DEFAULT '',
+  max_open_conns INT DEFAULT 0,
+  max_idle_conns INT DEFAULT 0,
+  conn_max_idle_ms BIGINT DEFAULT 0,
+  conn_max_life_ms BIGINT DEFAULT 0,
+  is_default   BOOLEAN DEFAULT FALSE,
+  updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS gcfm_target_labels (
+  `key`   VARCHAR(255) NOT NULL,
+  label  VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`key`, label),
+  CONSTRAINT fk_target_labels FOREIGN KEY (`key`) REFERENCES gcfm_targets(`key`) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS gcfm_target_config_version (
+  id SMALLINT PRIMARY KEY DEFAULT 1,
+  version VARCHAR(32) NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+INSERT INTO gcfm_target_config_version (id, version)
+  VALUES (1, REPLACE(uuid(), '-', ''))
+ON DUPLICATE KEY UPDATE version=version;
+
+CREATE UNIQUE INDEX gcfm_targets_one_default
+  ON gcfm_targets (is_default) WHERE is_default = TRUE;
+
 INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (1,'0.3');

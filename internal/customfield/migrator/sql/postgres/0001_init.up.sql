@@ -253,4 +253,36 @@ INSERT INTO authz.casbin_rule(ptype,v0,v1,v2,v3,v4,v5) VALUES
     ('g','admin','admin','','','','')
 ON CONFLICT DO NOTHING;
 
+-- targets configuration tables
+CREATE TABLE IF NOT EXISTS gcfm_targets (
+  key          TEXT PRIMARY KEY,
+  driver       TEXT NOT NULL,
+  dsn          TEXT NOT NULL,
+  schema_name  TEXT DEFAULT '',
+  max_open_conns INT DEFAULT 0,
+  max_idle_conns INT DEFAULT 0,
+  conn_max_idle_ms BIGINT DEFAULT 0,
+  conn_max_life_ms BIGINT DEFAULT 0,
+  is_default   BOOLEAN DEFAULT FALSE,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS gcfm_target_labels (
+  key    TEXT NOT NULL REFERENCES gcfm_targets(key) ON DELETE CASCADE,
+  label  TEXT NOT NULL,
+  PRIMARY KEY (key, label)
+);
+
+CREATE TABLE IF NOT EXISTS gcfm_target_config_version (
+  id SMALLINT PRIMARY KEY DEFAULT 1,
+  version TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO gcfm_target_config_version (id, version)
+  VALUES (1, gen_random_uuid()::text)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE UNIQUE INDEX IF NOT EXISTS gcfm_targets_one_default
+  ON gcfm_targets (is_default) WHERE is_default = TRUE;
+
 INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (1,'0.3');

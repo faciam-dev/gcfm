@@ -126,7 +126,7 @@ type service struct {
 	pluginDir    string
 	recorder     *audit.Recorder
 	notifier     notifier.Broker
-	meta         metapkg.Store
+	meta         metapkg.MetaStore
 	targets      TargetRegistry
 	resolveV1    TargetResolver
 	resolveV2    TargetResolverV2

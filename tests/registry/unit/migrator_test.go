@@ -20,7 +20,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(nil))
 	mock.ExpectBegin()
-	for i := 0; i < 43; i++ {
+	for i := 0; i < 48; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectCommit()
@@ -36,7 +36,7 @@ func TestMigratorUpDownTx(t *testing.T) {
 	}
 	mock.ExpectQuery("SELECT MAX\\(version\\)").WillReturnRows(sqlmock.NewRows([]string{"v"}).AddRow(1))
 	mock.ExpectBegin()
-	for i := 0; i < 11; i++ {
+	for i := 0; i < 14; i++ {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(0, 0))
 	}
 	mock.ExpectCommit()
