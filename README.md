@@ -110,6 +110,29 @@ cache, err := runtimecache.New(ctx, sc, registry.DBConfig{Schema: "app"}, time.M
 ```
 
 
+## Dynamic Targets
+
+Load target databases from an external file and hot-reload without downtime:
+
+```go
+meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+svc := sdk.New(sdk.ServiceConfig{
+  MetaDB:        meta,
+  MetaDriver:    "postgres",
+  MetaSchema:    "gcfm_meta",
+  Driver:        "mysql", // default
+  Connector:     nil,      // built-in connector
+  TargetResolver: sdk.TenantResolverFromPrefix("tenant:"),
+})
+
+stop := svc.StartTargetWatcher(context.Background(), sdk.NewFileProvider("targets.json"), 5*time.Second)
+// defer stop()
+
+ctx := sdk.WithTenantID(context.Background(), "A")
+info, _ := svc.DescribeTable(ctx, "posts") // routed to tenant:A
+```
+
+
 ## Plugin 作成ガイド
 
 カスタムバリデータを Go プラグインとして追加できます。最小構成は以下の通りです。
@@ -348,6 +371,9 @@ fieldctl user create --db ... --username alice --password s3cr3t --role editor
 | `cf_cache_misses_total` | Runtime cache misses |
 | `cf_audit_events_total` | Audit log events |
 | `cf_audit_errors_total` | Audit write errors |
+| `cf_targets_total` | Registered targets |
+| `cf_target_labels_total` | Targets per label |
+| `cf_target_operation_seconds` | Registry operation latency |
 
 ### Quick Start
 

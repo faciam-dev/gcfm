@@ -64,6 +64,27 @@ var (
 		},
 		[]string{"action"},
 	)
+	Targets = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "cf_targets_total",
+			Help: "Number of registered targets",
+		},
+	)
+	TargetLabels = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "cf_target_labels_total",
+			Help: "Number of targets per label",
+		},
+		[]string{"label"},
+	)
+	TargetOpLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cf_target_operation_seconds",
+			Help:    "Latency of target registry operations",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"op", "status"},
+	)
 )
 
 func init() {
@@ -76,6 +97,9 @@ func init() {
 		CacheMisses,
 		AuditEvents,
 		AuditErrors,
+		Targets,
+		TargetLabels,
+		TargetOpLatency,
 	)
 }
 

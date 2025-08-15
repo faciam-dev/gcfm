@@ -13,7 +13,7 @@ import (
 // results in the MetaDB. Each target is scanned independently and results are
 // stored using a MetaDB transaction.
 func (s *service) NightlyScan(ctx context.Context) error {
-	return s.targets.ForEach(func(key string, tgt TargetConn) error {
+	for key, tgt := range s.targets.Snapshot() {
 		tables, err := listTables(ctx, tgt)
 		if err != nil {
 			return fmt.Errorf("%s: %w", key, err)
@@ -37,8 +37,11 @@ func (s *service) NightlyScan(ctx context.Context) error {
 				return err
 			}
 		}
-		return tx.Commit()
-	})
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func listTables(ctx context.Context, tgt TargetConn) ([]string, error) {
