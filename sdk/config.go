@@ -54,6 +54,18 @@ type ServiceConfig struct {
 	// nil, operations fall back to the default target.
 	TargetResolver TargetResolver
 
+	// TargetResolverV2 returns either a direct key or a query. When both
+	// V1 and V2 are provided, V2 takes precedence.
+	TargetResolverV2 TargetResolverV2
+
+	// DefaultStrategy determines how to choose among multiple candidates
+	// returned by a query. The zero value means SelectFirst.
+	DefaultStrategy SelectionStrategy
+
+	// DefaultPreferLabel is used when DefaultStrategy is SelectPreferLabel
+	// and no hint is supplied.
+	DefaultPreferLabel string
+
 	// Connector creates new DB connections. When nil, a default
 	// implementation based on sql.Open and PingContext is used.
 	Connector Connector
@@ -81,3 +93,35 @@ type TargetConfig struct {
 // TargetResolver chooses a target key from the request context. It returns
 // the key and true on success.
 type TargetResolver func(ctx context.Context) (key string, ok bool)
+
+// TargetDecision represents a proposal for selecting a target. Either Key or
+// Query (or both) may be specified.
+type TargetDecision struct {
+	Key   string
+	Query *Query
+	Hint  *SelectionHint
+}
+
+// TargetResolverV2 returns a TargetDecision derived from the request context.
+// It returns false when no decision could be made.
+type TargetResolverV2 func(ctx context.Context) (TargetDecision, bool)
+
+// SelectionStrategy indicates how to choose a key from multiple matches.
+type SelectionStrategy int
+
+const (
+	// SelectFirst picks the first key in sorted order.
+	SelectFirst SelectionStrategy = iota
+	// SelectPreferLabel prioritizes targets with a given label.
+	SelectPreferLabel
+	// SelectConsistentHash chooses a target based on a consistent hash of
+	// a provided source string.
+	SelectConsistentHash
+)
+
+// SelectionHint provides optional parameters for selection strategies.
+type SelectionHint struct {
+	Strategy    SelectionStrategy
+	PreferLabel string
+	HashSource  string
+}

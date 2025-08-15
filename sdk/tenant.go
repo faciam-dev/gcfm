@@ -2,9 +2,10 @@ package sdk
 
 import "context"
 
-type tenantKeyType struct{}
+// TenantIDKey is the context key used by WithTenantID.
+type TenantIDKey struct{}
 
-var tenantKey tenantKeyType
+var tenantKey TenantIDKey
 
 // WithTenantID attaches a tenant ID to the context.
 func WithTenantID(ctx context.Context, tenantID string) context.Context {
