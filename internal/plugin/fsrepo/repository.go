@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	pluginloader "github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/plugin"
@@ -35,8 +36,7 @@ func (r *Repository) List(ctx context.Context) ([]plugin.Plugin, error) {
 		if filepath.Ext(e.Name()) != ".so" {
 			continue
 		}
-		name := e.Name()
-		name = name[:len(name)-len(filepath.Ext(name))]
+		name := strings.TrimSuffix(e.Name(), ".so")
 		plugins = append(plugins, plugin.Plugin{Name: name, Type: "widget"})
 	}
 	return plugins, nil
