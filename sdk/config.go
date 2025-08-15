@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"go.uber.org/zap"
+	"time"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
@@ -16,6 +17,9 @@ type DBConfig struct {
 	Schema      string
 	TablePrefix string
 }
+
+// Connector is responsible for establishing physical database connections.
+type Connector func(ctx context.Context, driver, dsnOrURL string) (*sql.DB, error)
 
 // ServiceConfig holds optional configuration for Service.
 //
@@ -49,15 +53,29 @@ type ServiceConfig struct {
 	// TargetResolver selects a target based on the request context. When
 	// nil, operations fall back to the default target.
 	TargetResolver TargetResolver
+
+	// Connector creates new DB connections. When nil, a default
+	// implementation based on sql.Open and PingContext is used.
+	Connector Connector
 }
 
 // TargetConfig defines an individual monitored database.
 type TargetConfig struct {
 	Key    string // unique identifier like "tenant:foo" or "db:orders"
-	DB     *sql.DB
 	Driver string
 	Schema string
 	Labels []string // optional tags such as "tenant:foo" or "region:tokyo"
+
+	// Physical connection information (hot reload target).
+	DSN          string
+	MaxOpenConns int
+	MaxIdleConns int
+	ConnMaxIdle  time.Duration
+	ConnMaxLife  time.Duration
+
+	// Backward compatibility: pre-established connection. Connections
+	// provided via DB are not subject to hot reload.
+	DB *sql.DB
 }
 
 // TargetResolver chooses a target key from the request context. It returns

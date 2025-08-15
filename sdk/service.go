@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -35,6 +36,8 @@ type Service interface {
 	UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
 	// DeleteCustomField removes a field from the registry.
 	DeleteCustomField(ctx context.Context, table, column string) error
+	// StartTargetWatcher periodically fetches target configurations from a provider.
+	StartTargetWatcher(ctx context.Context, p TargetProvider, interval time.Duration) (stop func())
 }
 
 // New returns a Service initialized with the given configuration.
@@ -67,11 +70,15 @@ func New(cfg ServiceConfig) Service {
 		metaSchema = cfg.Schema
 	}
 
-	var def TargetConn
+	var def *TargetConn
 	if cfg.DB != nil {
-		def = TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema}
+		def = &TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema}
 	}
-	reg := NewTargetRegistry(def)
+	reg := NewHotReloadRegistry(def)
+	mk := cfg.Connector
+	if mk == nil {
+		mk = defaultConnector
+	}
 	for _, t := range cfg.Targets {
 		drv := t.Driver
 		if drv == "" {
@@ -81,10 +88,18 @@ func New(cfg ServiceConfig) Service {
 		if sch == "" {
 			sch = cfg.Schema
 		}
-		if t.DB == nil {
-			continue
+		tc := TargetConfig{
+			Driver:       drv,
+			Schema:       sch,
+			Labels:       t.Labels,
+			DSN:          t.DSN,
+			MaxOpenConns: t.MaxOpenConns,
+			MaxIdleConns: t.MaxIdleConns,
+			ConnMaxIdle:  t.ConnMaxIdle,
+			ConnMaxLife:  t.ConnMaxLife,
+			DB:           t.DB,
 		}
-		if err := reg.Register(TargetConfig{Key: t.Key, DB: t.DB, Driver: drv, Schema: sch, Labels: t.Labels}); err != nil {
+		if err := reg.Register(context.Background(), t.Key, tc, mk); err != nil {
 			logger.Errorf("Failed to register target %s: %v", t.Key, err)
 		}
 	}
@@ -97,6 +112,7 @@ func New(cfg ServiceConfig) Service {
 		meta:      sqlmetastore.NewSQLMetaStore(metaDB, metaDriver, metaSchema),
 		targets:   reg,
 		resolve:   cfg.TargetResolver,
+		cn:        cfg.Connector,
 	}
 }
 
@@ -108,6 +124,7 @@ type service struct {
 	meta      metapkg.Store
 	targets   TargetRegistry
 	resolve   TargetResolver
+	cn        Connector
 }
 
 var ErrNoTarget = errors.New("no target database resolved")
