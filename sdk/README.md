@@ -16,7 +16,9 @@ import "github.com/faciam-dev/gcfm/sdk"
   - [func CalculateDiff\(changes \[\]registry.Change\) DiffReport](<#CalculateDiff>)
 - [type DisplayMeta](<#DisplayMeta>)
 - [type DisplayOptions](<#DisplayOptions>)
+- [type FieldDef](<#FieldDef>)
 - [type FieldMeta](<#FieldMeta>)
+- [type ScanResult](<#ScanResult>)
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
 - [type ServiceConfig](<#ServiceConfig>)
@@ -113,6 +115,15 @@ type DisplayMeta = registry.DisplayMeta
 type DisplayOptions = registry.DisplayOption
 ```
 
+<a name="FieldDef"></a>
+## type FieldDef
+
+
+
+```go
+type FieldDef = registry.FieldMeta
+```
+
 <a name="FieldMeta"></a>
 ## type FieldMeta
 
@@ -120,6 +131,15 @@ type DisplayOptions = registry.DisplayOption
 
 ```go
 type FieldMeta = registry.FieldMeta
+```
+
+<a name="ScanResult"></a>
+## type ScanResult
+
+
+
+```go
+type ScanResult = schema.ScanResult
 ```
 
 <a name="Service"></a>
@@ -191,6 +211,37 @@ func main() {
 </p>
 </details>
 
+<details><summary>Example (Separate Meta DB)</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"database/sql"
+	"os"
+
+	"github.com/faciam-dev/gcfm/sdk"
+)
+
+func main() {
+	meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+	target, _ := sql.Open("mysql", os.Getenv("TARGET_DSN"))
+	_ = sdk.New(sdk.ServiceConfig{
+		DB:         target,
+		Driver:     "mysql",
+		MetaDB:     meta,
+		MetaDriver: "postgres",
+		MetaSchema: "gcfm_meta",
+	})
+}
+```
+
+</p>
+</details>
+
 <a name="New"></a>
 ### func New
 
@@ -205,6 +256,8 @@ New returns a Service initialized with the given configuration. Validator plugin
 
 ServiceConfig holds optional configuration for Service.
 
+DB, Driver and Schema specify the default connection to the monitored database. If the Meta\* fields are left nil or empty, they inherit these default values.
+
 ```go
 type ServiceConfig struct {
     Logger          *zap.SugaredLogger
@@ -213,9 +266,18 @@ type ServiceConfig struct {
     PluginEnabled   *bool
     Recorder        *audit.Recorder
     Notifier        notifier.Broker
-    DB              *sql.DB
-    Driver          string
-    Schema          string
+
+    // Default connection for monitored databases. Kept for backward
+    // compatibility.
+    DB     *sql.DB
+    Driver string
+    Schema string
+
+    // Optional separate connection for metadata storage. When omitted,
+    // the above DB/Driver/Schema values are used.
+    MetaDB     *sql.DB
+    MetaDriver string
+    MetaSchema string
 }
 ```
 
