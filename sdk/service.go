@@ -10,6 +10,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	metapkg "github.com/faciam-dev/gcfm/meta"
+	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 )
 
 // Service exposes high level operations for custom field registry.
@@ -51,7 +53,30 @@ func New(cfg ServiceConfig) Service {
 	if err := pluginloader.LoadAll(cfg.PluginDir, logger); err != nil {
 		logger.Errorf("Failed to load plugins from %s: %v", cfg.PluginDir, err)
 	}
-	return &service{logger: logger, pluginDir: cfg.PluginDir, recorder: cfg.Recorder, notifier: cfg.Notifier, db: cfg.DB, driver: cfg.Driver, schema: cfg.Schema}
+
+	metaDB := cfg.MetaDB
+	metaDriver := cfg.MetaDriver
+	metaSchema := cfg.MetaSchema
+	if metaDB == nil {
+		metaDB = cfg.DB
+	}
+	if metaDriver == "" {
+		metaDriver = cfg.Driver
+	}
+	if metaSchema == "" {
+		metaSchema = cfg.Schema
+	}
+
+	return &service{
+		logger:    logger,
+		pluginDir: cfg.PluginDir,
+		recorder:  cfg.Recorder,
+		notifier:  cfg.Notifier,
+		db:        cfg.DB,
+		driver:    cfg.Driver,
+		schema:    cfg.Schema,
+		meta:      sqlmetastore.NewSQLMetaStore(metaDB, metaDriver, metaSchema),
+	}
 }
 
 type service struct {
@@ -62,6 +87,7 @@ type service struct {
 	db        *sql.DB
 	driver    string
 	schema    string
+	meta      metapkg.Store
 }
 
 type ApplyOptions struct {

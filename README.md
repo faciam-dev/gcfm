@@ -198,8 +198,27 @@ func main() {
         log.Fatal(err)
     }
 
-    _ = cli.Create(ctx, sdk.FieldMeta{TableName: "posts", ColumnName: "title", DataType: "text"})
-}
+      _ = cli.Create(ctx, sdk.FieldMeta{TableName: "posts", ColumnName: "title", DataType: "text"})
+  }
+  ```
+
+### Separate metadata database
+
+```go
+meta := sql.Open("postgres", os.Getenv("META_DSN"))
+target := sql.Open("mysql", os.Getenv("TARGET_DSN"))
+
+svc := sdk.New(sdk.ServiceConfig{
+    // Monitored target DB (defaults)
+    DB:     target,
+    Driver: "mysql",
+    Schema: "",
+
+    // Separate metadata store
+    MetaDB:     meta,
+    MetaDriver: "postgres",
+    MetaSchema: "gcfm_meta",
+})
 ```
 
 ### Remote HTTP

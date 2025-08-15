@@ -2,7 +2,9 @@ package sdk_test
 
 import (
 	"context"
+	"database/sql"
 	"log"
+	"os"
 
 	"github.com/faciam-dev/gcfm/sdk"
 )
@@ -27,4 +29,16 @@ func ExampleService_quickstart() {
 	if err := svc.MigrateRegistry(ctx, cfg, 0); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func ExampleService_separateMetaDB() {
+	meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+	target, _ := sql.Open("mysql", os.Getenv("TARGET_DSN"))
+	_ = sdk.New(sdk.ServiceConfig{
+		DB:         target,
+		Driver:     "mysql",
+		MetaDB:     meta,
+		MetaDriver: "postgres",
+		MetaSchema: "gcfm_meta",
+	})
 }

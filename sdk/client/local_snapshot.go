@@ -32,7 +32,7 @@ func (l *snapshotLocal) List(ctx context.Context, tenant string) ([]sdk.Snapshot
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	recs, err := snapshot.List(ctx, db, l.driver, l.prefix, tenant, 20)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (l *snapshotLocal) Create(ctx context.Context, tenant, bump, msg string) (s
 	if err != nil {
 		return sdk.Snapshot{}, err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	svc := sdk.New(sdk.ServiceConfig{})
 	data, err := svc.Export(ctx, sdk.DBConfig{Driver: l.driver, DSN: l.dsn, Schema: l.schema, TablePrefix: l.prefix})
 	if err != nil {
@@ -79,7 +79,7 @@ func (l *snapshotLocal) Apply(ctx context.Context, tenant, ver string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	rec, err := snapshot.Get(ctx, db, l.driver, l.prefix, tenant, ver)
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (l *snapshotLocal) Diff(ctx context.Context, tenant, from, to string) (stri
 	if err != nil {
 		return "", err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	a, err := snapshot.Get(ctx, db, l.driver, l.prefix, tenant, from)
 	if err != nil {
 		return "", err
