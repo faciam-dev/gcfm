@@ -58,6 +58,9 @@ import "github.com/faciam-dev/gcfm/sdk"
   - [func \(e InExpr\) Eval\(has func\(label string\) bool\) bool](<#InExpr.Eval>)
 - [type JWTLabelRules](<#JWTLabelRules>)
 - [type LabelExpr](<#LabelExpr>)
+- [type MetaDBProvider](<#MetaDBProvider>)
+  - [func NewMetaDBProvider\(meta metapkg.MetaStore\) \*MetaDBProvider](<#NewMetaDBProvider>)
+  - [func \(p \*MetaDBProvider\) Fetch\(ctx context.Context\) \(map\[string\]TargetConfig, string, string, error\)](<#MetaDBProvider.Fetch>)
 - [type NotExpr](<#NotExpr>)
   - [func \(e NotExpr\) Eval\(has func\(label string\) bool\) bool](<#NotExpr.Eval>)
 - [type Query](<#Query>)
@@ -583,6 +586,35 @@ type LabelExpr interface {
     Eval(has func(label string) bool) bool
 }
 ```
+
+<a name="MetaDBProvider"></a>
+## type MetaDBProvider
+
+MetaDBProvider reads target configuration from a MetaStore.
+
+```go
+type MetaDBProvider struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewMetaDBProvider"></a>
+### func NewMetaDBProvider
+
+```go
+func NewMetaDBProvider(meta metapkg.MetaStore) *MetaDBProvider
+```
+
+NewMetaDBProvider creates a provider backed by MetaStore.
+
+<a name="MetaDBProvider.Fetch"></a>
+### func \(\*MetaDBProvider\) Fetch
+
+```go
+func (p *MetaDBProvider) Fetch(ctx context.Context) (map[string]TargetConfig, string, string, error)
+```
+
+Fetch retrieves target configurations from the meta store.
 
 <a name="NotExpr"></a>
 ## type NotExpr
