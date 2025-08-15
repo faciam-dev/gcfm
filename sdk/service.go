@@ -106,6 +106,10 @@ func New(cfg ServiceConfig) Service {
 		}
 	}
 
+	classifier := cfg.ErrorClassifier
+	if classifier == nil {
+		classifier = DefaultErrorClassifier
+	}
 	return &service{
 		logger:       logger,
 		pluginDir:    cfg.PluginDir,
@@ -118,6 +122,9 @@ func New(cfg ServiceConfig) Service {
 		stratDefault: cfg.DefaultStrategy,
 		stratPrefer:  cfg.DefaultPreferLabel,
 		cn:           cfg.Connector,
+		failover:     cfg.Failover,
+		classify:     classifier,
+		health:       newHealthRegistry(cfg.Failover),
 	}
 }
 
@@ -133,9 +140,31 @@ type service struct {
 	stratDefault SelectionStrategy
 	stratPrefer  string
 	cn           Connector
+	failover     FailoverPolicy
+	classify     ErrorClassifier
+	health       *healthRegistry
 }
 
 var ErrNoTarget = errors.New("no target database resolved")
+
+func (s *service) resolveDecision(ctx context.Context) (TargetDecision, bool) {
+	if s.resolveV2 != nil {
+		if dec, ok := s.resolveV2(ctx); ok {
+			return dec, true
+		}
+	}
+	if s.resolveV1 != nil {
+		if key, ok := s.resolveV1(ctx); ok {
+			return TargetDecision{Key: key}, true
+		}
+	}
+	if dk, ok := s.targets.(interface{ DefaultKey() string }); ok {
+		if key := dk.DefaultKey(); key != "" {
+			return TargetDecision{Key: key}, true
+		}
+	}
+	return TargetDecision{}, false
+}
 
 // pickTarget resolves a target connection in priority order:
 //  1. V2 resolver explicit Key
@@ -177,8 +206,16 @@ func (s *service) pickTarget(ctx context.Context) (TargetConn, error) {
 }
 
 func (s *service) chooseOne(keys []string, hint *SelectionHint) (string, bool) {
-	if len(keys) == 0 {
+	order := s.chooseOrder(keys, hint)
+	if len(order) == 0 {
 		return "", false
+	}
+	return order[0], true
+}
+
+func (s *service) chooseOrder(keys []string, hint *SelectionHint) []string {
+	if len(keys) == 0 {
+		return nil
 	}
 	sort.Strings(keys)
 
@@ -198,27 +235,28 @@ func (s *service) chooseOne(keys []string, hint *SelectionHint) (string, bool) {
 	}
 
 	switch strategy {
-	case SelectFirst:
-		return keys[0], true
 	case SelectPreferLabel:
+		if prefer == "" {
+			return keys
+		}
 		preferKeys := s.targets.FindByLabel(prefer)
-		if len(preferKeys) > 0 {
-			set := make(map[string]struct{}, len(preferKeys))
-			for _, k := range preferKeys {
-				set[k] = struct{}{}
-			}
-			var filtered []string
-			for _, k := range keys {
-				if _, ok := set[k]; ok {
-					filtered = append(filtered, k)
-				}
-			}
-			if len(filtered) > 0 {
-				sort.Strings(filtered)
-				return filtered[0], true
+		if len(preferKeys) == 0 {
+			return keys
+		}
+		set := make(map[string]struct{}, len(preferKeys))
+		for _, k := range preferKeys {
+			set[k] = struct{}{}
+		}
+		with := make([]string, 0, len(keys))
+		without := make([]string, 0, len(keys))
+		for _, k := range keys {
+			if _, ok := set[k]; ok {
+				with = append(with, k)
+			} else {
+				without = append(without, k)
 			}
 		}
-		return keys[0], true
+		return append(with, without...)
 	case SelectConsistentHash:
 		if hashSrc == "" {
 			hashSrc = keys[0]
@@ -226,9 +264,9 @@ func (s *service) chooseOne(keys []string, hint *SelectionHint) (string, bool) {
 		h := fnv.New32a()
 		_, _ = h.Write([]byte(hashSrc))
 		idx := int(h.Sum32() % uint32(len(keys)))
-		return keys[idx], true
+		return append(keys[idx:], keys[:idx]...)
 	default:
-		return keys[0], true
+		return keys
 	}
 }
 

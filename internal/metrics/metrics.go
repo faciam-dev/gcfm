@@ -101,6 +101,20 @@ var (
 		},
 		[]string{"op"},
 	)
+	TargetFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cf_target_failures_total",
+			Help: "Count of target execution failures",
+		},
+		[]string{"key", "transient"},
+	)
+	TargetState = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "cf_target_breaker_state",
+			Help: "Circuit breaker state per target",
+		},
+		[]string{"key", "state"},
+	)
 )
 
 func init() {
@@ -118,6 +132,8 @@ func init() {
 		TargetOpLatency,
 		TargetQueryLatency,
 		TargetQueryHits,
+		TargetFailures,
+		TargetState,
 	)
 }
 

@@ -69,6 +69,12 @@ type ServiceConfig struct {
 	// Connector creates new DB connections. When nil, a default
 	// implementation based on sql.Open and PingContext is used.
 	Connector Connector
+
+	// Failover controls retry and circuit breaker behavior.
+	Failover FailoverPolicy
+
+	// ErrorClassifier distinguishes transient errors for retry decisions.
+	ErrorClassifier ErrorClassifier
 }
 
 // TargetConfig defines an individual monitored database.
