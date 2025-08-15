@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -81,4 +82,69 @@ func TestPickTargetFallback(t *testing.T) {
 	if _, err := svc.pickTarget(context.Background()); err == nil {
 		t.Fatalf("expected error when no target")
 	}
+}
+
+func TestPickTargetPriority(t *testing.T) {
+	ctx := context.Background()
+	reg := NewHotReloadRegistry(nil)
+	must := func(err error) {
+		if err != nil {
+			t.Fatalf("register: %v", err)
+		}
+	}
+	must(reg.Register(ctx, "v1", TargetConfig{DB: new(sql.DB), Driver: "sqlite3", Schema: "v1", Labels: []string{"group=1"}}, nil))
+	must(reg.Register(ctx, "v2", TargetConfig{DB: new(sql.DB), Driver: "sqlite3", Schema: "v2", Labels: []string{"group=1", "primary=true"}}, nil))
+	must(reg.Register(ctx, "def", TargetConfig{DB: new(sql.DB), Driver: "sqlite3", Schema: "def"}, nil))
+	reg.SetDefault("def")
+
+	t.Run("v2 key overrides v1", func(t *testing.T) {
+		svc := &service{
+			targets:   reg,
+			resolveV1: func(context.Context) (string, bool) { return "v1", true },
+			resolveV2: func(context.Context) (TargetDecision, bool) { return TargetDecision{Key: "v2"}, true },
+		}
+		tc, err := svc.pickTarget(context.Background())
+		if err != nil || tc.Schema != "v2" {
+			t.Fatalf("expected v2, got %s err=%v", tc.Schema, err)
+		}
+	})
+
+	t.Run("v2 query overrides v1", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		req.Header.Set("X-Group", "1")
+		ctxReq := WithHTTPRequest(context.Background(), req)
+
+		svc := &service{
+			targets:   reg,
+			resolveV1: func(context.Context) (string, bool) { return "v1", true },
+			resolveV2: AutoLabelResolver(AutoLabelResolverOptions{
+				HTTP: &HTTPLabelRules{HeaderMap: map[string]string{"X-Group": "group"}},
+				Hint: &SelectionHint{Strategy: SelectPreferLabel, PreferLabel: "primary=true"},
+			}),
+			stratDefault: SelectFirst,
+		}
+		tc, err := svc.pickTarget(ctxReq)
+		if err != nil || tc.Schema != "v2" {
+			t.Fatalf("expected v2 via query, got %s err=%v", tc.Schema, err)
+		}
+	})
+
+	t.Run("fallback order", func(t *testing.T) {
+		svc := &service{
+			targets:      reg,
+			resolveV1:    func(context.Context) (string, bool) { return "v1", true },
+			resolveV2:    AutoLabelResolver(AutoLabelResolverOptions{HTTP: &HTTPLabelRules{HeaderMap: map[string]string{"X-Region": "region"}}}),
+			stratDefault: SelectFirst,
+		}
+		tc, err := svc.pickTarget(context.Background())
+		if err != nil || tc.Schema != "v1" {
+			t.Fatalf("expected v1 fallback, got %s err=%v", tc.Schema, err)
+		}
+
+		svc.resolveV1 = func(context.Context) (string, bool) { return "", false }
+		tc, err = svc.pickTarget(context.Background())
+		if err != nil || tc.Schema != "def" {
+			t.Fatalf("expected default, got %s err=%v", tc.Schema, err)
+		}
+	})
 }

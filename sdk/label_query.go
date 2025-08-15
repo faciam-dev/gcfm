@@ -145,4 +145,18 @@ func parseExpr(tok string) (LabelExpr, error) {
 	return HasExpr{Label: tok}, nil
 }
 
+// QueryFromLabels builds a Query that ANDs all label strings.
+// "k=v" becomes EqExpr and plain "k" becomes HasExpr.
+func QueryFromLabels(labels []string) Query {
+	q := Query{AND: make([]LabelExpr, 0, len(labels))}
+	for _, l := range labels {
+		if i := strings.IndexByte(l, '='); i > 0 {
+			q.AND = append(q.AND, EqExpr{Label: l[:i], Value: l[i+1:]})
+		} else if l != "" {
+			q.AND = append(q.AND, HasExpr{Label: l})
+		}
+	}
+	return q
+}
+
 var inExprRe = regexp.MustCompile(`^([a-z0-9_\-]+)\s+in\s+\(([^)]*)\)$`)

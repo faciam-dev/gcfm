@@ -3,6 +3,8 @@ package sdk
 import (
 	"context"
 	"errors"
+	"hash/fnv"
+	"sort"
 	"time"
 
 	"go.uber.org/zap"
@@ -105,33 +107,64 @@ func New(cfg ServiceConfig) Service {
 	}
 
 	return &service{
-		logger:    logger,
-		pluginDir: cfg.PluginDir,
-		recorder:  cfg.Recorder,
-		notifier:  cfg.Notifier,
-		meta:      sqlmetastore.NewSQLMetaStore(metaDB, metaDriver, metaSchema),
-		targets:   reg,
-		resolve:   cfg.TargetResolver,
-		cn:        cfg.Connector,
+		logger:       logger,
+		pluginDir:    cfg.PluginDir,
+		recorder:     cfg.Recorder,
+		notifier:     cfg.Notifier,
+		meta:         sqlmetastore.NewSQLMetaStore(metaDB, metaDriver, metaSchema),
+		targets:      reg,
+		resolveV1:    cfg.TargetResolver,
+		resolveV2:    cfg.TargetResolverV2,
+		stratDefault: cfg.DefaultStrategy,
+		stratPrefer:  cfg.DefaultPreferLabel,
+		cn:           cfg.Connector,
 	}
 }
 
 type service struct {
-	logger    *zap.SugaredLogger
-	pluginDir string
-	recorder  *audit.Recorder
-	notifier  notifier.Broker
-	meta      metapkg.Store
-	targets   TargetRegistry
-	resolve   TargetResolver
-	cn        Connector
+	logger       *zap.SugaredLogger
+	pluginDir    string
+	recorder     *audit.Recorder
+	notifier     notifier.Broker
+	meta         metapkg.Store
+	targets      TargetRegistry
+	resolveV1    TargetResolver
+	resolveV2    TargetResolverV2
+	stratDefault SelectionStrategy
+	stratPrefer  string
+	cn           Connector
 }
 
 var ErrNoTarget = errors.New("no target database resolved")
 
+// pickTarget resolves a target connection in priority order:
+//  1. V2 resolver explicit Key
+//  2. V2 resolver Query with selection strategy
+//  3. Legacy V1 resolver
+//  4. Registry default
+//
+// For auditing, callers may log the decision (chosen key, collected labels,
+// strategy, hash source, number of candidates) at DEBUG level.
 func (s *service) pickTarget(ctx context.Context) (TargetConn, error) {
-	if s.resolve != nil {
-		if key, ok := s.resolve(ctx); ok {
+	if s.resolveV2 != nil {
+		if dec, ok := s.resolveV2(ctx); ok {
+			if dec.Key != "" {
+				if t, ok := s.targets.Get(dec.Key); ok {
+					return t, nil
+				}
+			}
+			if dec.Query != nil {
+				keys := s.targets.FindByQuery(*dec.Query)
+				if key, ok := s.chooseOne(keys, dec.Hint); ok {
+					if t, ok := s.targets.Get(key); ok {
+						return t, nil
+					}
+				}
+			}
+		}
+	}
+	if s.resolveV1 != nil {
+		if key, ok := s.resolveV1(ctx); ok {
 			if t, ok := s.targets.Get(key); ok {
 				return t, nil
 			}
@@ -141,6 +174,62 @@ func (s *service) pickTarget(ctx context.Context) (TargetConn, error) {
 		return t, nil
 	}
 	return TargetConn{}, ErrNoTarget
+}
+
+func (s *service) chooseOne(keys []string, hint *SelectionHint) (string, bool) {
+	if len(keys) == 0 {
+		return "", false
+	}
+	sort.Strings(keys)
+
+	strategy := s.stratDefault
+	prefer := s.stratPrefer
+	var hashSrc string
+	if hint != nil {
+		if hint.Strategy != 0 {
+			strategy = hint.Strategy
+		}
+		if hint.PreferLabel != "" {
+			prefer = hint.PreferLabel
+		}
+		if hint.HashSource != "" {
+			hashSrc = hint.HashSource
+		}
+	}
+
+	switch strategy {
+	case SelectFirst:
+		return keys[0], true
+	case SelectPreferLabel:
+		preferKeys := s.targets.FindByLabel(prefer)
+		if len(preferKeys) > 0 {
+			set := make(map[string]struct{}, len(preferKeys))
+			for _, k := range preferKeys {
+				set[k] = struct{}{}
+			}
+			var filtered []string
+			for _, k := range keys {
+				if _, ok := set[k]; ok {
+					filtered = append(filtered, k)
+				}
+			}
+			if len(filtered) > 0 {
+				sort.Strings(filtered)
+				return filtered[0], true
+			}
+		}
+		return keys[0], true
+	case SelectConsistentHash:
+		if hashSrc == "" {
+			hashSrc = keys[0]
+		}
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(hashSrc))
+		idx := int(h.Sum32() % uint32(len(keys)))
+		return keys[idx], true
+	default:
+		return keys[0], true
+	}
 }
 
 type ApplyOptions struct {

@@ -307,6 +307,70 @@ _ = svc.NightlyScan(context.Background())
 its results in the MetaDB. This pattern can be adapted for other batch jobs
 that need to touch each tenant database.
 
+### Automatic label-based target resolution
+
+```go
+// Gateway/Envoyからのヘッダ、JWTクレーム、BFFが詰めたctx値を使う例
+svc := sdk.New(sdk.ServiceConfig{
+  MetaDB: meta, MetaDriver: "postgres", MetaSchema: "gcfm_meta",
+  DefaultStrategy:   sdk.SelectConsistentHash,
+  DefaultPreferLabel: "primary=true",
+  TargetResolverV2: sdk.AutoLabelResolver(sdk.AutoLabelResolverOptions{
+    HTTP: &sdk.HTTPLabelRules{
+      HeaderMap: map[string]string{
+        "x-tenant-id": "tenant",
+        "x-region":    "region",
+        "x-env":       "env",
+      },
+      Fixed: map[string]string{ "primary": "true" }, // 例：常にprimary=true優先
+    },
+    GRPC: &sdk.GRPCLabelRules{
+      MetaMap: map[string]string{
+        "x-tenant-id": "tenant",
+        "x-region":    "region",
+      },
+    },
+    JWT: &sdk.JWTLabelRules{
+      ClaimMap: map[string]string{
+        "tid": "tenant",
+      },
+    },
+    Ctx: &sdk.CtxValueRules{
+      KeyMap: map[any]string{
+        sdk.TenantIDKey{}: "tenant", // 既存の WithTenantID 由来
+      },
+    },
+    Hint: &sdk.SelectionHint{
+      Strategy:   sdk.SelectConsistentHash,
+      HashSource: "tenant:acme", // 例（実際は ctx から拾って入れる実装にしてもOK）
+    },
+  }),
+})
+```
+
+```go
+// HTTP ミドルウェア例（router 側）
+func inject(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+  ctx = sdk.WithHTTPRequest(ctx, r)
+  if tid := r.Header.Get("x-tenant-id"); tid != "" {
+    ctx = sdk.WithTenantID(ctx, tid)
+  }
+  // JWT パース済みクレームを入れる
+  if claims := parseJWT(r); claims != nil {
+    ctx = sdk.WithJWTClaims(ctx, claims)
+  }
+  return ctx
+}
+```
+
+### Operational tips
+
+- Resolution order: explicit `Key` > `Query` > legacy resolver (V1) > default target
+- When queries often match many targets, `SelectConsistentHash` with a stable `HashSource` (e.g. tenant ID) balances load and preserves stickiness
+- For redundant pairs like primary/secondary, set `SelectPreferLabel("primary=true")` as the default strategy
+- Labels are normalized to lower-case, trimmed, and restricted to safe characters
+- Emit DEBUG logs with the chosen key, collected labels, strategy, hash source, and candidate count to ease audits
+
 ### Transaction policy
 
 Each target database operation uses its own transaction. Metadata is persisted
