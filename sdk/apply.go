@@ -57,7 +57,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			if err != nil {
 				return DiffReport{}, err
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 			cur, err := mig.Current(ctx, db)
 			if err != nil && err != migrator.ErrNoVersionTable {
 				return DiffReport{}, err
@@ -114,7 +114,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		if err != nil {
 			return rep, err
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		if err := registry.DeleteSQL(ctx, db, drv, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
@@ -132,7 +132,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		if err != nil {
 			return rep, err
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
@@ -150,7 +150,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		if err != nil {
 			return rep, err
 		}
-		defer cli.Disconnect(ctx)
+		defer func() { _ = cli.Disconnect(ctx) }()
 		if err := registry.DeleteMongo(ctx, cli, registry.DBConfig{Schema: cfg.Schema, TablePrefix: cfg.TablePrefix}, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)

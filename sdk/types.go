@@ -3,10 +3,13 @@ package sdk
 import (
 	"time"
 
+	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 )
 
 type FieldMeta = registry.FieldMeta
+type FieldDef = registry.FieldMeta
+type ScanResult = schema.ScanResult
 
 type DisplayMeta = registry.DisplayMeta
 
