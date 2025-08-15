@@ -42,3 +42,25 @@ func ExampleService_separateMetaDB() {
 		MetaSchema: "gcfm_meta",
 	})
 }
+
+func ExampleService_multiTarget() {
+	meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+	dbA, _ := sql.Open("mysql", os.Getenv("TENANT_A_DSN"))
+	dbB, _ := sql.Open("mysql", os.Getenv("TENANT_B_DSN"))
+
+	svc := sdk.New(sdk.ServiceConfig{
+		DB:         dbA,
+		Driver:     "mysql",
+		MetaDB:     meta,
+		MetaDriver: "postgres",
+		MetaSchema: "gcfm_meta",
+		Targets: []sdk.TargetConfig{
+			{Key: "tenant:A", DB: dbA, Driver: "mysql", Schema: ""},
+			{Key: "tenant:B", DB: dbB, Driver: "mysql", Schema: ""},
+		},
+		TargetResolver: sdk.TenantResolverFromPrefix("tenant:"),
+	})
+
+	ctx := sdk.WithTenantID(context.Background(), "A")
+	_, _ = svc.ListCustomFields(ctx, 1, "posts")
+}
