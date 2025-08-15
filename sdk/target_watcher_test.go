@@ -15,7 +15,7 @@ import (
 func waitDefault(reg *HotReloadRegistry, expected string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if reg.snap.Load().(*snapshot).defaultKey == expected {
+		if reg.DefaultKey() == expected {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)

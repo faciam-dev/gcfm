@@ -74,10 +74,6 @@ func (r *HotReloadRegistry) buildConn(ctx context.Context, cfg TargetConfig, mk 
 			return TargetConn{}, nil, err
 		}
 		tune(db, cfg)
-		if err := db.PingContext(ctx); err != nil {
-			_ = db.Close()
-			return TargetConn{}, nil, err
-		}
 	}
 	c := TargetConn{DB: db, Driver: cfg.Driver, Schema: cfg.Schema, Labels: toSet(cfg.Labels)}
 	closer := func() error {
@@ -105,6 +101,12 @@ func (r *HotReloadRegistry) Register(ctx context.Context, key string, cfg Target
 	conn, closer, err = r.buildConn(ctx, cfg, mk)
 	if err != nil {
 		return err
+	}
+	if cfg.DB == nil {
+		if err = conn.DB.PingContext(ctx); err != nil {
+			_ = closer()
+			return err
+		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -170,6 +172,12 @@ func (r *HotReloadRegistry) Update(ctx context.Context, key string, cfg TargetCo
 	if err != nil {
 		return err
 	}
+	if cfg.DB == nil {
+		if err = conn.DB.PingContext(ctx); err != nil {
+			_ = closer()
+			return err
+		}
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	old := r.snap.Load().(*snapshot)
@@ -215,6 +223,34 @@ func (r *HotReloadRegistry) ReplaceAll(ctx context.Context, cfgs map[string]Targ
 		nextByKey[k], nextCloser[k] = conn, closer
 	}
 
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(nextByKey))
+	for k, c := range nextByKey {
+		if cfgs[k].DB != nil {
+			continue
+		}
+		wg.Add(1)
+		go func(db *sql.DB) {
+			defer wg.Done()
+			if err := db.PingContext(ctx); err != nil {
+				errCh <- err
+			}
+		}(c.DB)
+	}
+	wg.Wait()
+	close(errCh)
+	var pingErr error
+	for e := range errCh {
+		pingErr = e
+		break
+	}
+	if pingErr != nil {
+		for _, cl := range nextCloser {
+			_ = cl()
+		}
+		return pingErr
+	}
+
 	r.mu.Lock()
 	ns := &snapshot{byKey: nextByKey, defaultKey: defaultKey, keys: keysOf(nextByKey)}
 	r.snap.Store(ns)
@@ -223,9 +259,8 @@ func (r *HotReloadRegistry) ReplaceAll(ctx context.Context, cfgs map[string]Targ
 	r.closer = nextCloser
 	r.mu.Unlock()
 
-	for k, cl := range oldClosers {
+	for _, cl := range oldClosers {
 		_ = cl()
-		delete(oldClosers, k)
 	}
 	return nil
 }
@@ -271,6 +306,12 @@ func (r *HotReloadRegistry) Default() (TargetConn, bool) {
 	}
 	v, ok := s.byKey[s.defaultKey]
 	return v, ok
+}
+
+// DefaultKey returns the current default key.
+func (r *HotReloadRegistry) DefaultKey() string {
+	s := r.snap.Load().(*snapshot)
+	return s.defaultKey
 }
 
 // Keys returns a copy of available keys.
