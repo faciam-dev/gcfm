@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	sdk "github.com/faciam-dev/gcfm/sdk"
 	client "github.com/faciam-dev/gcfm/sdk/client"
@@ -38,6 +39,11 @@ func (s *stubService) Apply(context.Context, sdk.DBConfig, []byte, sdk.ApplyOpti
 }
 func (s *stubService) MigrateRegistry(context.Context, sdk.DBConfig, int) error   { return nil }
 func (s *stubService) RegistryVersion(context.Context, sdk.DBConfig) (int, error) { return 0, nil }
+
+// StartTargetWatcher is a no-op for tests to satisfy the Service interface.
+func (s *stubService) StartTargetWatcher(context.Context, sdk.TargetProvider, time.Duration) func() {
+	return func() {}
+}
 
 func TestLocalClientDelegates(t *testing.T) {
 	svc := &stubService{}
