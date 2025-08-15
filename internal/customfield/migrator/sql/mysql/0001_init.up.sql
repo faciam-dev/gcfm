@@ -255,7 +255,7 @@ ON DUPLICATE KEY UPDATE v0=VALUES(v0);
 
 -- targets configuration tables
 CREATE TABLE IF NOT EXISTS gcfm_targets (
-  `key`          TEXT PRIMARY KEY,
+  `key`          VARCHAR(255) PRIMARY KEY,
   driver       TEXT NOT NULL,
   dsn          TEXT NOT NULL,
   schema_name  VARCHAR(64) DEFAULT '',
@@ -268,19 +268,19 @@ CREATE TABLE IF NOT EXISTS gcfm_targets (
 );
 
 CREATE TABLE IF NOT EXISTS gcfm_target_labels (
-  `key`   TEXT NOT NULL,
-  label  TEXT NOT NULL,
+  `key`   VARCHAR(255) NOT NULL,
+  label  VARCHAR(255) NOT NULL,
   PRIMARY KEY (`key`, label),
   CONSTRAINT fk_target_labels FOREIGN KEY (`key`) REFERENCES gcfm_targets(`key`) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS gcfm_target_config_version (
   id SMALLINT PRIMARY KEY DEFAULT 1,
-  version TEXT NOT NULL,
+  version VARCHAR(32) NOT NULL,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 INSERT INTO gcfm_target_config_version (id, version)
-  VALUES (1, uuid())
+  VALUES (1, REPLACE(uuid(), '-', ''))
 ON DUPLICATE KEY UPDATE version=version;
 
 CREATE UNIQUE INDEX gcfm_targets_one_default

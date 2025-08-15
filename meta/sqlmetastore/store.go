@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -447,8 +448,16 @@ func (s *SQLMetaStore) BumpTargetsVersion(ctx context.Context, tx *sql.Tx) (stri
 		ownTx = true
 	}
 	tbl := s.table("target_config_version")
-	ver := uuid.NewString()
-	q := fmt.Sprintf("UPDATE %s SET version=?, updated_at=CURRENT_TIMESTAMP WHERE id=1", tbl)
+	ver := strings.ReplaceAll(uuid.NewString(), "-", "")
+	var q string
+	switch s.driver {
+	case "postgres":
+		q = fmt.Sprintf("UPDATE %s SET version=$1, updated_at=NOW() WHERE id=1", tbl)
+	case "mysql":
+		q = fmt.Sprintf("UPDATE %s SET version=?, updated_at=CURRENT_TIMESTAMP WHERE id=1", tbl)
+	default:
+		q = fmt.Sprintf("UPDATE %s SET version=?, updated_at=CURRENT_TIMESTAMP WHERE id=1", tbl)
+	}
 	if _, err := tx.ExecContext(ctx, q, ver); err != nil {
 		if ownTx {
 			_ = tx.Rollback()
