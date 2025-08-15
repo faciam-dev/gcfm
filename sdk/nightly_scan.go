@@ -31,7 +31,9 @@ func (s *service) NightlyScan(ctx context.Context) error {
 				FinishedAt: time.Now(),
 			}
 			if err := s.meta.RecordScanResult(ctx, tx, res); err != nil {
-				_ = tx.Rollback()
+				if rbErr := tx.Rollback(); rbErr != nil {
+					fmt.Printf("rollback failed for tenant %s: %v\n", key, rbErr)
+				}
 				return err
 			}
 		}

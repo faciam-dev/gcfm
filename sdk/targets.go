@@ -23,6 +23,11 @@ type TargetConn struct {
 	Labels map[string]struct{}
 }
 
+// isValidTargetConn returns true if any field in TargetConn is set.
+func isValidTargetConn(conn TargetConn) bool {
+	return conn.DB != nil || conn.Driver != "" || conn.Schema != "" || len(conn.Labels) > 0
+}
+
 // targetRegistry is an in-memory implementation of TargetRegistry.
 type targetRegistry struct {
 	mu         sync.RWMutex
@@ -33,7 +38,7 @@ type targetRegistry struct {
 // NewTargetRegistry creates a registry initialized with the default connection.
 func NewTargetRegistry(defaultConn TargetConn) TargetRegistry {
 	r := &targetRegistry{targets: make(map[string]TargetConn)}
-	if defaultConn.DB != nil || defaultConn.Driver != "" || defaultConn.Schema != "" || len(defaultConn.Labels) > 0 {
+	if isValidTargetConn(defaultConn) {
 		r.targets["default"] = defaultConn
 		r.defaultKey = "default"
 	}

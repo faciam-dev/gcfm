@@ -84,7 +84,9 @@ func New(cfg ServiceConfig) Service {
 		if t.DB == nil {
 			continue
 		}
-		_ = reg.Register(TargetConfig{Key: t.Key, DB: t.DB, Driver: drv, Schema: sch, Labels: t.Labels})
+		if err := reg.Register(TargetConfig{Key: t.Key, DB: t.DB, Driver: drv, Schema: sch, Labels: t.Labels}); err != nil {
+			logger.Errorf("Failed to register target %s: %v", t.Key, err)
+		}
 	}
 
 	return &service{
