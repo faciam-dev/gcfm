@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	metapkg "github.com/faciam-dev/gcfm/meta"
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
 )
 
@@ -58,7 +59,7 @@ func (s *service) CreateCustomField(ctx context.Context, fm registry.FieldMeta) 
 		}
 	}
 	fm.DBID = monitordb.DefaultDBID
-	return registry.UpsertSQL(ctx, s.db, s.driver, []registry.FieldMeta{fm})
+	return s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm})
 }
 
 func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error {
@@ -79,7 +80,7 @@ func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) 
 		}
 	}
 	fm.DBID = monitordb.DefaultDBID
-	return registry.UpsertSQL(ctx, s.db, s.driver, []registry.FieldMeta{fm})
+	return s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm})
 }
 
 func (s *service) DeleteCustomField(ctx context.Context, table, column string) error {
@@ -90,5 +91,5 @@ func (s *service) DeleteCustomField(ctx context.Context, table, column string) e
 		return err
 	}
 	fm := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
-	return registry.DeleteSQL(ctx, s.db, s.driver, []registry.FieldMeta{fm})
+	return s.meta.DeleteFieldDefs(ctx, nil, []metapkg.FieldDef{fm})
 }
