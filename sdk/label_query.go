@@ -1,9 +1,13 @@
 package sdk
 
 import (
-	"fmt"
+	"regexp"
 	"strings"
 )
+
+func normalizeString(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
 
 type LabelExpr interface {
 	Eval(has func(label string) bool) bool
@@ -48,7 +52,7 @@ type Query struct {
 
 func ParseQuery(s string) (Query, error) {
 	q := Query{}
-	s = strings.ToLower(strings.TrimSpace(s))
+	s = normalizeString(s)
 	if s == "" {
 		return q, nil
 	}
@@ -73,7 +77,7 @@ func ParseQuery(s string) (Query, error) {
 }
 
 func parseAND(part string) ([]LabelExpr, error) {
-	part = strings.ToLower(strings.TrimSpace(part))
+	part = normalizeString(part)
 	if part == "" {
 		return nil, nil
 	}
@@ -92,7 +96,7 @@ func parseAND(part string) ([]LabelExpr, error) {
 			cur.WriteRune(r)
 		case ',':
 			if depth == 0 {
-				toks = append(toks, strings.TrimSpace(cur.String()))
+				toks = append(toks, normalizeString(cur.String()))
 				cur.Reset()
 			} else {
 				cur.WriteRune(r)
@@ -102,7 +106,7 @@ func parseAND(part string) ([]LabelExpr, error) {
 		}
 	}
 	if cur.Len() > 0 {
-		toks = append(toks, strings.TrimSpace(cur.String()))
+		toks = append(toks, normalizeString(cur.String()))
 	}
 	out := make([]LabelExpr, 0, len(toks))
 	for _, t := range toks {
@@ -119,37 +123,26 @@ func parseAND(part string) ([]LabelExpr, error) {
 }
 
 func parseExpr(tok string) (LabelExpr, error) {
-	tok = strings.ToLower(strings.TrimSpace(tok))
+	tok = normalizeString(tok)
 	if strings.HasPrefix(tok, "!") {
-		return NotExpr{Label: strings.TrimSpace(tok[1:])}, nil
+		return NotExpr{Label: normalizeString(tok[1:])}, nil
 	}
-	if strings.Contains(tok, " in ") {
-		parts := strings.SplitN(tok, " in ", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid IN expression: %s", tok)
-		}
-		label := strings.TrimSpace(parts[0])
-		vals := strings.TrimSpace(parts[1])
-		if len(vals) < 2 || vals[0] != '(' || vals[len(vals)-1] != ')' {
-			return nil, fmt.Errorf("invalid IN expression: %s", tok)
-		}
-		vals = vals[1 : len(vals)-1]
+	if matches := inExprRe.FindStringSubmatch(tok); matches != nil {
+		label := normalizeString(matches[1])
+		vals := matches[2]
 		items := strings.Split(vals, ",")
 		values := make([]string, 0, len(items))
 		for _, it := range items {
-			it = strings.TrimSpace(it)
-			if it != "" {
-				values = append(values, it)
+			if v := normalizeString(it); v != "" {
+				values = append(values, v)
 			}
 		}
 		return InExpr{Label: label, Values: values}, nil
 	}
-	if strings.Contains(tok, "=") {
-		parts := strings.SplitN(tok, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid expression: %s", tok)
-		}
-		return EqExpr{Label: strings.TrimSpace(parts[0]), Value: strings.TrimSpace(parts[1])}, nil
+	if i := strings.IndexByte(tok, '='); i >= 0 {
+		return EqExpr{Label: normalizeString(tok[:i]), Value: normalizeString(tok[i+1:])}, nil
 	}
 	return HasExpr{Label: tok}, nil
 }
+
+var inExprRe = regexp.MustCompile(`^([a-z0-9_\-]+)\s+in\s+\(([^)]*)\)$`)

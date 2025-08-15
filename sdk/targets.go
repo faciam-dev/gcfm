@@ -495,11 +495,23 @@ func toSet(labels []string) map[string]struct{} {
 			continue
 		}
 		s[l] = struct{}{}
-		if i := strings.IndexByte(l, '='); i > 0 {
+		if i := strings.IndexByte(l, '='); i >= 0 {
 			s[l[:i]] = struct{}{}
 		}
 	}
 	return s
+}
+
+func deepCopyLabelIndex(src map[string]map[string]struct{}) map[string]map[string]struct{} {
+	dst := make(map[string]map[string]struct{}, len(src))
+	for label, keys := range src {
+		keysCopy := make(map[string]struct{}, len(keys))
+		for k := range keys {
+			keysCopy[k] = struct{}{}
+		}
+		dst[label] = keysCopy
+	}
+	return dst
 }
 
 func cloneSnap(s *snapshot) *snapshot {
@@ -507,11 +519,10 @@ func cloneSnap(s *snapshot) *snapshot {
 		byKey:      make(map[string]TargetConn, len(s.byKey)),
 		defaultKey: s.defaultKey,
 		keys:       append([]string(nil), s.keys...),
-		labelIndex: make(map[string]map[string]struct{}),
+		labelIndex: deepCopyLabelIndex(s.labelIndex),
 	}
 	for k, v := range s.byKey {
 		ns.byKey[k] = v
-		addToIndex(ns.labelIndex, k, v.Labels)
 	}
 	return ns
 }
