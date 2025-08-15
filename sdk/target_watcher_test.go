@@ -3,19 +3,44 @@ package sdk
 import (
 	"context"
 	"database/sql"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
+	metapkg "github.com/faciam-dev/gcfm/meta"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// waitDefault waits until registry default key matches expected.
-func waitDefault(reg *HotReloadRegistry, expected string, timeout time.Duration) bool {
+// countingRegistry wraps HotReloadRegistry to count ReplaceAll calls.
+type countingRegistry struct {
+	*HotReloadRegistry
+	mu    sync.Mutex
+	count int
+}
+
+func newCountingRegistry() *countingRegistry {
+	return &countingRegistry{HotReloadRegistry: NewHotReloadRegistry(nil)}
+}
+
+func (r *countingRegistry) ReplaceAll(ctx context.Context, cfgs map[string]TargetConfig, mk Connector, def string) error {
+	r.mu.Lock()
+	r.count++
+	r.mu.Unlock()
+	return r.HotReloadRegistry.ReplaceAll(ctx, cfgs, mk, def)
+}
+
+func (r *countingRegistry) calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.count
+}
+
+func waitReplace(r *countingRegistry, want int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if reg.DefaultKey() == expected {
+		if r.calls() >= want {
 			return true
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -23,21 +48,24 @@ func waitDefault(reg *HotReloadRegistry, expected string, timeout time.Duration)
 	return false
 }
 
-func TestFileProviderWatcher(t *testing.T) {
+func TestMetaDBProviderWatcher(t *testing.T) {
 	ctx := context.Background()
-	tmpdir := t.TempDir()
-	path := tmpdir + "/targets.json"
+	store := newTargetStore(t)
 
-	os.Setenv("TENANT_A_DSN", "dsnA")
-	os.Setenv("TENANT_B_DSN", "dsnB")
-
-	initial := `{"version":"v1","default":"tenant:A","targets":[{"key":"tenant:A","driver":"sqlite3","dsn":"${TENANT_A_DSN}"},{"key":"tenant:B","driver":"sqlite3","dsn":"${TENANT_B_DSN}"}]}`
-	if err := os.WriteFile(path, []byte(initial), 0o644); err != nil {
-		t.Fatalf("write initial: %v", err)
+	if err := store.UpsertTarget(ctx, nil, metapkg.TargetRow{Key: "tenant:A", Driver: "sqlite3", DSN: "dsnA"}, []string{"region=tokyo"}); err != nil {
+		t.Fatalf("upsert A: %v", err)
+	}
+	if err := store.SetDefaultTarget(ctx, nil, "tenant:A"); err != nil {
+		t.Fatalf("set default A: %v", err)
+	}
+	if _, err := store.BumpTargetsVersion(ctx, nil); err != nil {
+		t.Fatalf("bump1: %v", err)
 	}
 
-	var mu sync.Mutex
-	var dsns []string
+	var (
+		mu   sync.Mutex
+		dsns []string
+	)
 	connector := func(ctx context.Context, driver, dsn string) (*sql.DB, error) {
 		mu.Lock()
 		dsns = append(dsns, dsn)
@@ -45,22 +73,52 @@ func TestFileProviderWatcher(t *testing.T) {
 		return sql.Open("sqlite3", ":memory:")
 	}
 
-	svc := New(ServiceConfig{Connector: connector}).(*service)
-	stop := svc.StartTargetWatcher(ctx, NewFileProvider(path), 10*time.Millisecond)
+	reg := newCountingRegistry()
+	svc := &service{targets: reg, logger: zap.NewNop().Sugar(), cn: connector}
+	stop := svc.StartTargetWatcher(ctx, NewMetaDBProvider(store), 10*time.Millisecond)
 	defer stop()
 
-	reg := svc.targets.(*HotReloadRegistry)
-	if !waitDefault(reg, "tenant:A", time.Second) {
-		t.Fatalf("default not updated to tenant:A")
+	if !waitReplace(reg, 1, time.Second) {
+		t.Fatalf("initial replace not observed")
 	}
 
-	updated := `{"version":"v2","default":"tenant:B","targets":[{"key":"tenant:A","driver":"sqlite3","dsn":"${TENANT_A_DSN}"},{"key":"tenant:B","driver":"sqlite3","dsn":"${TENANT_B_DSN}"}]}`
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
-		t.Fatalf("write updated: %v", err)
+	rowB := metapkg.TargetRow{
+		Key:          "tenant:B",
+		Driver:       "sqlite3",
+		DSN:          "dsnB",
+		MaxOpenConns: 5,
+		MaxIdleConns: 3,
+		ConnMaxIdle:  100 * time.Millisecond,
+		ConnMaxLife:  200 * time.Millisecond,
+	}
+	if err := store.UpsertTarget(ctx, nil, rowB, []string{"gpu"}); err != nil {
+		t.Fatalf("upsert B: %v", err)
+	}
+	if err := store.SetDefaultTarget(ctx, nil, "tenant:B"); err != nil {
+		t.Fatalf("set default B: %v", err)
+	}
+	if _, err := store.BumpTargetsVersion(ctx, nil); err != nil {
+		t.Fatalf("bump2: %v", err)
 	}
 
-	if !waitDefault(reg, "tenant:B", time.Second) {
-		t.Fatalf("default not updated to tenant:B")
+	if !waitReplace(reg, 2, time.Second) {
+		t.Fatalf("second replace not observed")
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	if c := reg.calls(); c != 2 {
+		t.Fatalf("unexpected replace calls: %d", c)
+	}
+
+	tconn, ok := reg.Get("tenant:B")
+	if !ok {
+		t.Fatalf("target B missing")
+	}
+	if _, ok := tconn.Labels["gpu"]; !ok {
+		t.Fatalf("label not applied: %#v", tconn.Labels)
+	}
+	if tconn.DB.Stats().MaxOpenConnections != 5 {
+		t.Fatalf("MaxOpenConns not applied: %d", tconn.DB.Stats().MaxOpenConnections)
 	}
 
 	mu.Lock()
@@ -76,6 +134,6 @@ func TestFileProviderWatcher(t *testing.T) {
 		}
 	}
 	if !seenA || !seenB {
-		t.Fatalf("dsns not expanded: %v", got)
+		t.Fatalf("dsns not recorded: %v", got)
 	}
 }

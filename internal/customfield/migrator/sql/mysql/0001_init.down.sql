@@ -8,4 +8,7 @@ DROP TABLE IF EXISTS gcfm_events_failed;
 DROP TABLE IF EXISTS gcfm_registry_snapshots;
 DROP TABLE IF EXISTS gcfm_custom_fields;
 DROP TABLE IF EXISTS gcfm_monitored_databases;
+DROP TABLE IF EXISTS gcfm_target_labels;
+DROP TABLE IF EXISTS gcfm_targets;
+DROP TABLE IF EXISTS gcfm_target_config_version;
 DROP TABLE IF EXISTS gcfm_registry_schema_version;

@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
@@ -219,4 +222,243 @@ func (s *SQLMetaStore) RecordScanResult(ctx context.Context, tx *sql.Tx, res met
 		_, err = s.db.ExecContext(ctx, query, args...)
 	}
 	return err
+}
+
+// UpsertTarget inserts or updates a target definition and its labels.
+func (s *SQLMetaStore) UpsertTarget(ctx context.Context, tx *sql.Tx, t metapkg.TargetRow, labels []string) error {
+	ownTx := false
+	if tx == nil {
+		var err error
+		tx, err = s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		ownTx = true
+	}
+
+	tbl := s.table("targets")
+	var stmt *sql.Stmt
+	var err error
+	switch s.driver {
+	case "postgres":
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (key, driver, dsn, schema_name, max_open_conns, max_idle_conns, conn_max_idle_ms, conn_max_life_ms, is_default, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW()) ON CONFLICT (key) DO UPDATE SET driver=EXCLUDED.driver, dsn=EXCLUDED.dsn, schema_name=EXCLUDED.schema_name, max_open_conns=EXCLUDED.max_open_conns, max_idle_conns=EXCLUDED.max_idle_conns, conn_max_idle_ms=EXCLUDED.conn_max_idle_ms, conn_max_life_ms=EXCLUDED.conn_max_life_ms, is_default=EXCLUDED.is_default, updated_at=NOW()`, tbl))
+	case "mysql":
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (key, driver, dsn, schema_name, max_open_conns, max_idle_conns, conn_max_idle_ms, conn_max_life_ms, is_default, updated_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE driver=VALUES(driver), dsn=VALUES(dsn), schema_name=VALUES(schema_name), max_open_conns=VALUES(max_open_conns), max_idle_conns=VALUES(max_idle_conns), conn_max_idle_ms=VALUES(conn_max_idle_ms), conn_max_life_ms=VALUES(conn_max_life_ms), is_default=VALUES(is_default), updated_at=CURRENT_TIMESTAMP`, tbl))
+	default:
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (key, driver, dsn, schema_name, max_open_conns, max_idle_conns, conn_max_idle_ms, conn_max_life_ms, is_default, updated_at) VALUES (?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT (key) DO UPDATE SET driver=excluded.driver, dsn=excluded.dsn, schema_name=excluded.schema_name, max_open_conns=excluded.max_open_conns, max_idle_conns=excluded.max_idle_conns, conn_max_idle_ms=excluded.conn_max_idle_ms, conn_max_life_ms=excluded.conn_max_life_ms, is_default=excluded.is_default, updated_at=CURRENT_TIMESTAMP`, tbl))
+	}
+	if err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx, t.Key, t.Driver, t.DSN, t.Schema, t.MaxOpenConns, t.MaxIdleConns, t.ConnMaxIdle.Milliseconds(), t.ConnMaxLife.Milliseconds(), t.IsDefault)
+	if err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+
+	lblTbl := s.table("target_labels")
+	var delQ, insQ string
+	switch s.driver {
+	case "postgres":
+		delQ = fmt.Sprintf("DELETE FROM %s WHERE key=$1", lblTbl)
+		insQ = fmt.Sprintf("INSERT INTO %s (key,label) VALUES ($1,$2)", lblTbl)
+	case "mysql":
+		delQ = fmt.Sprintf("DELETE FROM %s WHERE key=?", lblTbl)
+		insQ = fmt.Sprintf("INSERT INTO %s (key,label) VALUES (?,?)", lblTbl)
+	default:
+		delQ = fmt.Sprintf("DELETE FROM %s WHERE key=?", lblTbl)
+		insQ = fmt.Sprintf("INSERT INTO %s (key,label) VALUES (?,?)", lblTbl)
+	}
+	if _, err := tx.ExecContext(ctx, delQ, t.Key); err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+	if len(labels) > 0 {
+		lstmt, err := tx.PrepareContext(ctx, insQ)
+		if err != nil {
+			if ownTx {
+				_ = tx.Rollback()
+			}
+			return err
+		}
+		for _, lb := range labels {
+			if _, err := lstmt.ExecContext(ctx, t.Key, lb); err != nil {
+				lstmt.Close()
+				if ownTx {
+					_ = tx.Rollback()
+				}
+				return err
+			}
+		}
+		lstmt.Close()
+	}
+
+	if ownTx {
+		return tx.Commit()
+	}
+	return nil
+}
+
+// DeleteTarget removes a target definition.
+func (s *SQLMetaStore) DeleteTarget(ctx context.Context, tx *sql.Tx, key string) error {
+	ownTx := false
+	if tx == nil {
+		var err error
+		tx, err = s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		ownTx = true
+	}
+	tbl := s.table("targets")
+	var q string
+	switch s.driver {
+	case "postgres":
+		q = fmt.Sprintf("DELETE FROM %s WHERE key=$1", tbl)
+	case "mysql":
+		q = fmt.Sprintf("DELETE FROM %s WHERE key=?", tbl)
+	default:
+		q = fmt.Sprintf("DELETE FROM %s WHERE key=?", tbl)
+	}
+	if _, err := tx.ExecContext(ctx, q, key); err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+	if ownTx {
+		return tx.Commit()
+	}
+	return nil
+}
+
+// ListTargets returns all targets with labels, along with version and default key.
+func (s *SQLMetaStore) ListTargets(ctx context.Context) ([]metapkg.TargetRowWithLabels, string, string, error) {
+	tbl := s.table("targets")
+	lblTbl := s.table("target_labels")
+	verTbl := s.table("target_config_version")
+
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`SELECT t.key, t.driver, t.dsn, t.schema_name, t.max_open_conns, t.max_idle_conns, t.conn_max_idle_ms, t.conn_max_life_ms, t.is_default, l.label FROM %s t LEFT JOIN %s l ON t.key=l.key ORDER BY t.key`, tbl, lblTbl))
+	if err != nil {
+		return nil, "", "", err
+	}
+	defer rows.Close()
+
+	m := make(map[string]*metapkg.TargetRowWithLabels)
+	for rows.Next() {
+		var r metapkg.TargetRowWithLabels
+		var label sql.NullString
+		if err := rows.Scan(&r.Key, &r.Driver, &r.DSN, &r.Schema, &r.MaxOpenConns, &r.MaxIdleConns, &r.ConnMaxIdle, &r.ConnMaxLife, &r.IsDefault, &label); err != nil {
+			return nil, "", "", err
+		}
+		r.ConnMaxIdle = time.Duration(r.ConnMaxIdle) * time.Millisecond
+		r.ConnMaxLife = time.Duration(r.ConnMaxLife) * time.Millisecond
+		if existing, ok := m[r.Key]; ok {
+			if label.Valid {
+				existing.Labels = append(existing.Labels, label.String)
+			}
+		} else {
+			if label.Valid {
+				r.Labels = []string{label.String}
+			}
+			m[r.Key] = &r
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", "", err
+	}
+	var res []metapkg.TargetRowWithLabels
+	for _, v := range m {
+		res = append(res, *v)
+	}
+
+	// fetch version
+	var ver string
+	if err := s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT version FROM %s WHERE id=1", verTbl)).Scan(&ver); err != nil {
+		return nil, "", "", err
+	}
+	// fetch default key
+	var def sql.NullString
+	if err := s.db.QueryRowContext(ctx, fmt.Sprintf("SELECT key FROM %s WHERE is_default=true LIMIT 1", tbl)).Scan(&def); err != nil && err != sql.ErrNoRows {
+		return nil, "", "", err
+	}
+	return res, ver, def.String, nil
+}
+
+// SetDefaultTarget marks the given key as default.
+func (s *SQLMetaStore) SetDefaultTarget(ctx context.Context, tx *sql.Tx, key string) error {
+	ownTx := false
+	if tx == nil {
+		var err error
+		tx, err = s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		ownTx = true
+	}
+	tbl := s.table("targets")
+	// clear existing default
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("UPDATE %s SET is_default=false WHERE is_default=true", tbl)); err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+	// set new default
+	var q string
+	switch s.driver {
+	case "postgres":
+		q = fmt.Sprintf("UPDATE %s SET is_default=true WHERE key=$1", tbl)
+	case "mysql":
+		q = fmt.Sprintf("UPDATE %s SET is_default=true WHERE key=?", tbl)
+	default:
+		q = fmt.Sprintf("UPDATE %s SET is_default=true WHERE key=?", tbl)
+	}
+	if _, err := tx.ExecContext(ctx, q, key); err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return err
+	}
+	if ownTx {
+		return tx.Commit()
+	}
+	return nil
+}
+
+// BumpTargetsVersion updates and returns a new configuration version.
+func (s *SQLMetaStore) BumpTargetsVersion(ctx context.Context, tx *sql.Tx) (string, error) {
+	ownTx := false
+	if tx == nil {
+		var err error
+		tx, err = s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return "", err
+		}
+		ownTx = true
+	}
+	tbl := s.table("target_config_version")
+	ver := uuid.NewString()
+	q := fmt.Sprintf("UPDATE %s SET version=?, updated_at=CURRENT_TIMESTAMP WHERE id=1", tbl)
+	if _, err := tx.ExecContext(ctx, q, ver); err != nil {
+		if ownTx {
+			_ = tx.Rollback()
+		}
+		return "", err
+	}
+	if ownTx {
+		if err := tx.Commit(); err != nil {
+			return "", err
+		}
+	}
+	return ver, nil
 }
