@@ -85,6 +85,22 @@ var (
 		},
 		[]string{"op", "status"},
 	)
+	TargetQueryLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cf_target_query_seconds",
+			Help:    "Latency of target registry queries",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"op"},
+	)
+	TargetQueryHits = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "cf_target_query_hits",
+			Help:    "Number of targets returned by query",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"op"},
+	)
 )
 
 func init() {
@@ -100,6 +116,8 @@ func init() {
 		Targets,
 		TargetLabels,
 		TargetOpLatency,
+		TargetQueryLatency,
+		TargetQueryHits,
 	)
 }
 

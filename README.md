@@ -132,6 +132,27 @@ ctx := sdk.WithTenantID(context.Background(), "A")
 info, _ := svc.DescribeTable(ctx, "posts") // routed to tenant:A
 ```
 
+### Query targets by label
+
+```go
+// 例: 「東京リージョンの prod テナント」をナイトリーにスキャン
+q, _ := sdk.ParseQuery("region=tokyo,env=prod,!deprecated")
+_ = svc.targets.ForEachByQuery(q, func(key string, t sdk.TargetConn) error {
+  tables, err := listTables(ctx, t)
+  if err != nil { return fmt.Errorf("%s: %w", key, err) }
+  tx, _ := svc.meta.BeginTx(ctx, nil)
+  defer rollbackIfNeeded(tx)
+  for _, tb := range tables {
+    if err := svc.meta.RecordScanResult(ctx, tx, ScanResult{Key: key, Table: tb}); err != nil {
+      return err
+    }
+  }
+  return tx.Commit()
+})
+```
+
+Labels and queries are normalized to lowercase, so lookups are case-insensitive.
+
 
 ## Plugin 作成ガイド
 
