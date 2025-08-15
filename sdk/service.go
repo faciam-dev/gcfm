@@ -225,10 +225,7 @@ func (s *service) chooseOne(keys []string, hint *SelectionHint) (string, bool) {
 		}
 		h := fnv.New32a()
 		_, _ = h.Write([]byte(hashSrc))
-		idx := int(h.Sum32()) % len(keys)
-		if idx < 0 {
-			idx = -idx
-		}
+		idx := int(h.Sum32() % uint32(len(keys)))
 		return keys[idx], true
 	default:
 		return keys[0], true
