@@ -3,8 +3,8 @@ package meta
 import (
 	"context"
 	"database/sql"
+	"time"
 
-	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 )
 
@@ -12,7 +12,14 @@ import (
 type FieldDef = registry.FieldMeta
 
 // ScanResult captures results from schema scans.
-type ScanResult = schema.ScanResult
+type ScanResult struct {
+	TenantID   string
+	ScanID     string
+	Status     string
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Details    string
+}
 
 // Store abstracts persistence of custom field metadata.
 type Store interface {

@@ -196,6 +196,27 @@ func (s *SQLMetaStore) ListFieldDefs(ctx context.Context, tenantID string) ([]me
 
 // RecordScanResult persists scan results.
 func (s *SQLMetaStore) RecordScanResult(ctx context.Context, tx *sql.Tx, res metapkg.ScanResult) error {
-	// TODO: implement using s.schema and s.driver
-	return nil
+	tbl := s.table("scan_results")
+	var (
+		query string
+		args  []interface{}
+	)
+	switch s.driver {
+	case "postgres":
+		query = fmt.Sprintf(`INSERT INTO %s (tenant_id, scan_id, status, started_at, finished_at, details) VALUES ($1, $2, $3, $4, $5, $6)`, tbl)
+		args = []interface{}{res.TenantID, res.ScanID, res.Status, res.StartedAt, res.FinishedAt, res.Details}
+	case "mysql":
+		query = fmt.Sprintf("INSERT INTO %s (tenant_id, scan_id, status, started_at, finished_at, details) VALUES (?, ?, ?, ?, ?, ?)", tbl)
+		args = []interface{}{res.TenantID, res.ScanID, res.Status, res.StartedAt, res.FinishedAt, res.Details}
+	default:
+		query = fmt.Sprintf(`INSERT INTO %s (tenant_id, scan_id, status, started_at, finished_at, details) VALUES (?, ?, ?, ?, ?, ?)`, tbl)
+		args = []interface{}{res.TenantID, res.ScanID, res.Status, res.StartedAt, res.FinishedAt, res.Details}
+	}
+	var err error
+	if tx != nil {
+		_, err = tx.ExecContext(ctx, query, args...)
+	} else {
+		_, err = s.db.ExecContext(ctx, query, args...)
+	}
+	return err
 }

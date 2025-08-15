@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	metapkg "github.com/faciam-dev/gcfm/meta"
 	_ "github.com/mattn/go-sqlite3"
@@ -32,6 +33,14 @@ func newTestStore(t *testing.T) *SQLMetaStore {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (db_id, tenant_id, table_name, column_name)
+    );
+    CREATE TABLE gcfm_scan_results (
+        tenant_id TEXT,
+        scan_id TEXT,
+        status TEXT,
+        started_at TIMESTAMP,
+        finished_at TIMESTAMP,
+        details TEXT
     );`
 	if _, err := db.Exec(schema); err != nil {
 		t.Fatal(err)
@@ -69,5 +78,21 @@ func TestSQLMetaStore_UpsertAndList(t *testing.T) {
 	}
 	if defs[0].DataType != "varchar" {
 		t.Fatalf("expected varchar, got %s", defs[0].DataType)
+	}
+}
+
+func TestSQLMetaStore_RecordScanResult(t *testing.T) {
+	store := newTestStore(t)
+	ctx := context.Background()
+	res := metapkg.ScanResult{TenantID: "t1", ScanID: "s1", Status: "done", StartedAt: time.Now(), FinishedAt: time.Now(), Details: "{}"}
+	if err := store.RecordScanResult(ctx, nil, res); err != nil {
+		t.Fatalf("RecordScanResult: %v", err)
+	}
+	var cnt int
+	if err := store.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_scan_results`).Scan(&cnt); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if cnt != 1 {
+		t.Fatalf("expected 1 row, got %d", cnt)
 	}
 }
