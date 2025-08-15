@@ -355,6 +355,7 @@ func (s *SQLMetaStore) ListTargets(ctx context.Context) ([]metapkg.TargetRowWith
 	defer rows.Close()
 
 	m := make(map[string]*metapkg.TargetRowWithLabels)
+	order := make([]string, 0)
 	for rows.Next() {
 		var r metapkg.TargetRowWithLabels
 		var label sql.NullString
@@ -372,14 +373,15 @@ func (s *SQLMetaStore) ListTargets(ctx context.Context) ([]metapkg.TargetRowWith
 				r.Labels = []string{label.String}
 			}
 			m[r.Key] = &r
+			order = append(order, r.Key)
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, "", "", err
 	}
 	var res []metapkg.TargetRowWithLabels
-	for _, v := range m {
-		res = append(res, *v)
+	for _, k := range order {
+		res = append(res, *m[k])
 	}
 
 	// fetch version
