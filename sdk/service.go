@@ -2,7 +2,7 @@ package sdk
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 
 	"go.uber.org/zap"
 
@@ -55,16 +55,38 @@ func New(cfg ServiceConfig) Service {
 	}
 
 	metaDB := cfg.MetaDB
-	metaDriver := cfg.MetaDriver
-	metaSchema := cfg.MetaSchema
 	if metaDB == nil {
 		metaDB = cfg.DB
 	}
+	metaDriver := cfg.MetaDriver
 	if metaDriver == "" {
 		metaDriver = cfg.Driver
 	}
+	metaSchema := cfg.MetaSchema
 	if metaSchema == "" {
 		metaSchema = cfg.Schema
+	}
+
+	var def TargetConn
+	if cfg.DB != nil {
+		def = TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema}
+	}
+	reg := NewTargetRegistry(def)
+	for _, t := range cfg.Targets {
+		drv := t.Driver
+		if drv == "" {
+			drv = cfg.Driver
+		}
+		sch := t.Schema
+		if sch == "" {
+			sch = cfg.Schema
+		}
+		if t.DB == nil {
+			continue
+		}
+		if err := reg.Register(TargetConfig{Key: t.Key, DB: t.DB, Driver: drv, Schema: sch, Labels: t.Labels}); err != nil {
+			logger.Errorf("Failed to register target %s: %v", t.Key, err)
+		}
 	}
 
 	return &service{
@@ -72,10 +94,9 @@ func New(cfg ServiceConfig) Service {
 		pluginDir: cfg.PluginDir,
 		recorder:  cfg.Recorder,
 		notifier:  cfg.Notifier,
-		db:        cfg.DB,
-		driver:    cfg.Driver,
-		schema:    cfg.Schema,
 		meta:      sqlmetastore.NewSQLMetaStore(metaDB, metaDriver, metaSchema),
+		targets:   reg,
+		resolve:   cfg.TargetResolver,
 	}
 }
 
@@ -84,10 +105,25 @@ type service struct {
 	pluginDir string
 	recorder  *audit.Recorder
 	notifier  notifier.Broker
-	db        *sql.DB
-	driver    string
-	schema    string
 	meta      metapkg.Store
+	targets   TargetRegistry
+	resolve   TargetResolver
+}
+
+var ErrNoTarget = errors.New("no target database resolved")
+
+func (s *service) pickTarget(ctx context.Context) (TargetConn, error) {
+	if s.resolve != nil {
+		if key, ok := s.resolve(ctx); ok {
+			if t, ok := s.targets.Get(key); ok {
+				return t, nil
+			}
+		}
+	}
+	if t, ok := s.targets.Default(); ok {
+		return t, nil
+	}
+	return TargetConn{}, ErrNoTarget
 }
 
 type ApplyOptions struct {

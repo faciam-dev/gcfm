@@ -221,6 +221,55 @@ svc := sdk.New(sdk.ServiceConfig{
 })
 ```
 
+### Multiple target databases
+
+```go
+// MetaDB (PostgreSQL)
+meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+
+// Target DBs (tenants split on MySQL)
+dbA, _ := sql.Open("mysql", os.Getenv("TENANT_A_DSN"))
+dbB, _ := sql.Open("mysql", os.Getenv("TENANT_B_DSN"))
+
+svc := sdk.New(sdk.ServiceConfig{
+    // Legacy-compatible default (can be empty if unused)
+    DB:     dbA,
+    Driver: "mysql",
+
+    // Separate MetaDB
+    MetaDB:     meta,
+    MetaDriver: "postgres",
+    MetaSchema: "gcfm_meta",
+
+    // Multiple targets
+    Targets: []sdk.TargetConfig{
+        { Key: "tenant:A", DB: dbA, Driver: "mysql", Schema: "" },
+        { Key: "tenant:B", DB: dbB, Driver: "mysql", Schema: "" },
+    },
+
+    // Resolve target from tenant ID
+    TargetResolver: sdk.TenantResolverFromPrefix("tenant:"),
+})
+
+// Usage from a single request
+ctx := sdk.WithTenantID(context.Background(), "A")
+_, _ = svc.ListCustomFields(ctx, 1, "posts") // runs against tenant:A, meta stored in PostgreSQL
+
+// Nightly batch scan across all targets
+_ = svc.NightlyScan(context.Background())
+```
+
+`NightlyScan` iterates over every registered target via the registry and stores
+its results in the MetaDB. This pattern can be adapted for other batch jobs
+that need to touch each tenant database.
+
+### Transaction policy
+
+Each target database operation uses its own transaction. Metadata is persisted
+to the MetaDB in a separate transaction and the SDK does not attempt any
+distributed commits. Audit logs and notifications are emitted only after the
+MetaDB transaction commits.
+
 ### Remote HTTP
 
 ```go

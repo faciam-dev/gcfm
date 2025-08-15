@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"database/sql"
 	"go.uber.org/zap"
 
@@ -40,4 +41,25 @@ type ServiceConfig struct {
 	MetaDB     *sql.DB
 	MetaDriver string
 	MetaSchema string
+
+	// Target databases for monitoring. If empty, the default DB/Driver/
+	// Schema fields represent the only target.
+	Targets []TargetConfig
+
+	// TargetResolver selects a target based on the request context. When
+	// nil, operations fall back to the default target.
+	TargetResolver TargetResolver
 }
+
+// TargetConfig defines an individual monitored database.
+type TargetConfig struct {
+	Key    string // unique identifier like "tenant:foo" or "db:orders"
+	DB     *sql.DB
+	Driver string
+	Schema string
+	Labels []string // optional tags such as "tenant:foo" or "region:tokyo"
+}
+
+// TargetResolver chooses a target key from the request context. It returns
+// the key and true on success.
+type TargetResolver func(ctx context.Context) (key string, ok bool)
