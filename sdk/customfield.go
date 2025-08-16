@@ -19,11 +19,18 @@ import (
 
 // ListCustomFields returns custom field metadata filtered by database and table.
 func (s *service) ListCustomFields(ctx context.Context, dbID int64, table string) ([]registry.FieldMeta, error) {
-	tgt, err := s.pickTarget(ctx)
-	if err != nil {
-		return nil, err
+	dec, ok := s.resolveDecision(ctx)
+	if !ok {
+		return nil, ErrNoTarget
 	}
-	metas, err := registry.LoadSQLByDB(ctx, tgt.DB, registry.DBConfig{Driver: tgt.Driver, Schema: tgt.Schema}, "default", dbID)
+	var metas []registry.FieldMeta
+	err := s.RunWithTarget(ctx, dec, false, func(t TargetConn) error {
+		m, e := registry.LoadSQLByDB(ctx, t.DB, registry.DBConfig{Driver: t.Driver, Schema: t.Schema}, "default", dbID)
+		if e == nil {
+			metas = m
+		}
+		return e
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -57,18 +64,24 @@ func (s *service) columnExists(ctx context.Context, tgt TargetConn, table, colum
 // CreateCustomField adds a column to the target database and records metadata in
 // the MetaDB. Target and meta operations are executed in separate transactions.
 func (s *service) CreateCustomField(ctx context.Context, fm registry.FieldMeta) error {
-	tgt, err := s.pickTarget(ctx)
-	if err != nil {
-		return err
+	dec, ok := s.resolveDecision(ctx)
+	if !ok {
+		return ErrNoTarget
 	}
-	exists, err := s.columnExists(ctx, tgt, fm.TableName, fm.ColumnName)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		if err := registry.AddColumnSQL(ctx, tgt.DB, tgt.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); err != nil {
-			return err
+	err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		exists, e := s.columnExists(ctx, t, fm.TableName, fm.ColumnName)
+		if e != nil {
+			return e
 		}
+		if !exists {
+			if e = registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); e != nil {
+				return e
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fm.DBID = monitordb.DefaultDBID
 	return s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm})
@@ -77,22 +90,28 @@ func (s *service) CreateCustomField(ctx context.Context, fm registry.FieldMeta) 
 // UpdateCustomField alters a column in the target database and synchronizes the
 // meta store. Operations on the target and MetaDB are executed independently.
 func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error {
-	tgt, err := s.pickTarget(ctx)
+	dec, ok := s.resolveDecision(ctx)
+	if !ok {
+		return ErrNoTarget
+	}
+	err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		exists, e := s.columnExists(ctx, t, fm.TableName, fm.ColumnName)
+		if e != nil {
+			return e
+		}
+		if exists {
+			if e = registry.ModifyColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); e != nil {
+				return e
+			}
+		} else {
+			if e = registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); e != nil {
+				return e
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return err
-	}
-	exists, err := s.columnExists(ctx, tgt, fm.TableName, fm.ColumnName)
-	if err != nil {
-		return err
-	}
-	if exists {
-		if err := registry.ModifyColumnSQL(ctx, tgt.DB, tgt.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); err != nil {
-			return err
-		}
-	} else {
-		if err := registry.AddColumnSQL(ctx, tgt.DB, tgt.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); err != nil {
-			return err
-		}
 	}
 	fm.DBID = monitordb.DefaultDBID
 	return s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm})
@@ -102,11 +121,14 @@ func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) 
 // metadata. Each database operation uses its own transaction with no attempt at
 // distributed commits.
 func (s *service) DeleteCustomField(ctx context.Context, table, column string) error {
-	tgt, err := s.pickTarget(ctx)
-	if err != nil {
-		return err
+	dec, ok := s.resolveDecision(ctx)
+	if !ok {
+		return ErrNoTarget
 	}
-	if err := registry.DropColumnSQL(ctx, tgt.DB, tgt.Driver, table, column); err != nil {
+	err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		return registry.DropColumnSQL(ctx, t.DB, t.Driver, table, column)
+	})
+	if err != nil {
 		return err
 	}
 	fm := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}

@@ -22,6 +22,9 @@ type TargetWatcher struct {
 // StartTargetWatcher launches a goroutine that periodically fetches target updates.
 func (s *service) StartTargetWatcher(ctx context.Context, p TargetProvider, interval time.Duration) (stop func()) {
 	cctx, cancel := context.WithCancel(ctx)
+	if s.health == nil {
+		s.health = newHealthRegistry(s.failover)
+	}
 	w := &TargetWatcher{svc: s, provider: p, interval: interval, cancel: cancel}
 	go w.loop(cctx)
 	return cancel
@@ -47,6 +50,11 @@ func (w *TargetWatcher) loop(ctx context.Context) {
 				w.svc.logger.Warnf("target replace error: %v", err)
 				continue
 			}
+			keys := make([]string, 0, len(cfgs))
+			for k := range cfgs {
+				keys = append(keys, k)
+			}
+			w.svc.health.prune(keys)
 			w.lastVer = ver
 		}
 	}
