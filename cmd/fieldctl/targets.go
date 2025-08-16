@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+
+	"github.com/faciam-dev/gcfm/pkg/config"
 )
 
 // Target represents a target definition returned by the Admin API.
@@ -57,17 +60,13 @@ var (
 	targetIfMatch       string
 )
 
-// apiRequest performs an HTTP request against the Admin API using CLI flags for configuration.
+// apiRequest performs an HTTP request against the Admin API using resolved configuration.
 func apiRequest(method, path string, body any, ifMatch string) (*http.Response, error) {
-	base, err := rootCmd.Flags().GetString("api-url")
+	resolved, err := config.Resolve(rootCmd)
 	if err != nil {
 		return nil, err
 	}
-	token, err := rootCmd.Flags().GetString("token")
-	if err != nil {
-		return nil, err
-	}
-	urlStr := strings.TrimSuffix(base, "/") + path
+	url := strings.TrimSuffix(resolved.APIURL, "/") + path
 
 	var rdr io.Reader
 	if body != nil {
@@ -77,20 +76,23 @@ func apiRequest(method, path string, body any, ifMatch string) (*http.Response, 
 		}
 		rdr = bytes.NewReader(b)
 	}
-	req, err := http.NewRequest(method, urlStr, rdr)
+	req, err := http.NewRequest(method, url, rdr)
 	if err != nil {
 		return nil, err
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
+	req.Header.Set("Authorization", "Bearer "+resolved.Token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if ifMatch != "" {
 		req.Header.Set("If-Match", ifMatch)
 	}
-	return http.DefaultClient.Do(req)
+	client := http.DefaultClient
+	if resolved.Insecure {
+		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		client = &http.Client{Transport: tr}
+	}
+	return client.Do(req)
 }
 
 // printOutput prints data in either JSON or table format based on the --output flag.
