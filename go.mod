@@ -147,6 +147,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.4
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.39.0
+	golang.org/x/term v0.32.0
 	google.golang.org/grpc v1.64.1
 	gopkg.in/yaml.v3 v3.0.1
 )

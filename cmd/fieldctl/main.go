@@ -10,8 +10,9 @@ import (
 var rootCmd = &cobra.Command{Use: "fieldctl"}
 
 func init() {
-	rootCmd.PersistentFlags().String("api-url", getenv("FIELDTOOL_API_URL", ""), "Admin API base URL")
-	rootCmd.PersistentFlags().String("token", getenv("FIELDTOOL_TOKEN", ""), "Bearer token for Admin API")
+	rootCmd.PersistentFlags().String("api-url", "", "Admin API base URL")
+	rootCmd.PersistentFlags().String("token", "", "Bearer token for Admin API")
+	rootCmd.PersistentFlags().String("profile", "", "Profile name in config (overrides active)")
 	rootCmd.PersistentFlags().String("output", "table", "Output format (table|json)")
 
 	rootCmd.AddCommand(newScanCmd())
@@ -32,6 +33,8 @@ func init() {
 	rootCmd.AddCommand(newNotifierCmd())
 	rootCmd.AddCommand(newEventsCmd())
 	rootCmd.AddCommand(newListFieldsCmd())
+	rootCmd.AddCommand(newLoginCmd())
+	rootCmd.AddCommand(newConfigCmd())
 }
 
 // detectDriver returns the driver name based on the DSN scheme.
