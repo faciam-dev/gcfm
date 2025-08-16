@@ -293,11 +293,17 @@ svc := sdk.New(sdk.ServiceConfig{
 
     // Resolve target from tenant ID
     TargetResolver: sdk.TenantResolverFromPrefix("tenant:"),
+    ReadSource:     sdk.ReadFromMeta, // read custom field metadata from MetaDB
 })
 
 // Usage from a single request
 ctx := sdk.WithTenantID(context.Background(), "A")
-_, _ = svc.ListCustomFields(ctx, 1, "posts") // runs against tenant:A, meta stored in PostgreSQL
+defs, err := svc.ListCustomFields(ctx, 1, "posts") // definitions loaded from MetaDB
+if err != nil { /* handle */ }
+
+// Optional drift check and repair
+rep, _ := svc.ReconcileCustomFields(ctx, 1, "posts", true)
+_ = rep
 
 // Nightly batch scan across all targets
 _ = svc.NightlyScan(context.Background())

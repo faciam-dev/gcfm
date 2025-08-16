@@ -18,6 +18,18 @@ import (
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 )
 
+// ReadSource specifies the origin for reading custom field definitions.
+type ReadSource int
+
+const (
+	// ReadFromTarget reads metadata from the target database (default).
+	ReadFromTarget ReadSource = iota
+	// ReadFromMeta reads metadata from the MetaDB.
+	ReadFromMeta
+	// ReadAuto reads from target first then falls back to MetaDB on failure or empty result.
+	ReadAuto
+)
+
 // Service exposes high level operations for custom field registry.
 // Service provides database operations for custom field registry.
 type Service interface {
@@ -39,6 +51,8 @@ type Service interface {
 	UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
 	// DeleteCustomField removes a field from the registry.
 	DeleteCustomField(ctx context.Context, table, column string) error
+	// ReconcileCustomFields compares metadata between target and MetaDB and optionally repairs discrepancies.
+	ReconcileCustomFields(ctx context.Context, dbID int64, table string, repair bool) (*ReconcileReport, error)
 	// StartTargetWatcher periodically fetches target configurations from a provider.
 	StartTargetWatcher(ctx context.Context, p TargetProvider, interval time.Duration) (stop func())
 }
@@ -113,6 +127,12 @@ func New(cfg ServiceConfig) Service {
 	}
 	cfg.Failover.randSrc = rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	rs := cfg.ReadSource
+	if rs == 0 {
+		rs = ReadFromTarget
+		logger.Infof("ReadSource not specified; defaulting to ReadFromTarget")
+	}
+
 	return &service{
 		logger:       logger,
 		pluginDir:    cfg.PluginDir,
@@ -128,6 +148,7 @@ func New(cfg ServiceConfig) Service {
 		failover:     cfg.Failover,
 		classify:     classifier,
 		health:       newHealthRegistry(cfg.Failover),
+		readSource:   rs,
 	}
 }
 
@@ -146,6 +167,7 @@ type service struct {
 	failover     FailoverPolicy
 	classify     ErrorClassifier
 	health       *healthRegistry
+	readSource   ReadSource
 }
 
 var ErrNoTarget = errors.New("no target database resolved")

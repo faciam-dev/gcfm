@@ -303,6 +303,17 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 	return inserted, updated, nil
 }
 
+// UpsertFieldDefByDB upserts a single field definition for the specified tenant and DB.
+func UpsertFieldDefByDB(ctx context.Context, db *sql.DB, driver, tenant string, meta FieldMeta) error {
+	_, _, err := UpsertSQLByTenant(ctx, db, driver, tenant, []FieldMeta{meta})
+	return err
+}
+
+// DeleteFieldDefByDB removes a single field definition.
+func DeleteFieldDefByDB(ctx context.Context, db *sql.DB, driver string, meta FieldMeta) error {
+	return DeleteSQL(ctx, db, driver, []FieldMeta{meta})
+}
+
 func DeleteSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta) error {
 	if len(metas) == 0 {
 		return nil
