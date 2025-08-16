@@ -75,3 +75,19 @@ func TestReconcileRepair(t *testing.T) {
 		t.Fatalf("mock: %v", err)
 	}
 }
+
+// TestDiffFieldsDuplicateTarget ensures duplicate target definitions are all reported when mismatched.
+func TestDiffFieldsDuplicateTarget(t *testing.T) {
+	meta := []FieldDef{{DBID: 1, TableName: "posts", ColumnName: "cf1", DataType: "text"}}
+	tgt := []FieldDef{
+		{DBID: 1, TableName: "posts", ColumnName: "cf1", DataType: "int"},
+		{DBID: 1, TableName: "posts", ColumnName: "cf1", DataType: "bool"},
+	}
+	rep := diffFields(meta, tgt)
+	if len(rep.Mismatched) != 2 {
+		t.Fatalf("expected 2 mismatches, got %d", len(rep.Mismatched))
+	}
+	if len(rep.MissingInMeta) != 0 || len(rep.MissingInTarget) != 0 {
+		t.Fatalf("unexpected report: %+v", rep)
+	}
+}

@@ -129,7 +129,7 @@ func (s *service) CreateCustomField(ctx context.Context, fm registry.FieldMeta) 
 	if err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
 		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", fm)
 	}); err != nil {
-		s.logger.Warn("failed to upsert target custom_fields", "table", fm.TableName, "column", fm.ColumnName, "err", err)
+		return err
 	}
 	return nil
 }
@@ -167,7 +167,7 @@ func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) 
 	if err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
 		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", fm)
 	}); err != nil {
-		s.logger.Warn("failed to upsert target custom_fields", "table", fm.TableName, "column", fm.ColumnName, "err", err)
+		return err
 	}
 	return nil
 }
@@ -193,7 +193,7 @@ func (s *service) DeleteCustomField(ctx context.Context, table, column string) e
 	if err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
 		return registry.DeleteFieldDefByDB(ctx, t.DB, t.Driver, fm)
 	}); err != nil {
-		s.logger.Warn("failed to delete target custom_fields", "table", table, "column", column, "err", err)
+		return err
 	}
 	return nil
 }

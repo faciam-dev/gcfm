@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 )
@@ -48,23 +49,40 @@ func (s *service) ReconcileCustomFields(ctx context.Context, dbID int64, table s
 // diffFields compares two definition lists and returns a DiffReport.
 func diffFields(meta, tgt []FieldDef) ReconcileReport {
 	rep := ReconcileReport{}
-	tgtMap := make(map[string]FieldDef, len(tgt))
+	tgtMap := make(map[string][]FieldDef, len(tgt))
 	for _, d := range tgt {
-		tgtMap[d.ColumnName] = d
+		tgtMap[d.ColumnName] = append(tgtMap[d.ColumnName], d)
 	}
 	seen := make(map[string]struct{})
 	for _, m := range meta {
-		if t, ok := tgtMap[m.ColumnName]; ok {
+		if tList, ok := tgtMap[m.ColumnName]; ok {
 			seen[m.ColumnName] = struct{}{}
-			if !equalField(m, t) {
-				rep.Mismatched = append(rep.Mismatched, FieldDiff{Name: m.ColumnName, MetaDef: m, TargetDef: t, Reason: reasonField(m, t)})
+			matched := false
+			for _, t := range tList {
+				if equalField(m, t) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				for _, t := range tList {
+					rep.Mismatched = append(rep.Mismatched, FieldDiff{Name: m.ColumnName, MetaDef: m, TargetDef: t, Reason: reasonField(m, t)})
+				}
 			}
 		} else {
 			rep.MissingInTarget = append(rep.MissingInTarget, m)
 		}
 	}
+	matchedTarget := make(map[uint32]struct{})
+	for _, m := range meta {
+		if tList, ok := tgtMap[m.ColumnName]; ok {
+			for _, t := range tList {
+				matchedTarget[hashFieldDef(t)] = struct{}{}
+			}
+		}
+	}
 	for _, t := range tgt {
-		if _, ok := seen[t.ColumnName]; !ok {
+		if _, ok := matchedTarget[hashFieldDef(t)]; !ok {
 			rep.MissingInMeta = append(rep.MissingInMeta, t)
 		}
 	}
@@ -76,7 +94,7 @@ func equalField(a, b FieldDef) bool {
 		return false
 	}
 	if a.HasDefault {
-		if (a.Default == nil) != (b.Default == nil) {
+		if oneIsNilOtherIsNot(a.Default, b.Default) {
 			return false
 		}
 		if a.Default != nil && b.Default != nil && *a.Default != *b.Default {
@@ -101,6 +119,36 @@ func reasonField(a, b FieldDef) string {
 	default:
 		return "unknown diff"
 	}
+}
+
+// oneIsNilOtherIsNot returns true if exactly one pointer is nil.
+func oneIsNilOtherIsNot(a, b *string) bool {
+	return (a == nil) != (b == nil)
+}
+
+func hashFieldDef(f FieldDef) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(f.ColumnName))
+	h.Write([]byte(f.DataType))
+	if f.Nullable {
+		h.Write([]byte{1})
+	} else {
+		h.Write([]byte{0})
+	}
+	if f.Unique {
+		h.Write([]byte{1})
+	} else {
+		h.Write([]byte{0})
+	}
+	if f.HasDefault {
+		h.Write([]byte{1})
+		if f.Default != nil {
+			h.Write([]byte(*f.Default))
+		}
+	} else {
+		h.Write([]byte{0})
+	}
+	return h.Sum32()
 }
 
 // repairMissingInTarget upserts missing fields into the target database.
