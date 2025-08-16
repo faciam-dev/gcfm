@@ -10,6 +10,10 @@ import (
 var rootCmd = &cobra.Command{Use: "fieldctl"}
 
 func init() {
+	rootCmd.PersistentFlags().String("api-url", getenv("FIELDTOOL_API_URL", ""), "Admin API base URL")
+	rootCmd.PersistentFlags().String("token", getenv("FIELDTOOL_TOKEN", ""), "Bearer token for Admin API")
+	rootCmd.PersistentFlags().String("output", "table", "Output format (table|json)")
+
 	rootCmd.AddCommand(newScanCmd())
 	rootCmd.AddCommand(newExportCmd())
 	rootCmd.AddCommand(newApplyCmd())
