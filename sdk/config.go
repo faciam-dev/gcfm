@@ -75,6 +75,9 @@ type ServiceConfig struct {
 
 	// ErrorClassifier distinguishes transient errors for retry decisions.
 	ErrorClassifier ErrorClassifier
+
+	// ReadSource selects where to read custom field metadata from.
+	ReadSource ReadSource
 }
 
 // TargetConfig defines an individual monitored database.

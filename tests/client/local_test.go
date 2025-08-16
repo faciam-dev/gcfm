@@ -32,6 +32,9 @@ func (s *stubService) DeleteCustomField(ctx context.Context, table, column strin
 	s.deleted = true
 	return nil
 }
+func (s *stubService) ReconcileCustomFields(context.Context, int64, string, bool) (*sdk.ReconcileReport, error) {
+	return &sdk.ReconcileReport{}, nil
+}
 func (s *stubService) Scan(context.Context, sdk.DBConfig) ([]sdk.FieldMeta, error) { return nil, nil }
 func (s *stubService) Export(context.Context, sdk.DBConfig) ([]byte, error)        { return nil, nil }
 func (s *stubService) Apply(context.Context, sdk.DBConfig, []byte, sdk.ApplyOptions) (sdk.DiffReport, error) {
