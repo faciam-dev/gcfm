@@ -26,6 +26,9 @@ type FailoverPolicy struct {
 	HalfOpenProbe     int
 	PreferOnFail      *SelectionHint
 	AllowWriteRetry   bool
+
+	randSrc *rand.Rand
+	randMu  sync.Mutex
 }
 
 // ErrorClassifier determines whether an error is transient and retryable.
@@ -60,6 +63,7 @@ type targetHealth struct {
 	state     breakerState
 	failures  int
 	openUntil time.Time
+	halfProbe int
 }
 
 type healthRegistry struct {
@@ -94,6 +98,7 @@ func (r *healthRegistry) onSuccess(key string) {
 	h.mu.Lock()
 	h.state = stateClosed
 	h.failures = 0
+	h.halfProbe = 0
 	h.mu.Unlock()
 	r.setStateMetric(key, stateClosed)
 }
@@ -110,6 +115,7 @@ func (r *healthRegistry) onFailure(key string, transient bool) {
 		h.state = stateOpen
 		h.openUntil = time.Now().Add(r.pol.OpenDuration)
 		h.failures = 0
+		h.halfProbe = 0
 		return
 	}
 	if transient {
@@ -118,26 +124,39 @@ func (r *healthRegistry) onFailure(key string, transient bool) {
 			h.state = stateOpen
 			h.openUntil = time.Now().Add(r.pol.OpenDuration)
 			h.failures = 0
+			h.halfProbe = 0
 		}
 		return
 	}
 	h.state = stateOpen
 	h.openUntil = time.Now().Add(r.pol.OpenDuration)
 	h.failures = 0
+	h.halfProbe = 0
 }
 
 func (r *healthRegistry) isAvailable(key string) bool {
 	h := r.get(key)
 	h.mu.Lock()
 	available := true
-	if h.state == stateOpen {
-		if time.Now().Before(h.openUntil) {
+	now := time.Now()
+	switch h.state {
+	case stateOpen:
+		if now.Before(h.openUntil) {
 			available = false
 		} else {
 			h.state = stateHalfOpen
+			probes := r.pol.HalfOpenProbe
+			if probes < 1 {
+				probes = 1
+			}
+			h.halfProbe = probes
 		}
-	} else if h.state == stateHalfOpen {
-		available = false
+	case stateHalfOpen:
+		if h.halfProbe > 0 {
+			h.halfProbe--
+		} else {
+			available = false
+		}
 	}
 	st := h.state
 	h.mu.Unlock()
@@ -172,7 +191,7 @@ func boolToFloat(b bool) float64 {
 	return 0
 }
 
-func (p FailoverPolicy) backoff(attempt int) time.Duration {
+func (p *FailoverPolicy) backoff(attempt int) time.Duration {
 	if attempt <= 0 || p.BaseBackoff <= 0 {
 		return 0
 	}
@@ -185,8 +204,16 @@ func (p FailoverPolicy) backoff(attempt int) time.Duration {
 		}
 	}
 	if p.JitterRatio > 0 {
-		jitter := time.Duration(rand.Float64() * p.JitterRatio * float64(d))
-		d += jitter
+		var jitter float64
+		if p.randSrc != nil {
+			p.randMu.Lock()
+			jitter = p.randSrc.Float64() * p.JitterRatio * float64(d)
+			p.randMu.Unlock()
+		} else {
+			tmpRand := rand.New(rand.NewSource(time.Now().UnixNano()))
+			jitter = tmpRand.Float64() * p.JitterRatio * float64(d)
+		}
+		d += time.Duration(jitter)
 	}
 	return d
 }
@@ -224,6 +251,11 @@ func (s *service) RunWithTarget(ctx context.Context, dec TargetDecision, isWrite
 		ordered = []string{dec.Key}
 	}
 
+	type failure struct {
+		Key string
+		Err error
+	}
+	var failures []failure
 	attempts := 0
 	maxAttempts := s.failover.MaxAttempts
 	if maxAttempts < 1 {
@@ -246,6 +278,7 @@ func (s *service) RunWithTarget(ctx context.Context, dec TargetDecision, isWrite
 		}
 		transient, retryable := s.classify(err)
 		s.health.onFailure(key, transient)
+		failures = append(failures, failure{Key: key, Err: err})
 		if !retryable || (isWrite && !s.failover.AllowWriteRetry) {
 			return err
 		}
@@ -257,7 +290,14 @@ func (s *service) RunWithTarget(ctx context.Context, dec TargetDecision, isWrite
 			}
 		}
 	}
-	return fmt.Errorf("all candidates failed after %d attempts", attempts)
+	msg := fmt.Sprintf("all candidates failed after %d attempts.", attempts)
+	if len(failures) > 0 {
+		msg += " Failures:"
+		for _, f := range failures {
+			msg += fmt.Sprintf(" [%s: %v]", f.Key, f.Err)
+		}
+	}
+	return errors.New(msg)
 }
 
 func (s *service) orderCandidates(keys []string, primary string, prefer *SelectionHint) []string {

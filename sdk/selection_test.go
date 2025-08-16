@@ -44,6 +44,15 @@ func TestChooseOneStrategies(t *testing.T) {
 	}
 }
 
+func TestChooseOnePreferLabelMissing(t *testing.T) {
+	reg := newTestRegistry(t)
+	svc := &service{targets: reg, stratDefault: SelectFirst}
+	hint := &SelectionHint{Strategy: SelectPreferLabel, PreferLabel: "doesnotexist=true"}
+	if _, ok := svc.chooseOne([]string{"a", "b", "c"}, hint); ok {
+		t.Fatalf("expected no selection when preferred label is missing")
+	}
+}
+
 func TestChooseOneDefaultPrefer(t *testing.T) {
 	reg := newTestRegistry(t)
 	svc := &service{targets: reg, stratDefault: SelectPreferLabel, stratPrefer: "primary=true"}

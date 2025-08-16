@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hash/fnv"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -110,6 +111,8 @@ func New(cfg ServiceConfig) Service {
 	if classifier == nil {
 		classifier = DefaultErrorClassifier
 	}
+	cfg.Failover.randSrc = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	return &service{
 		logger:       logger,
 		pluginDir:    cfg.PluginDir,
@@ -241,7 +244,7 @@ func (s *service) chooseOrder(keys []string, hint *SelectionHint) []string {
 		}
 		preferKeys := s.targets.FindByLabel(prefer)
 		if len(preferKeys) == 0 {
-			return keys
+			return nil
 		}
 		set := make(map[string]struct{}, len(preferKeys))
 		for _, k := range preferKeys {
