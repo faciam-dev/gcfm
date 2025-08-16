@@ -47,6 +47,10 @@ func newLoginCmd() *cobra.Command {
 				return fmt.Errorf("api-url and token are required (provide flags or use interactive mode)")
 			}
 
+			if loginInsecure {
+				fmt.Fprintln(cmd.ErrOrStderr(), "WARNING: TLS verification disabled; do not use --insecure in production")
+			}
+
 			ok, err := probe(url, tok, loginInsecure)
 			if err != nil || !ok {
 				return fmt.Errorf("login failed: %w", err)
@@ -96,6 +100,8 @@ func probe(baseURL, token string, insecure bool) (bool, error) {
 
 	tr := &http.Transport{}
 	if insecure {
+		// SECURITY WARNING: Disabling TLS certificate verification (InsecureSkipVerify: true)
+		// is highly insecure and should only be used for testing or development purposes.
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402: dev only
 	}
 	cli := &http.Client{Transport: tr, Timeout: 5 * time.Second}

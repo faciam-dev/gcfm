@@ -65,7 +65,10 @@ func Save(f *File) error {
 	if err != nil {
 		return err
 	}
-	b, _ := json.MarshalIndent(f, "", "  ")
+	b, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return err
+	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err

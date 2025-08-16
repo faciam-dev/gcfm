@@ -46,7 +46,10 @@ func newConfigListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _ := config.Load()
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
 			for name, p := range cfg.Profiles {
 				mark := ""
 				if name == cfg.Active {
@@ -64,14 +67,20 @@ func newConfigGetCmd() *cobra.Command {
 		Use:   "get",
 		Short: "Show active profile",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _ := config.Load()
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
 			p := cfg.Profiles[cfg.Active]
-			b, _ := json.MarshalIndent(struct {
+			b, err := json.MarshalIndent(struct {
 				Active   string `json:"active"`
 				APIURL   string `json:"apiUrl"`
 				Insecure bool   `json:"insecure"`
 				HasToken bool   `json:"hasToken"`
 			}{cfg.Active, p.APIURL, p.Insecure, p.Token != ""}, "", "  ")
+			if err != nil {
+				return err
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			return nil
 		},
