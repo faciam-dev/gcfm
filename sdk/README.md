@@ -32,6 +32,7 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type ErrorClassifier](<#ErrorClassifier>)
 - [type FailoverPolicy](<#FailoverPolicy>)
 - [type FieldDef](<#FieldDef>)
+- [type FieldDiff](<#FieldDiff>)
 - [type FieldMeta](<#FieldMeta>)
 - [type FileProvider](<#FileProvider>)
   - [func NewFileProvider\(path string\) \*FileProvider](<#NewFileProvider>)
@@ -69,6 +70,8 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type Query](<#Query>)
   - [func ParseQuery\(s string\) \(Query, error\)](<#ParseQuery>)
   - [func QueryFromLabels\(labels \[\]string\) Query](<#QueryFromLabels>)
+- [type ReadSource](<#ReadSource>)
+- [type ReconcileReport](<#ReconcileReport>)
 - [type ScanResult](<#ScanResult>)
 - [type SelectionHint](<#SelectionHint>)
 - [type SelectionStrategy](<#SelectionStrategy>)
@@ -348,6 +351,20 @@ type FailoverPolicy struct {
 
 ```go
 type FieldDef = registry.FieldMeta
+```
+
+<a name="FieldDiff"></a>
+## type FieldDiff
+
+FieldDiff describes a discrepancy between MetaDB and target definitions.
+
+```go
+type FieldDiff struct {
+    Name      string
+    MetaDef   FieldDef
+    TargetDef FieldDef
+    Reason    string
+}
 ```
 
 <a name="FieldMeta"></a>
@@ -706,6 +723,41 @@ func QueryFromLabels(labels []string) Query
 
 QueryFromLabels builds a Query that ANDs all label strings. "k=v" becomes EqExpr and plain "k" becomes HasExpr.
 
+<a name="ReadSource"></a>
+## type ReadSource
+
+ReadSource specifies the origin for reading custom field definitions.
+
+```go
+type ReadSource int
+```
+
+<a name="ReadFromTarget"></a>
+
+```go
+const (
+    // ReadFromTarget reads metadata from the target database (default).
+    ReadFromTarget ReadSource = iota
+    // ReadFromMeta reads metadata from the MetaDB.
+    ReadFromMeta
+    // ReadAuto reads from target first then falls back to MetaDB on failure or empty result.
+    ReadAuto
+)
+```
+
+<a name="ReconcileReport"></a>
+## type ReconcileReport
+
+ReconcileReport summarizes differences between MetaDB and target custom field definitions. MissingInTarget lists fields defined in MetaDB but absent in target. MissingInMeta lists fields present in target but missing in MetaDB. Mismatched captures fields with conflicting attributes.
+
+```go
+type ReconcileReport struct {
+    MissingInTarget []FieldDef
+    MissingInMeta   []FieldDef
+    Mismatched      []FieldDiff
+}
+```
+
 <a name="ScanResult"></a>
 ## type ScanResult
 
@@ -776,6 +828,8 @@ type Service interface {
     UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
     // DeleteCustomField removes a field from the registry.
     DeleteCustomField(ctx context.Context, table, column string) error
+    // ReconcileCustomFields compares metadata between target and MetaDB and optionally repairs discrepancies.
+    ReconcileCustomFields(ctx context.Context, dbID int64, table string, repair bool) (*ReconcileReport, error)
     // StartTargetWatcher periodically fetches target configurations from a provider.
     StartTargetWatcher(ctx context.Context, p TargetProvider, interval time.Duration) (stop func())
 }
@@ -961,6 +1015,9 @@ type ServiceConfig struct {
 
     // ErrorClassifier distinguishes transient errors for retry decisions.
     ErrorClassifier ErrorClassifier
+
+    // ReadSource selects where to read custom field metadata from.
+    ReadSource ReadSource
 }
 ```
 
