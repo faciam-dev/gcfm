@@ -59,13 +59,22 @@ var (
 
 // apiRequest performs an HTTP request against the Admin API using CLI flags for configuration.
 func apiRequest(method, path string, body any, ifMatch string) (*http.Response, error) {
-	base, _ := rootCmd.Flags().GetString("api-url")
-	token, _ := rootCmd.Flags().GetString("token")
+	base, err := rootCmd.Flags().GetString("api-url")
+	if err != nil {
+		return nil, err
+	}
+	token, err := rootCmd.Flags().GetString("token")
+	if err != nil {
+		return nil, err
+	}
 	urlStr := strings.TrimSuffix(base, "/") + path
 
 	var rdr io.Reader
 	if body != nil {
-		b, _ := json.Marshal(body)
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
 		rdr = bytes.NewReader(b)
 	}
 	req, err := http.NewRequest(method, urlStr, rdr)
@@ -86,10 +95,16 @@ func apiRequest(method, path string, body any, ifMatch string) (*http.Response, 
 
 // printOutput prints data in either JSON or table format based on the --output flag.
 func printOutput(v any) error {
-	format, _ := rootCmd.Flags().GetString("output")
+	format, err := rootCmd.Flags().GetString("output")
+	if err != nil {
+		return err
+	}
 	switch format {
 	case "json":
-		b, _ := json.MarshalIndent(v, "", "  ")
+		b, err := json.MarshalIndent(v, "", "  ")
+		if err != nil {
+			return err
+		}
 		fmt.Println(string(b))
 	default:
 		switch x := v.(type) {
@@ -105,7 +120,10 @@ func printOutput(v any) error {
 			fmt.Println("Labels:", strings.Join(x.Labels, ","))
 			fmt.Println("DSN:", x.Dsn)
 		default:
-			b, _ := json.MarshalIndent(v, "", "  ")
+			b, err := json.MarshalIndent(v, "", "  ")
+			if err != nil {
+				return err
+			}
 			fmt.Println(string(b))
 		}
 	}
