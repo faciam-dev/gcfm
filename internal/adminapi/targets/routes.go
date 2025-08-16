@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -183,7 +186,7 @@ type ifMatchHeader struct {
 }
 
 // ---- helpers ----
-var labelRe = regexp.MustCompile(`^[\-._:/a-zA-Z0-9=]+$`)
+var labelRe = regexp.MustCompile(`^[a-zA-Z0-9._\-:/]{1,63}=[a-zA-Z0-9._\-:/]{1,63}$`)
 
 func validateLabels(labels []string) error {
 	for _, l := range labels {
@@ -198,11 +201,18 @@ func validateDSN(driver, dsn string) error {
 	if driver == "" || dsn == "" {
 		return errors.New("driver and dsn required")
 	}
-	if driver == "mysql" && !strings.HasPrefix(dsn, "mysql://") {
-		return errors.New("mysql dsn must start with mysql://")
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return fmt.Errorf("invalid dsn: %w", err)
 	}
-	if driver == "postgres" && !strings.HasPrefix(dsn, "postgres://") {
-		return errors.New("postgres dsn must start with postgres://")
+	if u.Scheme != driver {
+		return fmt.Errorf("%s dsn must start with %s://", driver, driver)
+	}
+	if u.Host == "" {
+		return errors.New("dsn missing host")
+	}
+	if u.Path == "" || u.Path == "/" {
+		return errors.New("dsn missing database")
 	}
 	return nil
 }
@@ -241,7 +251,9 @@ func isConflictError(err error) bool {
 }
 
 func rollbackIfNeeded(tx *sql.Tx) {
-	_ = tx.Rollback()
+	if err := tx.Rollback(); err != nil {
+		log.Printf("rollback failed: %v", err)
+	}
 }
 
 func toSchema(r metapkg.TargetRowWithLabels) schema.Target {
@@ -389,7 +401,7 @@ func (h handler) create(ctx context.Context, in *targetCreateInput) (*targetOutp
 			"version": newVer,
 		})
 	}
-	return &targetOutput{ETag: newVer, Body: toSchema(row)}, nil
+	return &targetOutput{ETag: newVer, Body: toSchema(*row)}, nil
 }
 
 func (h handler) put(ctx context.Context, in *targetPutInput) (*targetOutput, error) {
@@ -427,7 +439,7 @@ func (h handler) put(ctx context.Context, in *targetPutInput) (*targetOutput, er
 			"version": newVer,
 		})
 	}
-	return &targetOutput{ETag: newVer, Body: toSchema(row)}, nil
+	return &targetOutput{ETag: newVer, Body: toSchema(*row)}, nil
 }
 
 func (h handler) patch(ctx context.Context, in *targetPatchInput) (*targetOutput, error) {
@@ -637,10 +649,10 @@ func (h handler) bumpVersion(ctx context.Context, in *ifMatchHeader) (*versionBo
 }
 
 // createOrUpsert performs target upsert and optional default setting.
-func createOrUpsert(ctx context.Context, m metapkg.MetaStore, in schema.TargetInput) (metapkg.TargetRowWithLabels, string, error) {
+func createOrUpsert(ctx context.Context, m metapkg.MetaStore, in schema.TargetInput) (*metapkg.TargetRowWithLabels, string, error) {
 	tx, err := m.BeginTx(ctx, nil)
 	if err != nil {
-		return metapkg.TargetRowWithLabels{}, "", mapStoreError(err)
+		return nil, "", mapStoreError(err)
 	}
 	defer rollbackIfNeeded(tx)
 
@@ -652,19 +664,19 @@ func createOrUpsert(ctx context.Context, m metapkg.MetaStore, in schema.TargetIn
 		IsDefault:   in.IsDefault,
 	}
 	if err := m.UpsertTarget(ctx, tx, row, in.Labels); err != nil {
-		return metapkg.TargetRowWithLabels{}, "", mapStoreError(err)
+		return nil, "", mapStoreError(err)
 	}
 	if in.IsDefault {
 		if err := m.SetDefaultTarget(ctx, tx, in.Key); err != nil {
-			return metapkg.TargetRowWithLabels{}, "", mapStoreError(err)
+			return nil, "", mapStoreError(err)
 		}
 	}
 	ver, err := m.BumpTargetsVersion(ctx, tx)
 	if err != nil {
-		return metapkg.TargetRowWithLabels{}, "", mapStoreError(err)
+		return nil, "", mapStoreError(err)
 	}
 	if err := tx.Commit(); err != nil {
-		return metapkg.TargetRowWithLabels{}, "", mapStoreError(err)
+		return nil, "", mapStoreError(err)
 	}
-	return metapkg.TargetRowWithLabels{TargetRow: row, Labels: in.Labels}, ver, nil
+	return &metapkg.TargetRowWithLabels{TargetRow: row, Labels: in.Labels}, ver, nil
 }
