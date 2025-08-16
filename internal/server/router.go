@@ -13,6 +13,7 @@ import (
 	"github.com/casbin/casbin/v2/model"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	admintargets "github.com/faciam-dev/gcfm/internal/adminapi/targets"
 	"github.com/faciam-dev/gcfm/internal/api/handler"
 	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
@@ -28,6 +29,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -80,6 +82,11 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		e.AddPolicy("admin", "/v1/*", "PUT")
 		e.AddPolicy("admin", "/v1/*", "DELETE")
 		e.AddPolicy("admin", "/v1/audit-logs/*/diff", "GET")
+		// Allow admin role to manage target configuration
+		e.AddPolicy("admin", "/admin/*", "GET")
+		e.AddPolicy("admin", "/admin/*", "POST")
+		e.AddPolicy("admin", "/admin/*", "PUT")
+		e.AddPolicy("admin", "/admin/*", "DELETE")
 		if db != nil {
 			if err := rbac.Load(context.Background(), db, cfg.TablePrefix, e); err != nil {
 				logger.L.Error("load rbac", "err", err)
@@ -162,6 +169,13 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
+	// simple scope middleware placeholder; integrates with JWT claims if available
+	scope := func(scopes ...string) func(huma.Context, func(huma.Context)) {
+		return func(ctx huma.Context, next func(huma.Context)) {
+			next(ctx)
+		}
+	}
+	admintargets.RegisterRoutes(api, admintargets.Deps{Meta: sqlmetastore.NewSQLMetaStore(db, driver, schema), Rec: rec, Auth: scope})
 	if db != nil {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
 	}
