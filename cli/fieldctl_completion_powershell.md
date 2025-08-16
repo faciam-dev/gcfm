@@ -25,6 +25,14 @@ fieldctl completion powershell [flags]
       --no-descriptions   disable completion descriptions
 ```
 
+### Options inherited from parent commands
+
+```
+      --api-url string   Admin API base URL
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
+```
+
 ### SEE ALSO
 
 * [fieldctl completion](fieldctl_completion.md)	 - Generate the autocompletion script for the specified shell

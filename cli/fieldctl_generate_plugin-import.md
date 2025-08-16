@@ -12,6 +12,14 @@ fieldctl generate plugin-import [module] [flags]
   -h, --help   help for plugin-import
 ```
 
+### Options inherited from parent commands
+
+```
+      --api-url string   Admin API base URL
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
+```
+
 ### SEE ALSO
 
 * [fieldctl generate](fieldctl_generate.md)	 - Generate helper files

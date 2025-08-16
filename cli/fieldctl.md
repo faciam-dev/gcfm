@@ -5,7 +5,10 @@
 ### Options
 
 ```
-  -h, --help   help for fieldctl
+      --api-url string   Admin API base URL
+  -h, --help             help for fieldctl
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
 ```
 
 ### SEE ALSO
@@ -26,6 +29,7 @@
 * [fieldctl revert](fieldctl_revert.md)	 - Rollback to a snapshot
 * [fieldctl scan](fieldctl_scan.md)	 - Scan schema and register metadata
 * [fieldctl snapshot](fieldctl_snapshot.md)	 - Create registry snapshot
+* [fieldctl targets](fieldctl_targets.md)	 - Manage target DB definitions in MetaDB
 * [fieldctl user](fieldctl_user.md)	 - Manage users
 * [fieldctl validate](fieldctl_validate.md)	 - Validate registry YAML
 

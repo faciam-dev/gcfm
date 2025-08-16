@@ -8,6 +8,14 @@ Database operations
   -h, --help   help for db
 ```
 
+### Options inherited from parent commands
+
+```
+      --api-url string   Admin API base URL
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
+```
+
 ### SEE ALSO
 
 * [fieldctl](fieldctl.md)	 - 

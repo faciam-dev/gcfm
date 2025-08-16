@@ -16,6 +16,14 @@ fieldctl registry migrate [flags]
       --to int          target version (0=latest)
 ```
 
+### Options inherited from parent commands
+
+```
+      --api-url string   Admin API base URL
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
+```
+
 ### SEE ALSO
 
 * [fieldctl registry](fieldctl_registry.md)	 - Registry schema operations

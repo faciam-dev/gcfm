@@ -14,6 +14,14 @@ See each sub-command's help for details on how to use the generated script.
   -h, --help   help for completion
 ```
 
+### Options inherited from parent commands
+
+```
+      --api-url string   Admin API base URL
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
+```
+
 ### SEE ALSO
 
 * [fieldctl](fieldctl.md)	 - 

@@ -18,6 +18,14 @@ fieldctl db migrate [flags]
       --to string             target version (number or latest) (default "latest")
 ```
 
+### Options inherited from parent commands
+
+```
+      --api-url string   Admin API base URL
+      --output string    Output format (table|json) (default "table")
+      --token string     Bearer token for Admin API
+```
+
 ### SEE ALSO
 
 * [fieldctl db](fieldctl_db.md)	 - Database operations
