@@ -9,6 +9,7 @@ import "github.com/faciam-dev/gcfm/sdk"
 ## Index
 
 - [Variables](<#variables>)
+- [func DefaultErrorClassifier\(err error\) \(bool, bool\)](<#DefaultErrorClassifier>)
 - [func LabelsFromContext\(ctx context.Context, rules CtxValueRules\) \[\]string](<#LabelsFromContext>)
 - [func LabelsFromGRPC\(ctx context.Context, rules GRPCLabelRules\) \[\]string](<#LabelsFromGRPC>)
 - [func LabelsFromHTTP\(r \*http.Request, rules HTTPLabelRules\) \[\]string](<#LabelsFromHTTP>)
@@ -28,6 +29,8 @@ import "github.com/faciam-dev/gcfm/sdk"
 - [type DisplayOptions](<#DisplayOptions>)
 - [type EqExpr](<#EqExpr>)
   - [func \(e EqExpr\) Eval\(has func\(label string\) bool\) bool](<#EqExpr.Eval>)
+- [type ErrorClassifier](<#ErrorClassifier>)
+- [type FailoverPolicy](<#FailoverPolicy>)
 - [type FieldDef](<#FieldDef>)
 - [type FieldMeta](<#FieldMeta>)
 - [type FileProvider](<#FileProvider>)
@@ -102,6 +105,15 @@ var (
     ErrValidatorNotFound = errors.New("validator not found")
 )
 ```
+
+<a name="DefaultErrorClassifier"></a>
+## func DefaultErrorClassifier
+
+```go
+func DefaultErrorClassifier(err error) (bool, bool)
+```
+
+DefaultErrorClassifier provides baseline classification for common errors.
 
 <a name="LabelsFromContext"></a>
 ## func LabelsFromContext
@@ -298,6 +310,36 @@ func (e EqExpr) Eval(has func(label string) bool) bool
 ```
 
 
+
+<a name="ErrorClassifier"></a>
+## type ErrorClassifier
+
+ErrorClassifier determines whether an error is transient and retryable.
+
+```go
+type ErrorClassifier func(error) (transient bool, retryable bool)
+```
+
+<a name="FailoverPolicy"></a>
+## type FailoverPolicy
+
+FailoverPolicy controls retry and circuit breaker behavior.
+
+```go
+type FailoverPolicy struct {
+    Enabled           bool
+    MaxAttempts       int
+    BaseBackoff       time.Duration
+    MaxBackoff        time.Duration
+    JitterRatio       float64
+    OpenAfterFailures int
+    OpenDuration      time.Duration
+    HalfOpenProbe     int
+    PreferOnFail      *SelectionHint
+    AllowWriteRetry   bool
+    // contains filtered or unexported fields
+}
+```
 
 <a name="FieldDef"></a>
 ## type FieldDef
@@ -913,6 +955,12 @@ type ServiceConfig struct {
     // Connector creates new DB connections. When nil, a default
     // implementation based on sql.Open and PingContext is used.
     Connector Connector
+
+    // Failover controls retry and circuit breaker behavior.
+    Failover FailoverPolicy
+
+    // ErrorClassifier distinguishes transient errors for retry decisions.
+    ErrorClassifier ErrorClassifier
 }
 ```
 
