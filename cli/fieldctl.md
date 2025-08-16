@@ -8,6 +8,7 @@
       --api-url string   Admin API base URL
   -h, --help             help for fieldctl
       --output string    Output format (table|json) (default "table")
+      --profile string   Profile name in config (overrides active)
       --token string     Bearer token for Admin API
 ```
 
@@ -15,6 +16,7 @@
 
 * [fieldctl apply](fieldctl_apply.md)	 - Apply registry YAML to database
 * [fieldctl completion](fieldctl_completion.md)	 - Generate the autocompletion script for the specified shell
+* [fieldctl config](fieldctl_config.md)	 - Manage fieldctl configuration
 * [fieldctl db](fieldctl_db.md)	 - Database operations
 * [fieldctl diff](fieldctl_diff.md)	 - Show schema drift between YAML and database
 * [fieldctl diff-snap](fieldctl_diff-snap.md)	 - Diff two snapshots
@@ -22,6 +24,7 @@
 * [fieldctl export](fieldctl_export.md)	 - Export registry to YAML
 * [fieldctl generate](fieldctl_generate.md)	 - Generate helper files
 * [fieldctl list-fields](fieldctl_list-fields.md)	 - List custom fields
+* [fieldctl login](fieldctl_login.md)	 - Save API endpoint and token into ~/.fieldctl/config.json
 * [fieldctl migrate-yaml](fieldctl_migrate-yaml.md)	 - Migrate registry YAML to v0.2
 * [fieldctl notifier](fieldctl_notifier.md)	 - 
 * [fieldctl plugins](fieldctl_plugins.md)	 - Manage validator plugins

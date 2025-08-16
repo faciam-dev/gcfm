@@ -42,6 +42,7 @@ fieldctl completion bash
 ```
       --api-url string   Admin API base URL
       --output string    Output format (table|json) (default "table")
+      --profile string   Profile name in config (overrides active)
       --token string     Bearer token for Admin API
 ```
 
