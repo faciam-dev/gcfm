@@ -283,7 +283,10 @@ INSERT INTO gcfm_target_config_version (id, version)
   VALUES (1, REPLACE(uuid(), '-', ''))
 ON DUPLICATE KEY UPDATE version=version;
 
+-- MySQL does not support partial indexes with a WHERE clause.
+-- Use a functional index that yields a non-NULL value only when
+-- `is_default` is TRUE to ensure only one default target exists.
 CREATE UNIQUE INDEX gcfm_targets_one_default
-  ON gcfm_targets (is_default) WHERE is_default = TRUE;
+  ON gcfm_targets ((CASE WHEN is_default THEN 1 END));
 
 INSERT INTO gcfm_registry_schema_version(version, semver) VALUES (1,'0.3');
