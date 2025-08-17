@@ -237,12 +237,12 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 
 	q := query.New(h.DB, tbl+" l", h.Dialect).
 		Select("l.id").
-		SelectRaw("COALESCE(u.username, l.actor) AS actor").
+		SelectRaw("COALESCE(u.username, l.actor) as actor").
 		Select("l.action").
-		SelectRaw("COALESCE(l.table_name, '') AS table_name").
-		SelectRaw("COALESCE(l.column_name, '') AS column_name").
-		SelectRaw(coalesceBefore+" AS before_json").
-		SelectRaw(coalesceAfter+" AS after_json").
+		SelectRaw("COALESCE(l.table_name, '') as table_name").
+		SelectRaw("COALESCE(l.column_name, '') as column_name").
+		SelectRaw(coalesceBefore+" as before_json").
+		SelectRaw(coalesceAfter+" as after_json").
 		Select("l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
 		LeftJoinQuery(users+" u", func(b *qbapi.JoinClauseQueryBuilder) {
 			if isPg {

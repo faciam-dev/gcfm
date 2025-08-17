@@ -205,7 +205,7 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 	cTbl := h.t("user_roles") + " ur"
 	cq := query.New(h.DB, cTbl, h.Dialect).
 		Select("ur.role_id").
-		SelectRaw("COUNT(*) AS count").
+		SelectRaw("COUNT(*) as count").
 		Join(h.t("users")+" u", "ur.user_id", "=", "u.id").
 		Where("u.tenant_id", tid).
 		GroupBy("ur.role_id").
@@ -577,7 +577,7 @@ func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}
 		Count int64 `db:"count"`
 	}
 	q := query.New(h.DB, h.t("user_roles"), h.Dialect).
-		SelectRaw("COUNT(*) AS count").
+		SelectRaw("COUNT(*) as count").
 		Where("role_id", p.ID).
 		WithContext(ctx)
 	if err := q.First(&row); err != nil {
@@ -587,7 +587,7 @@ func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}
 		return nil, huma.Error409Conflict("role has users")
 	}
 	q = query.New(h.DB, h.t("role_policies"), h.Dialect).
-		SelectRaw("COUNT(*) AS count").
+		SelectRaw("COUNT(*) as count").
 		Where("role_id", p.ID).
 		WithContext(ctx)
 	if err := q.First(&row); err != nil {
@@ -684,7 +684,7 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 			Count int `db:"count"`
 		}
 		if err := query.New(tx, h.t("users"), h.Dialect).
-			SelectRaw("COUNT(*) AS count").
+			SelectRaw("COUNT(*) as count").
 			Where("id", id).
 			Where("tenant_id", tid).
 			WithContext(ctx).

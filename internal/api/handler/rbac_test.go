@@ -27,7 +27,7 @@ func TestRBACHandler_listRoles(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "comment"}).AddRow(1, "admin", sql.NullString{}))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT `role_id`, `path`, `method` FROM `gcfm_role_policies`")).
 		WillReturnRows(sqlmock.NewRows([]string{"role_id", "path", "method"}).AddRow(1, "/v1/foo", "GET"))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT `ur`.`role_id`, COUNT(*) AS count FROM `gcfm_user_roles ur` INNER JOIN `gcfm_users u` ON `ur`.`user_id` = `u`.`id` WHERE `u`.`tenant_id` = ? GROUP BY `ur`.`role_id`")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT `ur`.`role_id`, COUNT(*) as count FROM `gcfm_user_roles ur` INNER JOIN `gcfm_users u` ON `ur`.`user_id` = `u`.`id` WHERE `u`.`tenant_id` = ? GROUP BY `ur`.`role_id`")).
 		WithArgs("t1").
 		WillReturnRows(sqlmock.NewRows([]string{"role_id", "count"}).AddRow(1, 1))
 	h := &RBACHandler{DB: db, Driver: "mysql", Dialect: ormdriver.MySQLDialect{}, TablePrefix: "gcfm_"}
@@ -436,7 +436,7 @@ func TestRBACHandler_deleteRole_referenced(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) AS count FROM `gcfm_user_roles` WHERE `role_id` = ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) as count FROM `gcfm_user_roles` WHERE `role_id` = ?")).
 		WithArgs(int64(1)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	h := &RBACHandler{DB: db, Driver: "mysql", Dialect: ormdriver.MySQLDialect{}, TablePrefix: "gcfm_"}
 	_, err = h.deleteRole(context.Background(), &roleIDParam{ID: 1})
@@ -459,9 +459,9 @@ func TestRBACHandler_createDeleteRole(t *testing.T) {
 	}
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO `gcfm_roles` (`comment`, `name`) VALUES (?, ?)")).
 		WithArgs(nil, "dev").WillReturnResult(sqlmock.NewResult(2, 1))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) AS count FROM `gcfm_user_roles` WHERE `role_id` = ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) as count FROM `gcfm_user_roles` WHERE `role_id` = ?")).
 		WithArgs(int64(2)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) AS count FROM `gcfm_role_policies` WHERE `role_id` = ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT COUNT(*) as count FROM `gcfm_role_policies` WHERE `role_id` = ?")).
 		WithArgs(int64(2)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM `gcfm_roles` WHERE `id` = ?")).
 		WithArgs(int64(2)).WillReturnResult(sqlmock.NewResult(0, 1))

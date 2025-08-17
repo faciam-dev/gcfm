@@ -12,7 +12,7 @@ import (
 
 func TableExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table string) (bool, error) {
 	q := query.New(db, "information_schema.tables", dialect).
-		SelectRaw("COUNT(*) AS cnt").
+		SelectRaw("COUNT(*) as cnt").
 		WhereRaw("LOWER(table_name) = LOWER(:t)", map[string]any{"t": table})
 	switch dialect.(type) {
 	case ormdriver.PostgresDialect:

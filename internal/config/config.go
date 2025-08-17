@@ -23,7 +23,7 @@ func (c *Config) T(name string) string {
 // connected database. It returns an error if none are found.
 func CheckPrefix(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string) error {
 	q := query.New(db, "information_schema.tables", dialect).
-		SelectRaw("COUNT(*) AS cnt").
+		SelectRaw("COUNT(*) as cnt").
 		WhereRaw("table_name LIKE :p", map[string]any{"p": prefix + "%"}).
 		WithContext(ctx)
 

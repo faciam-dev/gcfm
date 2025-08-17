@@ -458,7 +458,7 @@ func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, db
 		return err
 	}
 	q := query.New(h.DB, tbl, h.Dialect).
-		SelectRaw("COUNT(*) AS count").
+		SelectRaw("COUNT(*) as count").
 		Where("id", dbID).
 		Where("tenant_id", tenantID).
 		WithContext(ctx)
@@ -478,7 +478,7 @@ func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, d
 		return false, err
 	}
 	q := query.New(h.DB, tbl, h.Dialect).
-		SelectRaw("COUNT(*) AS count").
+		SelectRaw("COUNT(*) as count").
 		Where("tenant_id", tenantID).
 		Where("db_id", dbID).
 		Where("table_name", table).

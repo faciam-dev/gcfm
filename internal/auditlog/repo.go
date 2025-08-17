@@ -41,10 +41,10 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 
 	q := query.New(r.DB, logs+" l", r.Dialect).
 		Select("l.id").
-		SelectRaw("COALESCE(u.username, l.actor) AS actor").
+		SelectRaw("COALESCE(u.username, l.actor) as actor").
 		Select("l.action").
-		SelectRaw("COALESCE(l.table_name, '') AS table_name").
-		SelectRaw("COALESCE(l.column_name, '') AS column_name").
+		SelectRaw("COALESCE(l.table_name, '') as table_name").
+		SelectRaw("COALESCE(l.column_name, '') as column_name").
 		Select("l.before_json", "l.after_json", "l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
 		LeftJoinQuery(users+" u", func(b *qbapi.JoinClauseQueryBuilder) {
 			if _, ok := r.Dialect.(driver.PostgresDialect); ok {

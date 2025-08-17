@@ -18,7 +18,7 @@ func Load(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix str
 	roles := prefix + "roles"
 	policies := prefix + "role_policies"
 	q := query.New(db, roles+" r", dialect).
-		Select("r.name AS role").
+		Select("r.name as role").
 		Select("p.path").
 		Select("p.method").
 		Join(policies+" p", "r.id", "=", "p.role_id").
@@ -38,8 +38,8 @@ func loadGroupPolicies(ctx context.Context, db *sql.DB, dialect ormdriver.Dialec
 	userRoles := prefix + "user_roles"
 	roles := prefix + "roles"
 	q := query.New(db, userRoles+" ur", dialect).
-		Select("ur.user_id AS uid").
-		Select("r.name AS role").
+		Select("ur.user_id as uid").
+		Select("r.name as role").
 		Join(roles+" r", "ur.role_id", "=", "r.id").
 		WithContext(ctx)
 

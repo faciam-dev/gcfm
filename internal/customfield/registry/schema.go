@@ -41,7 +41,7 @@ var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
 func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table, column string) (bool, error) {
 	q := query.New(db, "information_schema.columns", dialect).
-		SelectRaw("COUNT(*) AS cnt").
+		SelectRaw("COUNT(*) as cnt").
 		Where("table_schema", schema).
 		Where("table_name", table).
 		Where("column_name", column).
