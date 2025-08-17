@@ -26,10 +26,10 @@ func OfUser(ctx context.Context, db *sql.DB, dialect driver.Dialect, prefix, use
 	users := prefix + "users"
 	rolesTbl := prefix + "roles"
 
-	q := query.New(db, ur+" ur", dialect).
-		Select("r.name").
-		Join(users+" u", "ur.user_id", "=", "u.id").
-		Join(rolesTbl+" r", "ur.role_id", "=", "r.id").
+       q := query.New(db, ur+" as ur", dialect).
+               Select("r.name").
+               Join(users+" as u", "ur.user_id", "=", "u.id").
+               Join(rolesTbl+" as r", "ur.role_id", "=", "r.id").
 		Where("u.tenant_id", tenantID)
 
 	if isID {

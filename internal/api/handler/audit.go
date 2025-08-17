@@ -235,7 +235,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		isPg = true
 	}
 
-	q := query.New(h.DB, tbl+" l", h.Dialect).
+       q := query.New(h.DB, tbl+" as l", h.Dialect).
 		Select("l.id").
 		SelectRaw("COALESCE(u.username, l.actor) as actor").
 		Select("l.action").
@@ -244,7 +244,7 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		SelectRaw(coalesceBefore+" as before_json").
 		SelectRaw(coalesceAfter+" as after_json").
 		Select("l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
-		LeftJoinQuery(users+" u", func(b *qbapi.JoinClauseQueryBuilder) {
+               LeftJoinQuery(users+" as u", func(b *qbapi.JoinClauseQueryBuilder) {
 			if isPg {
 				b.On("u.id::text", "=", "l.actor")
 			} else {

@@ -202,11 +202,11 @@ func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOut
 		byRole[row.RoleID] = append(byRole[row.RoleID], schema.Policy{Path: row.Path, Method: row.Method})
 	}
 
-	cTbl := h.t("user_roles") + " ur"
-	cq := query.New(h.DB, cTbl, h.Dialect).
-		Select("ur.role_id").
-		SelectRaw("COUNT(*) as count").
-		Join(h.t("users")+" u", "ur.user_id", "=", "u.id").
+       cTbl := h.t("user_roles") + " as ur"
+       cq := query.New(h.DB, cTbl, h.Dialect).
+               Select("ur.role_id").
+               SelectRaw("COUNT(*) as count").
+               Join(h.t("users")+" as u", "ur.user_id", "=", "u.id").
 		Where("u.tenant_id", tid).
 		GroupBy("ur.role_id").
 		WithContext(ctx)
@@ -272,7 +272,7 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 	}
 
 	base := func() *query.Query {
-		q := query.New(h.DB, h.t("users")+" u", h.Dialect).Where("u.tenant_id", tid)
+               q := query.New(h.DB, h.t("users")+" as u", h.Dialect).Where("u.tenant_id", tid)
 		if p.Search != "" {
 			if _, ok := h.Dialect.(ormdriver.PostgresDialect); ok {
 				q.WhereRaw("u.username ILIKE :s", map[string]any{"s": "%" + p.Search + "%"})
@@ -281,7 +281,7 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 			}
 		}
 		if p.ExcludeRoleID > 0 {
-			sub := query.New(h.DB, h.t("user_roles")+" ur", h.Dialect).
+                       sub := query.New(h.DB, h.t("user_roles")+" as ur", h.Dialect).
 				Select("1").
 				WhereColumn("ur.user_id", "u.id").
 				Where("ur.role_id", p.ExcludeRoleID)
@@ -330,10 +330,10 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 			Name   string `db:"name"`
 		}
 		var roleRows []roleRow
-		rq := query.New(h.DB, h.t("user_roles")+" ur", h.Dialect).
+               rq := query.New(h.DB, h.t("user_roles")+" as ur", h.Dialect).
 			Select("ur.user_id").
 			Select("r.name").
-			Join(h.t("roles")+" r", "ur.role_id", "=", "r.id").
+                       Join(h.t("roles")+" as r", "ur.role_id", "=", "r.id").
 			WhereIn("ur.user_id", ids).
 			OrderBy("r.name", "asc").
 			WithContext(ctx)
@@ -621,9 +621,9 @@ type roleMembersInput struct {
 
 func (h *RBACHandler) getRoleMembers(ctx context.Context, p *roleIDParam) (*roleMembersOutput, error) {
 	tid := tenant.FromContext(ctx)
-	q := query.New(h.DB, h.t("users")+" u", h.Dialect).
-		Select("u.id", "u.username").
-		Join(h.t("user_roles")+" ur", "ur.user_id", "=", "u.id").
+       q := query.New(h.DB, h.t("users")+" as u", h.Dialect).
+               Select("u.id", "u.username").
+               Join(h.t("user_roles")+" as ur", "ur.user_id", "=", "u.id").
 		Where("ur.role_id", p.ID).
 		Where("u.tenant_id", tid).
 		OrderBy("u.username", "asc").
@@ -648,9 +648,9 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 	rows := []struct {
 		ID int64 `db:"user_id"`
 	}{}
-	if err := query.New(tx, h.t("user_roles")+" ur", h.Dialect).
-		Select("ur.user_id").
-		Join(h.t("users")+" u", "ur.user_id", "=", "u.id").
+       if err := query.New(tx, h.t("user_roles")+" as ur", h.Dialect).
+               Select("ur.user_id").
+               Join(h.t("users")+" as u", "ur.user_id", "=", "u.id").
 		Where("ur.role_id", in.ID).
 		Where("u.tenant_id", tid).
 		WithContext(ctx).

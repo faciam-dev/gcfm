@@ -27,9 +27,9 @@ func TestRBACHandler_listRoles(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "comment"}).AddRow(1, "admin", sql.NullString{}))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT `role_id`, `path`, `method` FROM `gcfm_role_policies`")).
 		WillReturnRows(sqlmock.NewRows([]string{"role_id", "path", "method"}).AddRow(1, "/v1/foo", "GET"))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT `ur`.`role_id`, COUNT(*) as count FROM `gcfm_user_roles ur` INNER JOIN `gcfm_users u` ON `ur`.`user_id` = `u`.`id` WHERE `u`.`tenant_id` = ? GROUP BY `ur`.`role_id`")).
-		WithArgs("t1").
-		WillReturnRows(sqlmock.NewRows([]string{"role_id", "count"}).AddRow(1, 1))
+       mock.ExpectQuery(regexp.QuoteMeta("SELECT `ur`.`role_id`, COUNT(*) as count FROM `gcfm_user_roles` as `ur` INNER JOIN `gcfm_users` as `u` ON `ur`.`user_id` = `u`.`id` WHERE `u`.`tenant_id` = ? GROUP BY `ur`.`role_id`")).
+               WithArgs("t1").
+               WillReturnRows(sqlmock.NewRows([]string{"role_id", "count"}).AddRow(1, 1))
 	h := &RBACHandler{DB: db, Driver: "mysql", Dialect: ormdriver.MySQLDialect{}, TablePrefix: "gcfm_"}
 	ctx := tenant.WithTenant(context.Background(), "t1")
 	out, err := h.listRoles(ctx, nil)

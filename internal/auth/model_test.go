@@ -78,8 +78,8 @@ func TestUserRepoGetRoles(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	repo := &UserRepo{DB: db, Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "r"."name" FROM "gcfm_user_roles ur" INNER JOIN "gcfm_roles r" ON "ur"."role_id" = "r"."id" WHERE "ur"."user_id" = $1`)).WithArgs(1).
-		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin").AddRow("viewer"))
+       mock.ExpectQuery(regexp.QuoteMeta(`SELECT "r"."name" FROM "gcfm_user_roles" as "ur" INNER JOIN "gcfm_roles" as "r" ON "ur"."role_id" = "r"."id" WHERE "ur"."user_id" = $1`)).WithArgs(1).
+               WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin").AddRow("viewer"))
 	roles, err := repo.GetRoles(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("get roles: %v", err)
