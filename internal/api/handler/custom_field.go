@@ -160,7 +160,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := columnExists(ctx, target, mdb.Driver, mdb.Schema, meta.TableName, meta.ColumnName)
+		exists, err := registry.ColumnExistsSQL(ctx, target, mdb.Driver, mdb.Schema, meta.TableName, meta.ColumnName)
 		if err != nil {
 			return nil, err
 		}
@@ -218,26 +218,6 @@ func splitID(id string) (string, string, bool) {
 		return "", "", false
 	}
 	return parts[0], parts[1], true
-}
-
-func columnExists(ctx context.Context, db *sql.DB, driver, schema, table, column string) (bool, error) {
-	var (
-		query string
-		args  []any
-	)
-	switch driver {
-	case "postgres":
-		query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3`
-		args = []any{schema, table, column}
-	case "mysql":
-		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`
-		args = []any{table, column}
-	default:
-		return false, fmt.Errorf("unsupported driver: %s", driver)
-	}
-	var count int
-	err := db.QueryRowContext(ctx, query, args...).Scan(&count)
-	return count > 0, err
 }
 
 func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, column string) (*registry.FieldMeta, error) {
@@ -340,7 +320,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := columnExists(ctx, target, mdb.Driver, mdb.Schema, table, column)
+		exists, err := registry.ColumnExistsSQL(ctx, target, mdb.Driver, mdb.Schema, table, column)
 		if err != nil {
 			return nil, err
 		}

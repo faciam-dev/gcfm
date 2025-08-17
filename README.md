@@ -2,6 +2,12 @@
 [![Docs](https://img.shields.io/badge/docs-latest-blue)](https://faciam-dev.github.io/gcfm/)
 A model system that provides custom fields
 
+## Package Layout
+
+- `sdk/`: Public SDK exposing custom field operations.
+- `internal/`: Application code implementing the server.
+- `pkg/`: Shared utility packages. There is currently no `pkg/customfields`; custom field helpers live under `sdk` and `internal/customfield`.
+
 ## Build
 
 Run `make build` to compile the CLI and API server. Binaries will be placed in
@@ -101,12 +107,13 @@ import (
     runtimecache "github.com/faciam-dev/gcfm/internal/customfield/runtime/cache"
     "github.com/faciam-dev/gcfm/internal/customfield/registry"
     mysqlscanner "github.com/faciam-dev/gcfm/internal/driver/mysql"
+    "go.uber.org/zap"
     "time"
 )
 
 db, _ := sql.Open("mysql", "user:pass@tcp(localhost:3306)/app")
 sc := mysqlscanner.NewScanner(db)
-cache, err := runtimecache.New(ctx, sc, registry.DBConfig{Schema: "app"}, time.Minute)
+cache, err := runtimecache.New(ctx, sc, registry.DBConfig{Schema: "app"}, time.Minute, zap.NewNop().Sugar())
 ```
 
 

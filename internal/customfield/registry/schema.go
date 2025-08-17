@@ -36,6 +36,28 @@ func quoteIdentifier(driver, ident string) string {
 
 var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
+func ColumnExistsSQL(ctx context.Context, db *sql.DB, driver, schema, table, column string) (bool, error) {
+	var (
+		query string
+		args  []any
+	)
+	switch driver {
+	case "postgres":
+		query = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3`
+		args = []any{schema, table, column}
+	case "mysql":
+		query = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`
+		args = []any{schema, table, column}
+	default:
+		return false, fmt.Errorf("unsupported driver: %s", driver)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func supportsDefault(driver, typ string) bool {
 	if driver != "mysql" {
 		return true
