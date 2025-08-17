@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
@@ -85,19 +84,55 @@ func (s *service) listFromMeta(ctx context.Context, dbID int64, table string) ([
 	return filtered, nil
 }
 
-func (s *service) columnExists(ctx context.Context, tgt TargetConn, table, column string) (bool, error) {
-	var q string
-	switch tgt.Driver {
-	case "postgres":
-		q = `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3`
-	case "mysql":
-		q = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`
-	default:
-		return false, fmt.Errorf("unsupported driver: %s", tgt.Driver)
+func (s *service) addColumn(ctx context.Context, dec TargetDecision, fm registry.FieldMeta) error {
+	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		exists, err := registry.ColumnExistsSQL(ctx, t.DB, t.Driver, t.Schema, fm.TableName, fm.ColumnName)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil)
+		}
+		return nil
+	})
+}
+
+func (s *service) upsertColumn(ctx context.Context, dec TargetDecision, fm registry.FieldMeta) error {
+	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		exists, err := registry.ColumnExistsSQL(ctx, t.DB, t.Driver, t.Schema, fm.TableName, fm.ColumnName)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return registry.ModifyColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil)
+		}
+		return registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil)
+	})
+}
+
+func (s *service) dropColumn(ctx context.Context, dec TargetDecision, table, column string) error {
+	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		return registry.DropColumnSQL(ctx, t.DB, t.Driver, table, column)
+	})
+}
+
+func (s *service) persistMeta(ctx context.Context, dec TargetDecision, fm registry.FieldMeta) error {
+	fm.DBID = monitordb.DefaultDBID
+	if err := s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm}); err != nil {
+		return err
 	}
-	var count int
-	err := tgt.DB.QueryRowContext(ctx, q, tgt.Schema, table, column).Scan(&count)
-	return count > 0, err
+	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", fm)
+	})
+}
+
+func (s *service) removeMeta(ctx context.Context, dec TargetDecision, fm registry.FieldMeta) error {
+	if err := s.meta.DeleteFieldDefs(ctx, nil, []metapkg.FieldDef{fm}); err != nil {
+		return err
+	}
+	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
+		return registry.DeleteFieldDefByDB(ctx, t.DB, t.Driver, fm)
+	})
 }
 
 // CreateCustomField adds a column to the target database and records metadata in
@@ -107,31 +142,10 @@ func (s *service) CreateCustomField(ctx context.Context, fm registry.FieldMeta) 
 	if !ok {
 		return ErrNoTarget
 	}
-	err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		exists, e := s.columnExists(ctx, t, fm.TableName, fm.ColumnName)
-		if e != nil {
-			return e
-		}
-		if !exists {
-			if e = registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); e != nil {
-				return e
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if err := s.addColumn(ctx, dec, fm); err != nil {
 		return err
 	}
-	fm.DBID = monitordb.DefaultDBID
-	if err := s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm}); err != nil {
-		return err
-	}
-	if err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", fm)
-	}); err != nil {
-		return err
-	}
-	return nil
+	return s.persistMeta(ctx, dec, fm)
 }
 
 // UpdateCustomField alters a column in the target database and synchronizes the
@@ -141,35 +155,10 @@ func (s *service) UpdateCustomField(ctx context.Context, fm registry.FieldMeta) 
 	if !ok {
 		return ErrNoTarget
 	}
-	err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		exists, e := s.columnExists(ctx, t, fm.TableName, fm.ColumnName)
-		if e != nil {
-			return e
-		}
-		if exists {
-			if e = registry.ModifyColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); e != nil {
-				return e
-			}
-		} else {
-			if e = registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil); e != nil {
-				return e
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if err := s.upsertColumn(ctx, dec, fm); err != nil {
 		return err
 	}
-	fm.DBID = monitordb.DefaultDBID
-	if err := s.meta.UpsertFieldDefs(ctx, nil, []metapkg.FieldDef{fm}); err != nil {
-		return err
-	}
-	if err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", fm)
-	}); err != nil {
-		return err
-	}
-	return nil
+	return s.persistMeta(ctx, dec, fm)
 }
 
 // DeleteCustomField drops a column from the target database and removes its
@@ -180,20 +169,9 @@ func (s *service) DeleteCustomField(ctx context.Context, table, column string) e
 	if !ok {
 		return ErrNoTarget
 	}
-	err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		return registry.DropColumnSQL(ctx, t.DB, t.Driver, table, column)
-	})
-	if err != nil {
+	if err := s.dropColumn(ctx, dec, table, column); err != nil {
 		return err
 	}
 	fm := registry.FieldMeta{DBID: monitordb.DefaultDBID, TableName: table, ColumnName: column}
-	if err := s.meta.DeleteFieldDefs(ctx, nil, []metapkg.FieldDef{fm}); err != nil {
-		return err
-	}
-	if err := s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		return registry.DeleteFieldDefByDB(ctx, t.DB, t.Driver, fm)
-	}); err != nil {
-		return err
-	}
-	return nil
+	return s.removeMeta(ctx, dec, fm)
 }

@@ -7,7 +7,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 )
@@ -19,23 +18,23 @@ type scannerFunc func(ctx context.Context) ([]registry.FieldMeta, error)
 type Cache struct {
 	mu      sync.RWMutex
 	byTable map[string]map[string]registry.FieldMeta
+	logger  *zap.SugaredLogger
 }
 
-func New(ctx context.Context, scan registry.Scanner, conf registry.DBConfig, reloadInterval time.Duration) (*Cache, error) {
-	logger := zap.NewNop().Sugar()
-	if err := pluginloader.LoadAll("", logger); err != nil {
-		return nil, err
+func New(ctx context.Context, scan registry.Scanner, conf registry.DBConfig, reloadInterval time.Duration, logger *zap.SugaredLogger) (*Cache, error) {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
 	}
 	fn := func(c context.Context) ([]registry.FieldMeta, error) { return scan.Scan(c, conf) }
-	return newWithFunc(ctx, fn, reloadInterval)
+	return newWithFunc(ctx, fn, reloadInterval, logger)
 }
 
-func newWithFunc(ctx context.Context, fn scannerFunc, interval time.Duration) (*Cache, error) {
+func newWithFunc(ctx context.Context, fn scannerFunc, interval time.Duration, logger *zap.SugaredLogger) (*Cache, error) {
 	metas, err := fn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	c := &Cache{byTable: group(metas)}
+	c := &Cache{byTable: group(metas), logger: logger}
 	if interval > 0 {
 		go c.start(ctx, fn, interval)
 	}
@@ -52,6 +51,7 @@ func (c *Cache) start(ctx context.Context, fn scannerFunc, interval time.Duratio
 		case <-ticker.C:
 			metas, err := fn(ctx)
 			if err != nil {
+				c.logger.Errorf("cache reload failed: %v", err)
 				continue
 			}
 			m := group(metas)

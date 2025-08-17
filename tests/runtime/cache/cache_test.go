@@ -8,6 +8,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	runtimecache "github.com/faciam-dev/gcfm/internal/customfield/runtime/cache"
+	"go.uber.org/zap"
 )
 
 type fakeScanner struct {
@@ -22,7 +23,7 @@ func (f *fakeScanner) Scan(ctx context.Context, _ registry.DBConfig) ([]registry
 func TestCacheLookup(t *testing.T) {
 	fs := &fakeScanner{}
 	fs.metas.Store([]registry.FieldMeta{{TableName: "t", ColumnName: "c", DataType: "int"}})
-	c, err := runtimecache.New(context.Background(), fs, registry.DBConfig{}, 0)
+	c, err := runtimecache.New(context.Background(), fs, registry.DBConfig{}, 0, zap.NewNop().Sugar())
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -40,7 +41,7 @@ func TestCacheReload(t *testing.T) {
 	defer cancel()
 	fs := &fakeScanner{}
 	fs.metas.Store([]registry.FieldMeta{{TableName: "t", ColumnName: "c", DataType: "int"}})
-	c, err := runtimecache.New(ctx, fs, registry.DBConfig{}, 10*time.Millisecond)
+	c, err := runtimecache.New(ctx, fs, registry.DBConfig{}, 10*time.Millisecond, zap.NewNop().Sugar())
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
