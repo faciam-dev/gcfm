@@ -56,7 +56,7 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 			}
 		}
 		if len(colMetas) == 0 {
-			samples, err := sampleCollection(ctx, coll)
+			samples, err := sampleCollection(ctx, name, coll)
 			if err != nil {
 				return nil, err
 			}
@@ -70,7 +70,7 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 	return metas, nil
 }
 
-func sampleCollection(ctx context.Context, coll *mongo.Collection) ([]registry.FieldMeta, error) {
+func sampleCollection(ctx context.Context, name string, coll *mongo.Collection) ([]registry.FieldMeta, error) {
 	cur, err := coll.Find(ctx, bson.D{}, options.Find().SetLimit(10))
 	if err != nil {
 		return nil, err
@@ -98,10 +98,10 @@ func sampleCollection(ctx context.Context, coll *mongo.Collection) ([]registry.F
 	for k, types := range typeMap {
 		if len(types) == 1 {
 			for t := range types {
-				metas = append(metas, registry.FieldMeta{TableName: coll.Name(), ColumnName: k, DataType: t})
+				metas = append(metas, registry.FieldMeta{TableName: name, ColumnName: k, DataType: t})
 			}
 		} else {
-			metas = append(metas, registry.FieldMeta{TableName: coll.Name(), ColumnName: k, DataType: "string"})
+			metas = append(metas, registry.FieldMeta{TableName: name, ColumnName: k, DataType: "string"})
 		}
 	}
 	return metas, nil
