@@ -7,7 +7,6 @@ import (
 	"time"
 
 	qbapi "github.com/faciam-dev/goquent-query-builder/api"
-	qbmysql "github.com/faciam-dev/goquent-query-builder/database/mysql"
 	qbpostgres "github.com/faciam-dev/goquent-query-builder/database/postgres"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
@@ -42,13 +41,6 @@ func (r *Repo) table() string {
 	return r.prefix() + "monitored_databases"
 }
 
-func insertBuilder(d ormdriver.Dialect) *qbapi.InsertQueryBuilder {
-	if _, ok := d.(ormdriver.PostgresDialect); ok {
-		return qbapi.NewInsertQueryBuilder(qbpostgres.NewPostgreSQLQueryBuilder())
-	}
-	return qbapi.NewInsertQueryBuilder(qbmysql.NewMySQLQueryBuilder())
-}
-
 // Create inserts a new monitored database and returns its ID.
 func (r *Repo) Create(ctx context.Context, d Database) (int64, error) {
 	if r == nil || r.DB == nil {
@@ -62,7 +54,7 @@ func (r *Repo) Create(ctx context.Context, d Database) (int64, error) {
 		"dsn_enc":   d.DSNEnc,
 	}
 	if _, ok := r.Dialect.(ormdriver.PostgresDialect); ok {
-		ib := insertBuilder(r.Dialect)
+		ib := qbapi.NewInsertQueryBuilder(qbpostgres.NewPostgreSQLQueryBuilder())
 		ib.Table(tbl).Insert(data)
 		sqlStr, args, err := ib.Build()
 		if err != nil {

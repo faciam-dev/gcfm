@@ -46,23 +46,34 @@ func (s *service) NightlyScan(ctx context.Context) error {
 }
 
 func listTables(ctx context.Context, tgt TargetConn) ([]string, error) {
-	switch tgt.Driver {
-	case "postgres", "mysql":
-		q := query.New(tgt.DB, "information_schema.tables", tgt.Dialect).
+	switch d := tgt.Dialect.(type) {
+	case ormdriver.PostgresDialect:
+		q := query.New(tgt.DB, "information_schema.tables", d).
 			Select("table_name")
-		switch tgt.Dialect.(type) {
-		case ormdriver.PostgresDialect:
-			schema := tgt.Schema
-			if schema == "" {
-				schema = "public"
-			}
-			q.Where("table_schema", schema)
-		case ormdriver.MySQLDialect:
-			if tgt.Schema != "" {
-				q.Where("table_schema", tgt.Schema)
-			} else {
-				q.WhereRaw("table_schema = DATABASE()", nil)
-			}
+		schema := tgt.Schema
+		if schema == "" {
+			schema = "public"
+		}
+		q.Where("table_schema", schema)
+		type row struct {
+			Name string `db:"table_name"`
+		}
+		var rows []row
+		if err := q.WithContext(ctx).Get(&rows); err != nil {
+			return nil, err
+		}
+		tables := make([]string, len(rows))
+		for i, r := range rows {
+			tables[i] = r.Name
+		}
+		return tables, nil
+	case ormdriver.MySQLDialect:
+		q := query.New(tgt.DB, "information_schema.tables", d).
+			Select("table_name")
+		if tgt.Schema != "" {
+			q.Where("table_schema", tgt.Schema)
+		} else {
+			q.WhereRaw("table_schema = DATABASE()", nil)
 		}
 		type row struct {
 			Name string `db:"table_name"`
@@ -76,25 +87,28 @@ func listTables(ctx context.Context, tgt TargetConn) ([]string, error) {
 			tables[i] = r.Name
 		}
 		return tables, nil
-	case "sqlite3":
-		rows, err := tgt.DB.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type='table'`)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-		var tables []string
-		for rows.Next() {
-			var name string
-			if err := rows.Scan(&name); err != nil {
+	case UnsupportedDialect:
+		if d.driver == "sqlite3" {
+			rows, err := tgt.DB.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type='table'`)
+			if err != nil {
 				return nil, err
 			}
-			tables = append(tables, name)
+			defer rows.Close()
+			var tables []string
+			for rows.Next() {
+				var name string
+				if err := rows.Scan(&name); err != nil {
+					return nil, err
+				}
+				tables = append(tables, name)
+			}
+			if err := rows.Err(); err != nil {
+				return nil, err
+			}
+			return tables, nil
 		}
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		return tables, nil
+		return nil, fmt.Errorf("unsupported driver: %s", d.driver)
 	default:
-		return nil, fmt.Errorf("unsupported driver: %s", tgt.Driver)
+		return nil, fmt.Errorf("unsupported dialect %T", tgt.Dialect)
 	}
 }

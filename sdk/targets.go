@@ -580,6 +580,14 @@ func removeFromIndex(idx map[string]map[string]struct{}, key string, labels map[
 	}
 }
 
+// UnsupportedDialect is returned when a driver has no corresponding goquent dialect.
+// It satisfies the ormdriver.Dialect interface with no-op implementations.
+type UnsupportedDialect struct{ driver string }
+
+func (UnsupportedDialect) Placeholder(int) string { return "?" }
+
+func (UnsupportedDialect) QuoteIdent(ident string) string { return ident }
+
 func driverDialect(d string) ormdriver.Dialect {
 	switch d {
 	case "postgres":
@@ -587,7 +595,7 @@ func driverDialect(d string) ormdriver.Dialect {
 	case "mysql":
 		return ormdriver.MySQLDialect{}
 	default:
-		return nil
+		return UnsupportedDialect{driver: d}
 	}
 }
 
