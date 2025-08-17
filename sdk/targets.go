@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/faciam-dev/gcfm/internal/metrics"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 // TargetRegistry manages monitored database connections.
@@ -33,10 +34,11 @@ type TargetRegistry interface {
 
 // TargetConn represents a monitored database connection.
 type TargetConn struct {
-	DB     *sql.DB
-	Driver string
-	Schema string
-	Labels map[string]struct{}
+	DB      *sql.DB
+	Driver  string
+	Schema  string
+	Dialect ormdriver.Dialect
+	Labels  map[string]struct{}
 }
 
 type snapshot struct {
@@ -85,7 +87,7 @@ func (r *HotReloadRegistry) buildConn(ctx context.Context, cfg TargetConfig, mk 
 		}
 		tune(db, cfg)
 	}
-	c := TargetConn{DB: db, Driver: cfg.Driver, Schema: cfg.Schema, Labels: toSet(cfg.Labels)}
+	c := TargetConn{DB: db, Driver: cfg.Driver, Schema: cfg.Schema, Dialect: driverDialect(cfg.Driver), Labels: toSet(cfg.Labels)}
 	closer := func() error {
 		if cfg.DB != nil {
 			return nil
@@ -575,6 +577,17 @@ func removeFromIndex(idx map[string]map[string]struct{}, key string, labels map[
 				delete(idx, l)
 			}
 		}
+	}
+}
+
+func driverDialect(d string) ormdriver.Dialect {
+	switch d {
+	case "postgres":
+		return ormdriver.PostgresDialect{}
+	case "mysql":
+		return ormdriver.MySQLDialect{}
+	default:
+		return nil
 	}
 }
 

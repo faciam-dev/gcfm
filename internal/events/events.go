@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"time"
+
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // Default is the global dispatcher used by Emit.
@@ -99,7 +101,7 @@ func (d *Dispatcher) retrySend(ctx context.Context, s Sink, e Event) {
 // SQLDLQ stores failed events in the database.
 type SQLDLQ struct {
 	DB          *sql.DB
-	Driver      string
+	Dialect     ormdriver.Dialect
 	TablePrefix string
 }
 
@@ -113,12 +115,12 @@ func (q *SQLDLQ) Store(ctx context.Context, e Event, attempts int, lastErr strin
 		return err
 	}
 	tbl := q.TablePrefix + "events_failed"
-	var stmt string
-	if q.Driver == "postgres" {
-		stmt = fmt.Sprintf("INSERT INTO %s(name, payload, attempts, last_error) VALUES ($1, $2, $3, $4)", tbl)
-	} else {
-		stmt = fmt.Sprintf("INSERT INTO %s(name, payload, attempts, last_error) VALUES (?, ?, ?, ?)", tbl)
-	}
-	_, err = q.DB.ExecContext(ctx, stmt, e.Name, string(data), attempts, lastErr)
+	qy := query.New(q.DB, tbl, q.Dialect).WithContext(ctx)
+	_, err = qy.Insert(map[string]any{
+		"name":       e.Name,
+		"payload":    string(data),
+		"attempts":   attempts,
+		"last_error": lastErr,
+	})
 	return err
 }

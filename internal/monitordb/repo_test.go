@@ -4,8 +4,11 @@ import (
 	"context"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 func TestListParsesCreatedAt(t *testing.T) {
@@ -15,11 +18,16 @@ func TestListParsesCreatedAt(t *testing.T) {
 	}
 	defer db.Close()
 
-	r := &Repo{DB: db, Driver: "mysql"}
+	r := &Repo{DB: db, Dialect: ormdriver.MySQLDialect{}, Driver: "mysql"}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "name", "driver", "dsn_enc", "created_at"}).
-		AddRow(1, "t1", "db1", "mysql", []byte("enc"), []byte("2024-01-02 03:04:05"))
+		AddRow(1, "t1", "db1", "mysql", []byte("enc"), time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC))
 
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, tenant_id, name, driver, dsn_enc, created_at FROM gcfm_monitored_databases WHERE tenant_id=? ORDER BY id")).
+	sqlStr, _, _ := query.New(db, "gcfm_monitored_databases", ormdriver.MySQLDialect{}).
+		Select("id", "tenant_id", "name", "driver", "dsn_enc", "created_at").
+		Where("tenant_id", "t1").
+		OrderBy("id", "asc").
+		Build()
+	mock.ExpectQuery(regexp.QuoteMeta(sqlStr)).
 		WithArgs("t1").WillReturnRows(rows)
 
 	dbs, err := r.List(context.Background(), "t1")

@@ -6,50 +6,51 @@ import (
 	"fmt"
 
 	"github.com/casbin/casbin/v2"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // Load fills the Casbin enforcer with policies and groupings from the database.
-func Load(ctx context.Context, db *sql.DB, prefix string, e *casbin.Enforcer) error {
+func Load(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, e *casbin.Enforcer) error {
 	if db == nil || e == nil {
 		return nil
 	}
 	roles := prefix + "roles"
 	policies := prefix + "role_policies"
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT r.name, p.path, p.method FROM %s r JOIN %s p ON r.id=p.role_id", roles, policies))
-	if err != nil {
+	q := query.New(db, roles+" r", dialect).
+		Select("r.name AS role").
+		Select("p.path").
+		Select("p.method").
+		Join(policies+" p", "r.id", "=", "p.role_id").
+		WithContext(ctx)
+
+	var rows []map[string]any
+	if err := q.GetMaps(&rows); err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var role, path, method string
-		if err := rows.Scan(&role, &path, &method); err != nil {
-			return err
-		}
-		e.AddPolicy(role, path, method)
+	for _, r := range rows {
+		e.AddPolicy(fmt.Sprint(r["role"]), fmt.Sprint(r["path"]), fmt.Sprint(r["method"]))
 	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	return loadGroupPolicies(ctx, db, prefix, e)
+	return loadGroupPolicies(ctx, db, dialect, prefix, e)
 }
 
-func loadGroupPolicies(ctx context.Context, db *sql.DB, prefix string, e *casbin.Enforcer) error {
+func loadGroupPolicies(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, e *casbin.Enforcer) error {
 	userRoles := prefix + "user_roles"
 	roles := prefix + "roles"
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT ur.user_id, r.name FROM %s ur JOIN %s r ON ur.role_id=r.id", userRoles, roles))
-	if err != nil {
+	q := query.New(db, userRoles+" ur", dialect).
+		Select("ur.user_id AS uid").
+		Select("r.name AS role").
+		Join(roles+" r", "ur.role_id", "=", "r.id").
+		WithContext(ctx)
+
+	var rows []map[string]any
+	if err := q.GetMaps(&rows); err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var uid int64
-		var role string
-		if err := rows.Scan(&uid, &role); err != nil {
-			return err
-		}
-		e.AddGroupingPolicy(fmt.Sprint(uid), role)
+	for _, r := range rows {
+		e.AddGroupingPolicy(fmt.Sprint(r["uid"]), fmt.Sprint(r["role"]))
 	}
-	return rows.Err()
+	return nil
 }
 
 // ReloadEnforcer is a hook for reloading the Casbin enforcer after RBAC changes.

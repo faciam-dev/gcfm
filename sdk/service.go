@@ -89,7 +89,7 @@ func New(cfg ServiceConfig) Service {
 
 	var def *TargetConn
 	if cfg.DB != nil {
-		def = &TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema}
+		def = &TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema, Dialect: driverDialect(cfg.Driver)}
 	}
 	reg := NewHotReloadRegistry(def)
 	mk := cfg.Connector

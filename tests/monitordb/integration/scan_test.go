@@ -19,6 +19,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func TestAddAndScan(t *testing.T) {
@@ -56,7 +57,7 @@ func TestAddAndScan(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres"}
+	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres", Dialect: ormdriver.PostgresDialect{}}
 	enc, err := crypto.Encrypt([]byte(remoteDSN))
 	if err != nil {
 		t.Fatalf("encrypt: %v", err)
@@ -98,7 +99,7 @@ func TestScanErrorsAndSkip(t *testing.T) {
 	if err := mig.Up(ctx, centralDB, 13); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres"}
+	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres", Dialect: ormdriver.PostgresDialect{}}
 	// permission error
 	remoteDSN, _ := remote.ConnectionString(ctx)
 	wrongDSN := strings.Replace(remoteDSN, "pass", "bad", 1)

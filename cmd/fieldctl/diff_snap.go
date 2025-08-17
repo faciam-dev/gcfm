@@ -10,6 +10,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
 	"github.com/faciam-dev/gcfm/sdk"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func newDiffSnapCmd() *cobra.Command {
@@ -44,11 +45,17 @@ func newDiffSnapCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
-			a, err := snapshot.Get(ctx, db, driverFlag, tablePrefix, tenant, fromVer)
+			var dialect ormdriver.Dialect
+			if driverFlag == "postgres" {
+				dialect = ormdriver.PostgresDialect{}
+			} else {
+				dialect = ormdriver.MySQLDialect{}
+			}
+			a, err := snapshot.Get(ctx, db, dialect, tablePrefix, tenant, fromVer)
 			if err != nil {
 				return err
 			}
-			b, err := snapshot.Get(ctx, db, driverFlag, tablePrefix, tenant, toVer)
+			b, err := snapshot.Get(ctx, db, dialect, tablePrefix, tenant, toVer)
 			if err != nil {
 				return err
 			}

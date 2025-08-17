@@ -9,6 +9,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 type AuthHandler struct {
@@ -99,7 +100,13 @@ func (h *AuthHandler) meCaps(ctx context.Context, _ *struct{}) (*capsOut, error)
 
 	subjects := []string{user}
 	if h.DB != nil {
-		rs, err := roles.OfUser(ctx, h.DB, h.Driver, h.TablePrefix, user, tid)
+		var dialect ormdriver.Dialect
+		if h.Driver == "postgres" {
+			dialect = ormdriver.PostgresDialect{}
+		} else {
+			dialect = ormdriver.MySQLDialect{}
+		}
+		rs, err := roles.OfUser(ctx, h.DB, dialect, h.TablePrefix, user, tid)
 		if err != nil {
 			return nil, err
 		}

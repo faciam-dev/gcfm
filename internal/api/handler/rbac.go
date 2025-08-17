@@ -20,12 +20,15 @@ import (
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // RBACHandler provides role and user listing endpoints.
 type RBACHandler struct {
 	DB           *sql.DB
 	Driver       string
+	Dialect      ormdriver.Dialect
 	Recorder     *audit.Recorder
 	PasswordCost int
 	TablePrefix  string
@@ -159,73 +162,66 @@ func RegisterRBAC(api huma.API, h *RBACHandler) {
 
 func (h *RBACHandler) listRoles(ctx context.Context, _ *struct{}) (*listRolesOutput, error) {
 	tid := tenant.FromContext(ctx)
-	rows, err := h.DB.QueryContext(ctx, fmt.Sprintf("SELECT id, name, comment FROM %s ORDER BY id", h.t("roles")))
-	if err != nil {
+
+	rolesTbl := h.t("roles")
+	q := query.New(h.DB, rolesTbl, h.Dialect).
+		Select("id", "name", "comment").
+		OrderBy("id", "asc").
+		WithContext(ctx)
+	var rRows []struct {
+		ID      int64
+		Name    string
+		Comment sql.NullString
+	}
+	if err := q.Get(&rRows); err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	roles := []schema.Role{}
-	for rows.Next() {
-		var r schema.Role
-		var comment sql.NullString
-		if err := rows.Scan(&r.ID, &r.Name, &comment); err != nil {
-			return nil, err
-		}
-		if comment.Valid {
-			r.Comment = comment.String
+	roles := make([]schema.Role, 0, len(rRows))
+	for _, row := range rRows {
+		r := schema.Role{ID: row.ID, Name: row.Name}
+		if row.Comment.Valid {
+			r.Comment = row.Comment.String
 		}
 		roles = append(roles, r)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	var pRows *sql.Rows
-	pRows, err = h.DB.QueryContext(ctx, fmt.Sprintf("SELECT role_id, path, method FROM %s", h.t("role_policies")))
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = pRows.Close()
-	}()
 
+	polTbl := h.t("role_policies")
+	pq := query.New(h.DB, polTbl, h.Dialect).
+		Select("role_id", "path", "method").
+		WithContext(ctx)
+	var pRows []struct {
+		RoleID int64 `goq:"role_id"`
+		Path   string
+		Method string
+	}
+	if err := pq.Get(&pRows); err != nil {
+		return nil, err
+	}
 	byRole := make(map[int64][]schema.Policy)
-	for pRows.Next() {
-		var id int64
-		var p schema.Policy
-		if err := pRows.Scan(&id, &p.Path, &p.Method); err != nil {
-			return nil, err
-		}
-		byRole[id] = append(byRole[id], p)
+	for _, row := range pRows {
+		byRole[row.RoleID] = append(byRole[row.RoleID], schema.Policy{Path: row.Path, Method: row.Method})
 	}
-	if err := pRows.Err(); err != nil {
+
+	cTbl := h.t("user_roles") + " ur"
+	cq := query.New(h.DB, cTbl, h.Dialect).
+		Select("ur.role_id").
+		SelectRaw("COUNT(*) AS count").
+		Join(h.t("users")+" u", "ur.user_id", "=", "u.id").
+		Where("u.tenant_id", tid).
+		GroupBy("ur.role_id").
+		WithContext(ctx)
+	var cRows []struct {
+		RoleID int64 `goq:"role_id"`
+		Count  int64 `goq:"count"`
+	}
+	if err := cq.Get(&cRows); err != nil {
 		return nil, err
 	}
-	var cRows *sql.Rows
-	var cq string
-	if h.Driver == "postgres" {
-		cq = fmt.Sprintf("SELECT ur.role_id, COUNT(*) FROM %s ur JOIN %s u ON ur.user_id=u.id WHERE u.tenant_id=$1 GROUP BY ur.role_id", h.t("user_roles"), h.t("users"))
-		cRows, err = h.DB.QueryContext(ctx, cq, tid)
-	} else {
-		cq = fmt.Sprintf("SELECT ur.role_id, COUNT(*) FROM %s ur JOIN %s u ON ur.user_id=u.id WHERE u.tenant_id=? GROUP BY ur.role_id", h.t("user_roles"), h.t("users"))
-		cRows, err = h.DB.QueryContext(ctx, cq, tid)
+	counts := make(map[int64]int64, len(cRows))
+	for _, row := range cRows {
+		counts[row.RoleID] = row.Count
 	}
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = cRows.Close() }()
-	counts := make(map[int64]int64)
-	for cRows.Next() {
-		var id, n int64
-		if err := cRows.Scan(&id, &n); err != nil {
-			return nil, err
-		}
-		counts[id] = n
-	}
-	if err := cRows.Err(); err != nil {
-		return nil, err
-	}
+
 	for i := range roles {
 		roles[i].Policies = byRole[roles[i].ID]
 		roles[i].Members = counts[roles[i].ID]
@@ -275,119 +271,78 @@ func (h *RBACHandler) ListUsers(ctx context.Context, p *schema.ListUsersParams) 
 		return nil, huma.NewError(http.StatusBadRequest, msg, &huma.ErrorDetail{Location: "order", Message: msg, Value: order})
 	}
 
-	i := 0
-	ph := func() string {
-		i++
-		if h.Driver == "postgres" {
-			return fmt.Sprintf("$%d", i)
+	base := func() *query.Query {
+		q := query.New(h.DB, h.t("users")+" u", h.Dialect).Where("u.tenant_id", tid)
+		if p.Search != "" {
+			if _, ok := h.Dialect.(ormdriver.PostgresDialect); ok {
+				q.WhereRaw("u.username ILIKE :s", map[string]any{"s": "%" + p.Search + "%"})
+			} else {
+				q.WhereRaw("u.username LIKE :s", map[string]any{"s": "%" + p.Search + "%"})
+			}
 		}
-		return "?"
-	}
-
-	var where []string
-	var args []any
-
-	where = append(where, fmt.Sprintf("u.tenant_id = %s", ph()))
-	args = append(args, tid)
-
-	if p.Search != "" {
-		if h.Driver == "postgres" {
-			where = append(where, fmt.Sprintf("u.username ILIKE %s", ph()))
-		} else {
-			where = append(where, fmt.Sprintf("u.username LIKE %s", ph()))
+		if p.ExcludeRoleID > 0 {
+			sub := query.New(h.DB, h.t("user_roles")+" ur", h.Dialect).
+				Select("1").
+				WhereColumn("ur.user_id", "u.id").
+				Where("ur.role_id", p.ExcludeRoleID)
+			q.WhereNotExists(sub)
 		}
-		args = append(args, "%"+p.Search+"%")
+		return q
 	}
 
-	if p.ExcludeRoleID > 0 {
-		where = append(where, fmt.Sprintf("NOT EXISTS (SELECT 1 FROM %s ur WHERE ur.user_id = u.id AND ur.role_id = %s)", h.t("user_roles"), ph()))
-		args = append(args, p.ExcludeRoleID)
+	countQ := base().SelectRaw("COUNT(*) as cnt").WithContext(ctx)
+	var cr struct {
+		Cnt int64 `db:"cnt"`
 	}
-
-	whereSQL := ""
-	if len(where) > 0 {
-		whereSQL = "WHERE " + strings.Join(where, " AND ")
-	}
-
-	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM %s u %s`, h.t("users"), whereSQL)
-	var total int64
-	if err := h.DB.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+	if err := countQ.First(&cr); err != nil {
 		return nil, err
 	}
+	total := cr.Cnt
 
 	offset := (page - 1) * per
-	listSQL := fmt.Sprintf(`
-               SELECT u.id, u.username
-                 FROM %s u
-                 %s
-                ORDER BY %s %s
-                LIMIT %s OFFSET %s`, h.t("users"), whereSQL, sortCol, strings.ToUpper(order), ph(), ph())
-	listArgs := append(append([]any{}, args...), per, offset)
+	rowsQuery := base().
+		Select("u.id").
+		Select("u.username").
+		OrderBy(sortCol, strings.ToUpper(order)).
+		Limit(per).
+		Offset(offset).
+		WithContext(ctx)
 
-	rows, err := h.DB.QueryContext(ctx, listSQL, listArgs...)
-	if err != nil {
+	type row struct {
+		ID       int64  `db:"id"`
+		Username string `db:"username"`
+	}
+	var dbRows []row
+	if err := rowsQuery.Get(&dbRows); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	users := make([]schema.UserBrief, 0, per)
-	ids := make([]int64, 0, per)
-	for rows.Next() {
-		var u schema.UserBrief
-		if err := rows.Scan(&u.ID, &u.Username); err != nil {
-			return nil, err
-		}
-		users = append(users, u)
-		ids = append(ids, u.ID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	users := make([]schema.UserBrief, len(dbRows))
+	ids := make([]int64, len(dbRows))
+	for i, r := range dbRows {
+		users[i] = schema.UserBrief{ID: r.ID, Username: r.Username}
+		ids[i] = r.ID
 	}
 
 	if len(ids) > 0 {
+		type roleRow struct {
+			UserID int64  `db:"user_id"`
+			Name   string `db:"name"`
+		}
+		var roleRows []roleRow
+		rq := query.New(h.DB, h.t("user_roles")+" ur", h.Dialect).
+			Select("ur.user_id").
+			Select("r.name").
+			Join(h.t("roles")+" r", "ur.role_id", "=", "r.id").
+			WhereIn("ur.user_id", ids).
+			OrderBy("r.name", "asc").
+			WithContext(ctx)
+		if err := rq.Get(&roleRows); err != nil {
+			return nil, err
+		}
 		rolesMap := make(map[int64][]string, len(ids))
-		const batchSize = 100
-		for start := 0; start < len(ids); start += batchSize {
-			end := start + batchSize
-			if end > len(ids) {
-				end = len(ids)
-			}
-			batch := ids[start:end]
-			inPH := make([]string, len(batch))
-			args := make([]any, len(batch))
-			for j, id := range batch {
-				if h.Driver == "postgres" {
-					inPH[j] = fmt.Sprintf("$%d", j+1)
-				} else {
-					inPH[j] = "?"
-				}
-				args[j] = id
-			}
-			roleSQL := fmt.Sprintf(`
-                       SELECT ur.user_id, r.name
-                         FROM %s ur
-                         JOIN %s r ON r.id = ur.role_id
-                        WHERE ur.user_id IN (%s)
-                        ORDER BY r.name`, h.t("user_roles"), h.t("roles"), strings.Join(inPH, ","))
-			rrows, err := h.DB.QueryContext(ctx, roleSQL, args...)
-			if err != nil {
-				return nil, err
-			}
-			for rrows.Next() {
-				var uid int64
-				var rname string
-				if err := rrows.Scan(&uid, &rname); err != nil {
-					rrows.Close()
-					return nil, err
-				}
-				rolesMap[uid] = append(rolesMap[uid], rname)
-			}
-			if err := rrows.Close(); err != nil {
-				return nil, err
-			}
-			if err := rrows.Err(); err != nil {
-				return nil, err
-			}
+		for _, rr := range roleRows {
+			rolesMap[rr.UserID] = append(rolesMap[rr.UserID], rr.Name)
 		}
 		for i := range users {
 			if rs, ok := rolesMap[users[i].ID]; ok {
@@ -596,31 +551,18 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 	if !roleNamePattern.MatchString(in.Body.Name) {
 		return nil, huma.Error422("name", "must match ^[a-z0-9_-]{1,64}$")
 	}
-	var comment interface{}
+	var comment any
 	if in.Body.Comment != nil && *in.Body.Comment != "" {
 		comment = *in.Body.Comment
 	}
-	var id int64
-	if h.Driver == "postgres" {
-		err := h.DB.QueryRowContext(ctx, fmt.Sprintf("INSERT INTO %s(name, comment) VALUES($1, $2) RETURNING id", h.t("roles")), in.Body.Name, comment).Scan(&id)
-		if err != nil {
-			if isDuplicateErr(err) {
-				return nil, huma.Error409Conflict("role already exists")
-			}
-			return nil, err
+	id, err := query.New(h.DB, h.t("roles"), h.Dialect).
+		WithContext(ctx).
+		InsertGetId(map[string]any{"name": in.Body.Name, "comment": comment})
+	if err != nil {
+		if isDuplicateErr(err) {
+			return nil, huma.Error409Conflict("role already exists")
 		}
-	} else {
-		res, err := h.DB.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s(name, comment) VALUES(?, ?)", h.t("roles")), in.Body.Name, comment)
-		if err != nil {
-			if isDuplicateErr(err) {
-				return nil, huma.Error409Conflict("role already exists")
-			}
-			return nil, err
-		}
-		id, err = res.LastInsertId()
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	scheduleEnforcerReload(ctx, h.DB)
 	r := schema.Role{ID: id, Name: in.Body.Name}
@@ -631,36 +573,32 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 }
 
 func (h *RBACHandler) deleteRole(ctx context.Context, p *roleIDParam) (*struct{}, error) {
-	var q string
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE role_id=$1", h.t("user_roles"))
-	} else {
-		q = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE role_id=?", h.t("user_roles"))
+	var row struct {
+		Count int64 `db:"count"`
 	}
-	var cnt int
-	if err := h.DB.QueryRowContext(ctx, q, p.ID).Scan(&cnt); err != nil {
+	q := query.New(h.DB, h.t("user_roles"), h.Dialect).
+		SelectRaw("COUNT(*) AS count").
+		Where("role_id", p.ID).
+		WithContext(ctx)
+	if err := q.First(&row); err != nil {
 		return nil, err
 	}
-	if cnt > 0 {
+	if row.Count > 0 {
 		return nil, huma.Error409Conflict("role has users")
 	}
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE role_id=$1", h.t("role_policies"))
-	} else {
-		q = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE role_id=?", h.t("role_policies"))
-	}
-	if err := h.DB.QueryRowContext(ctx, q, p.ID).Scan(&cnt); err != nil {
+	q = query.New(h.DB, h.t("role_policies"), h.Dialect).
+		SelectRaw("COUNT(*) AS count").
+		Where("role_id", p.ID).
+		WithContext(ctx)
+	if err := q.First(&row); err != nil {
 		return nil, err
 	}
-	if cnt > 0 {
+	if row.Count > 0 {
 		return nil, huma.Error409Conflict("role has policies")
 	}
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("DELETE FROM %s WHERE id=$1", h.t("roles"))
-	} else {
-		q = fmt.Sprintf("DELETE FROM %s WHERE id=?", h.t("roles"))
-	}
-	if _, err := h.DB.ExecContext(ctx, q, p.ID); err != nil {
+	if _, err := query.New(h.DB, h.t("roles"), h.Dialect).
+		Where("id", p.ID).
+		Delete(); err != nil {
 		return nil, err
 	}
 	scheduleEnforcerReload(ctx, h.DB)
@@ -683,26 +621,15 @@ type roleMembersInput struct {
 
 func (h *RBACHandler) getRoleMembers(ctx context.Context, p *roleIDParam) (*roleMembersOutput, error) {
 	tid := tenant.FromContext(ctx)
-	var q string
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("SELECT u.id, u.username FROM %s u JOIN %s ur ON ur.user_id=u.id WHERE ur.role_id=$1 AND u.tenant_id=$2 ORDER BY u.username", h.t("users"), h.t("user_roles"))
-	} else {
-		q = fmt.Sprintf("SELECT u.id, u.username FROM %s u JOIN %s ur ON ur.user_id=u.id WHERE ur.role_id=? AND u.tenant_id=? ORDER BY u.username", h.t("users"), h.t("user_roles"))
-	}
-	rows, err := h.DB.QueryContext(ctx, q, p.ID, tid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	q := query.New(h.DB, h.t("users")+" u", h.Dialect).
+		Select("u.id", "u.username").
+		Join(h.t("user_roles")+" ur", "ur.user_id", "=", "u.id").
+		Where("ur.role_id", p.ID).
+		Where("u.tenant_id", tid).
+		OrderBy("u.username", "asc").
+		WithContext(ctx)
 	users := []schema.UserBrief{}
-	for rows.Next() {
-		var u schema.UserBrief
-		if err := rows.Scan(&u.ID, &u.Username); err != nil {
-			return nil, err
-		}
-		users = append(users, u)
-	}
-	if err := rows.Err(); err != nil {
+	if err := q.Get(&users); err != nil {
 		return nil, err
 	}
 	out := &roleMembersOutput{}
@@ -718,27 +645,21 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 		return nil, err
 	}
 	defer tx.Rollback()
-	var q string
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("SELECT ur.user_id FROM %s ur JOIN %s u ON ur.user_id=u.id WHERE ur.role_id=$1 AND u.tenant_id=$2", h.t("user_roles"), h.t("users"))
-	} else {
-		q = fmt.Sprintf("SELECT ur.user_id FROM %s ur JOIN %s u ON ur.user_id=u.id WHERE ur.role_id=? AND u.tenant_id=?", h.t("user_roles"), h.t("users"))
-	}
-	rows, err := tx.QueryContext(ctx, q, in.ID, tid)
-	if err != nil {
+	rows := []struct {
+		ID int64 `db:"user_id"`
+	}{}
+	if err := query.New(tx, h.t("user_roles")+" ur", h.Dialect).
+		Select("ur.user_id").
+		Join(h.t("users")+" u", "ur.user_id", "=", "u.id").
+		Where("ur.role_id", in.ID).
+		Where("u.tenant_id", tid).
+		WithContext(ctx).
+		Get(&rows); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	existing := map[int64]struct{}{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		existing[id] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	for _, r := range rows {
+		existing[r.ID] = struct{}{}
 	}
 	newSet := map[int64]struct{}{}
 	for _, id := range in.Body.UserIDs {
@@ -746,14 +667,12 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 	}
 	for id := range existing {
 		if _, ok := newSet[id]; !ok {
-			if h.Driver == "postgres" {
-				if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE role_id=$1 AND user_id=$2", h.t("user_roles")), in.ID, id); err != nil {
-					return nil, err
-				}
-			} else {
-				if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE role_id=? AND user_id=?", h.t("user_roles")), in.ID, id); err != nil {
-					return nil, err
-				}
+			if _, err := query.New(tx, h.t("user_roles"), h.Dialect).
+				WithContext(ctx).
+				Where("role_id", in.ID).
+				Where("user_id", id).
+				Delete(); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -761,27 +680,24 @@ func (h *RBACHandler) putRoleMembers(ctx context.Context, in *roleMembersInput) 
 		if _, ok := existing[id]; ok {
 			continue
 		}
-		var cnt int
-		if h.Driver == "postgres" {
-			if err := tx.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=$1 AND tenant_id=$2", h.t("users")), id, tid).Scan(&cnt); err != nil {
-				return nil, err
-			}
-		} else {
-			if err := tx.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=? AND tenant_id=?", h.t("users")), id, tid).Scan(&cnt); err != nil {
-				return nil, err
-			}
+		var c struct {
+			Count int `db:"count"`
 		}
-		if cnt == 0 {
+		if err := query.New(tx, h.t("users"), h.Dialect).
+			SelectRaw("COUNT(*) AS count").
+			Where("id", id).
+			Where("tenant_id", tid).
+			WithContext(ctx).
+			First(&c); err != nil {
+			return nil, err
+		}
+		if c.Count == 0 {
 			return nil, huma.Error422("userIds", fmt.Sprintf("user %d not found", id))
 		}
-		if h.Driver == "postgres" {
-			if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s(user_id, role_id) VALUES($1,$2) ON CONFLICT DO NOTHING", h.t("user_roles")), id, in.ID); err != nil {
-				return nil, err
-			}
-		} else {
-			if _, err := tx.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s(user_id, role_id) VALUES(?, ?)", h.t("user_roles")), id, in.ID); err != nil {
-				return nil, err
-			}
+		if _, err := query.New(tx, h.t("user_roles"), h.Dialect).
+			WithContext(ctx).
+			InsertOrIgnore([]map[string]any{{"user_id": id, "role_id": in.ID}}); err != nil {
+			return nil, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -810,26 +726,14 @@ type policyParams struct {
 }
 
 func (h *RBACHandler) getRolePolicies(ctx context.Context, p *roleIDParam) (*listPoliciesOutput, error) {
-	var q string
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("SELECT path, method FROM %s WHERE role_id=$1 ORDER BY path, method", h.t("role_policies"))
-	} else {
-		q = fmt.Sprintf("SELECT path, method FROM %s WHERE role_id=? ORDER BY path, method", h.t("role_policies"))
-	}
-	rows, err := h.DB.QueryContext(ctx, q, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	q := query.New(h.DB, h.t("role_policies"), h.Dialect).
+		Select("path", "method").
+		Where("role_id", p.ID).
+		OrderBy("path", "asc").
+		OrderBy("method", "asc").
+		WithContext(ctx)
 	ps := []schema.Policy{}
-	for rows.Next() {
-		var pol schema.Policy
-		if err := rows.Scan(&pol.Path, &pol.Method); err != nil {
-			return nil, err
-		}
-		ps = append(ps, pol)
-	}
-	if err := rows.Err(); err != nil {
+	if err := q.Get(&ps); err != nil {
 		return nil, err
 	}
 	return &listPoliciesOutput{Body: ps}, nil
@@ -844,15 +748,9 @@ func (h *RBACHandler) addRolePolicy(ctx context.Context, in *policyInput) (*sche
 	default:
 		return nil, huma.Error422("method", "invalid")
 	}
-	var q string
-	var err error
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("INSERT INTO %s(role_id, path, method) VALUES($1,$2,$3)", h.t("role_policies"))
-		_, err = h.DB.ExecContext(ctx, q, in.ID, in.Body.Path, in.Body.Method)
-	} else {
-		q = fmt.Sprintf("INSERT INTO %s(role_id, path, method) VALUES(?,?,?)", h.t("role_policies"))
-		_, err = h.DB.ExecContext(ctx, q, in.ID, in.Body.Path, in.Body.Method)
-	}
+	_, err := query.New(h.DB, h.t("role_policies"), h.Dialect).
+		WithContext(ctx).
+		Insert(map[string]any{"role_id": in.ID, "path": in.Body.Path, "method": in.Body.Method})
 	if err != nil {
 		if isDuplicateErr(err) {
 			return nil, huma.Error409Conflict("policy exists")
@@ -877,13 +775,12 @@ func (h *RBACHandler) deleteRolePolicy(ctx context.Context, p *policyParams) (*s
 	default:
 		return nil, huma.Error422("method", "invalid")
 	}
-	var q string
-	if h.Driver == "postgres" {
-		q = fmt.Sprintf("DELETE FROM %s WHERE role_id=$1 AND path=$2 AND method=$3", h.t("role_policies"))
-	} else {
-		q = fmt.Sprintf("DELETE FROM %s WHERE role_id=? AND path=? AND method=?", h.t("role_policies"))
-	}
-	res, err := h.DB.ExecContext(ctx, q, p.ID, p.Path, p.Method)
+	res, err := query.New(h.DB, h.t("role_policies"), h.Dialect).
+		WithContext(ctx).
+		Where("role_id", p.ID).
+		Where("path", p.Path).
+		Where("method", p.Method).
+		Delete()
 	if err != nil {
 		return nil, err
 	}

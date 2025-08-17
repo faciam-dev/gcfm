@@ -57,7 +57,7 @@ func TestReconcileRepair(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_custom_fields")).WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	reg := NewHotReloadRegistry(&TargetConn{DB: db, Driver: "mysql", Schema: ""})
+	reg := NewHotReloadRegistry(&TargetConn{DB: db, Driver: "mysql", Schema: "", Dialect: driverDialect("mysql")})
 	svc := &service{
 		logger:  zap.NewNop().Sugar(),
 		meta:    &stubMeta{defs: []FieldDef{{DBID: 1, TableName: "posts", ColumnName: "cf1", DataType: "text"}}},

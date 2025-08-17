@@ -3,7 +3,10 @@ package auditlog
 import (
 	"context"
 	"database/sql"
-	"fmt"
+
+	qbapi "github.com/faciam-dev/goquent-query-builder/api"
+	"github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // Record represents a single audit log entry in the database.
@@ -24,7 +27,7 @@ type Record struct {
 // Repo provides access to audit log records.
 type Repo struct {
 	DB          *sql.DB
-	Driver      string
+	Dialect     driver.Dialect
 	TablePrefix string
 }
 
@@ -35,26 +38,27 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	}
 	logs := r.TablePrefix + "audit_logs"
 	users := r.TablePrefix + "users"
-	var q string
-	if r.Driver == "mysql" {
-		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action,
-       COALESCE(l.table_name, '') AS table_name, COALESCE(l.column_name, '') AS column_name,
-       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
-FROM %s l
-LEFT JOIN %s u ON u.id = CAST(l.actor AS UNSIGNED)
-WHERE l.id=?`, logs, users)
-	} else {
-		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action,
-       COALESCE(l.table_name, '') AS table_name, COALESCE(l.column_name, '') AS column_name,
-       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
-FROM %s l
-LEFT JOIN %s u ON u.id::text = l.actor
-WHERE l.id=$1`, logs, users)
-	}
+
+	q := query.New(r.DB, logs+" l", r.Dialect).
+		Select("l.id").
+		SelectRaw("COALESCE(u.username, l.actor) AS actor").
+		Select("l.action").
+		SelectRaw("COALESCE(l.table_name, '') AS table_name").
+		SelectRaw("COALESCE(l.column_name, '') AS column_name").
+		Select("l.before_json", "l.after_json", "l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
+		LeftJoinQuery(users+" u", func(b *qbapi.JoinClauseQueryBuilder) {
+			if _, ok := r.Dialect.(driver.PostgresDialect); ok {
+				b.On("u.id::text", "=", "l.actor")
+			} else {
+				b.On("u.id", "=", "CAST(l.actor AS UNSIGNED)")
+			}
+		}).
+		Where("l.id", id).
+		WithContext(ctx)
+
 	var rec Record
-	err := r.DB.QueryRowContext(ctx, q, id).Scan(
-		&rec.ID, &rec.Actor, &rec.Action, &rec.TableName, &rec.ColumnName,
-		&rec.BeforeJSON, &rec.AfterJSON, &rec.AddedCount, &rec.RemovedCount, &rec.ChangeCount, &rec.AppliedAt,
-	)
-	return rec, err
+	if err := q.First(&rec); err != nil {
+		return rec, err
+	}
+	return rec, nil
 }

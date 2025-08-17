@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // Config holds global configuration values.
@@ -19,19 +21,17 @@ func (c *Config) T(name string) string {
 
 // CheckPrefix verifies that tables with the configured prefix exist in the
 // connected database. It returns an error if none are found.
-func CheckPrefix(ctx context.Context, db *sql.DB, driver, prefix string) error {
-	var q string
-	switch strings.ToLower(driver) {
-	case "mysql":
-		q = "SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE ?"
-	default: // postgres and others
-		q = "SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE $1"
-	}
-	var n int
-	if err := db.QueryRowContext(ctx, q, prefix+"%").Scan(&n); err != nil {
+func CheckPrefix(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string) error {
+	q := query.New(db, "information_schema.tables", dialect).
+		SelectRaw("COUNT(*) AS cnt").
+		WhereRaw("table_name LIKE :p", map[string]any{"p": prefix + "%"}).
+		WithContext(ctx)
+
+	var res struct{ Cnt int }
+	if err := q.First(&res); err != nil {
 		return err
 	}
-	if n == 0 {
+	if res.Cnt == 0 {
 		return fmt.Errorf("no tables with prefix %q found; run migrations or set TABLE_PREFIX correctly", prefix)
 	}
 	return nil

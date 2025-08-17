@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strings"
 
 	humago "github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	md "github.com/faciam-dev/gcfm/pkg/metadata"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 type tableInfo struct {
@@ -46,14 +47,14 @@ func RegisterMetadata(api humago.API, h *MetadataHandler) {
 // MetadataHandler handles metadata endpoints.
 type MetadataHandler struct {
 	DB          *sql.DB
-	Driver      string
+	Dialect     ormdriver.Dialect
 	TablePrefix string
 }
 
 // listTables returns tables from the monitored database identified by db_id.
 func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (*tablesOutput, error) {
 	tid := tenant.FromContext(ctx)
-	mdb, err := monitordb.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, p.DBID)
+	mdb, err := monitordb.GetByID(ctx, h.DB, h.Dialect, h.TablePrefix, tid, p.DBID)
 	if err != nil {
 		if errors.Is(err, monitordb.ErrNotFound) {
 			return nil, huma.Error422("db_id", "database not found")
@@ -66,7 +67,16 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 	}
 	defer conn.Close()
 
-	raw, err := listPhysicalTables(ctx, conn, mdb.Driver)
+	var dialect ormdriver.Dialect
+	switch mdb.Driver {
+	case "postgres":
+		dialect = ormdriver.PostgresDialect{}
+	case "mysql":
+		dialect = ormdriver.MySQLDialect{}
+	default:
+		return nil, huma.Error422("db_id", "unsupported driver")
+	}
+	raw, err := listPhysicalTables(ctx, conn, dialect)
 	if err != nil {
 		return nil, err
 	}
@@ -80,48 +90,36 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 	return out, nil
 }
 
-func listPhysicalTables(ctx context.Context, db *sql.DB, driver string) ([]md.TableInfo, error) {
-	const base = `
-SELECT table_schema, table_name
-  FROM information_schema.tables
- WHERE table_type = 'BASE TABLE'`
-
-	var rows *sql.Rows
-	var err error
-
-	switch strings.ToLower(driver) {
-	case "postgres":
-		q := base + `
-   AND table_schema NOT IN ('pg_catalog','information_schema','pg_toast')
-   AND table_schema NOT LIKE 'pg_temp_%'
- ORDER BY table_schema, table_name`
-		rows, err = db.QueryContext(ctx, q)
-	case "mysql":
-		q := base + `
-   AND table_schema = DATABASE()
- ORDER BY table_schema, table_name`
-		rows, err = db.QueryContext(ctx, q)
-	default:
-		rows, err = db.QueryContext(ctx, base+` ORDER BY table_schema, table_name`)
+func listPhysicalTables(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect) ([]md.TableInfo, error) {
+	q := query.New(db, "information_schema.tables", dialect).
+		Select("table_schema", "table_name").
+		Where("table_type", "BASE TABLE").
+		OrderBy("table_schema", "asc").
+		OrderBy("table_name", "asc")
+	switch dialect.(type) {
+	case ormdriver.PostgresDialect:
+		q.WhereRaw("table_schema NOT IN ('pg_catalog','information_schema','pg_toast')", nil).
+			WhereRaw("table_schema NOT LIKE 'pg_temp_%'", nil)
+	case ormdriver.MySQLDialect:
+		q.WhereRaw("table_schema = DATABASE()", nil)
 	}
-	if err != nil {
+	type row struct {
+		Schema string `db:"table_schema"`
+		Name   string `db:"table_name"`
+	}
+	var rs []row
+	if err := q.WithContext(ctx).Get(&rs); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var list []md.TableInfo
-	for rows.Next() {
-		var s, n string
-		if err := rows.Scan(&s, &n); err != nil {
-			return nil, err
-		}
-		ti := md.TableInfo{Schema: s, Name: n}
-		if s != "" && s != "public" {
-			ti.Qualified = s + "." + n
+	list := make([]md.TableInfo, 0, len(rs))
+	for _, r := range rs {
+		ti := md.TableInfo{Schema: r.Schema, Name: r.Name}
+		if r.Schema != "" && r.Schema != "public" {
+			ti.Qualified = r.Schema + "." + r.Name
 		} else {
-			ti.Qualified = n
+			ti.Qualified = r.Name
 		}
 		list = append(list, ti)
 	}
-	return list, rows.Err()
+	return list, nil
 }
