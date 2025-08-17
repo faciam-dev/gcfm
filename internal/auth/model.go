@@ -70,9 +70,9 @@ func (r *UserRepo) GetRoles(ctx context.Context, userID uint64) ([]string, error
 	}
 	ur := r.TablePrefix + "user_roles"
 	rolesTbl := r.TablePrefix + "roles"
-       q := query.New(r.DB, ur+" as ur", r.Dialect).
-               Select("r.name").
-               Join(rolesTbl+" as r", "ur.role_id", "=", "r.id").
+	q := query.New(r.DB, ur+" as ur", r.Dialect).
+		Select("r.name").
+		Join(rolesTbl+" as r", "ur.role_id", "=", "r.id").
 		Where("ur.user_id", userID).
 		WithContext(ctx)
 	var rows []struct{ Name string }

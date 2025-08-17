@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	qbapi "github.com/faciam-dev/goquent-query-builder/api"
 	"github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 
@@ -235,22 +234,23 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		isPg = true
 	}
 
-       q := query.New(h.DB, tbl+" as l", h.Dialect).
+	actorSub := "(SELECT username FROM " + users + " u WHERE "
+	if isPg {
+		actorSub += "u.id::text = l.actor"
+	} else {
+		actorSub += "u.id = CAST(l.actor AS UNSIGNED)"
+	}
+	actorSub += ")"
+
+	q := query.New(h.DB, tbl+" as l", h.Dialect).
 		Select("l.id").
-		SelectRaw("COALESCE(u.username, l.actor) as actor").
+		SelectRaw("COALESCE("+actorSub+", l.actor) as actor").
 		Select("l.action").
 		SelectRaw("COALESCE(l.table_name, '') as table_name").
 		SelectRaw("COALESCE(l.column_name, '') as column_name").
 		SelectRaw(coalesceBefore+" as before_json").
 		SelectRaw(coalesceAfter+" as after_json").
 		Select("l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
-               LeftJoinQuery(users+" as u", func(b *qbapi.JoinClauseQueryBuilder) {
-			if isPg {
-				b.On("u.id::text", "=", "l.actor")
-			} else {
-				b.On("u.id", "=", "CAST(l.actor AS UNSIGNED)")
-			}
-		}).
 		Where("l.tenant_id", tid)
 
 	if p.Actor != "" {
