@@ -17,11 +17,11 @@ func Load(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix str
 	}
 	roles := prefix + "roles"
 	policies := prefix + "role_policies"
-	q := query.New(db, roles+" r", dialect).
+	q := query.New(db, roles+" as r", dialect).
 		Select("r.name as role").
 		Select("p.path").
 		Select("p.method").
-		Join(policies+" p", "r.id", "=", "p.role_id").
+		Join(policies+" as p", "r.id", "=", "p.role_id").
 		WithContext(ctx)
 
 	var rows []map[string]any
@@ -37,10 +37,10 @@ func Load(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix str
 func loadGroupPolicies(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, e *casbin.Enforcer) error {
 	userRoles := prefix + "user_roles"
 	roles := prefix + "roles"
-	q := query.New(db, userRoles+" ur", dialect).
+	q := query.New(db, userRoles+" as ur", dialect).
 		Select("ur.user_id as uid").
 		Select("r.name as role").
-		Join(roles+" r", "ur.role_id", "=", "r.id").
+		Join(roles+" as r", "ur.role_id", "=", "r.id").
 		WithContext(ctx)
 
 	var rows []map[string]any

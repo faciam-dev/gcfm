@@ -49,7 +49,7 @@ func TestReconcileRepair(t *testing.T) {
 	}
 	defer db.Close()
 
-	query := "SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields WHERE tenant_id=? AND db_id=? ORDER BY table_name, column_name"
+	query := "SELECT `db_id`, `table_name`, `column_name`, `data_type`, `label_key`, `widget`, `placeholder_key`, `nullable`, `unique`, `has_default`, `default_value`, `validator` FROM `gcfm_custom_fields` WHERE `tenant_id` = ? AND `db_id` = ? ORDER BY table_name, column_name"
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("default", int64(1)).WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	mock.ExpectBegin()
