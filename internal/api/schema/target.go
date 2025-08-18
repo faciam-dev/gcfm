@@ -7,7 +7,7 @@ type Target struct {
 	Key           string    `json:"key"`
 	Driver        string    `json:"driver"`
 	DSN           string    `json:"dsn"`
-	Schema        string    `json:"schema,omitempty"`
+	DBSchema      string    `json:"schema,omitempty"`
 	Labels        []string  `json:"labels"`
 	MaxOpenConns  int       `json:"maxOpenConns,omitempty" validate:"omitempty,min=0"`
 	MaxIdleConns  int       `json:"maxIdleConns,omitempty" validate:"omitempty,min=0"`
@@ -26,7 +26,7 @@ type TargetInput struct {
 type TargetPatch struct {
 	Driver        *string  `json:"driver,omitempty"`
 	DSN           *string  `json:"dsn,omitempty"`
-	Schema        *string  `json:"schema,omitempty"`
+	DBSchema      *string  `json:"schema,omitempty"`
 	Labels        []string `json:"labels,omitempty"`
 	MaxOpenConns  *int     `json:"maxOpenConns,omitempty" validate:"omitempty,min=0"`
 	MaxIdleConns  *int     `json:"maxIdleConns,omitempty" validate:"omitempty,min=0"`

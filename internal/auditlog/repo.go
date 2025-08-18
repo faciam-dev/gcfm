@@ -37,13 +37,22 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	}
 	logs := r.TablePrefix + "audit_logs"
 	users := r.TablePrefix + "users"
+	isPg := false
 	actorSub := "(SELECT username FROM " + users + " u WHERE "
 	if _, ok := r.Dialect.(driver.PostgresDialect); ok {
 		actorSub += "u.id::text = l.actor"
+		isPg = true
 	} else {
 		actorSub += "u.id = CAST(l.actor AS UNSIGNED)"
 	}
 	actorSub += ")"
+
+	coalesceBefore := "COALESCE(l.before_json, JSON_OBJECT())"
+	coalesceAfter := "COALESCE(l.after_json , JSON_OBJECT())"
+	if isPg {
+		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)"
+		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)"
+	}
 
 	q := query.New(r.DB, logs+" as l", r.Dialect).
 		Select("l.id").
@@ -51,7 +60,9 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 		Select("l.action").
 		SelectRaw("COALESCE(l.table_name, '') as table_name").
 		SelectRaw("COALESCE(l.column_name, '') as column_name").
-		Select("l.before_json", "l.after_json", "l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
+		SelectRaw(coalesceBefore+" as before_json").
+		SelectRaw(coalesceAfter+" as after_json").
+		Select("l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
 		Where("l.id", id).
 		WithContext(ctx)
 
