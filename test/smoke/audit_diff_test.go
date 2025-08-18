@@ -38,7 +38,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	reqCreate.Header.Set("X-Tenant-ID", "t1")
 	_ = doJSON(t, reqCreate)
 
-	req, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs?limit=10&table=posts&from=%s", url.QueryEscape(since)), nil)
+	req, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs?limit=10&db_id=%d&table=posts&from=%s", dbID, url.QueryEscape(since)), nil)
 	req.Header.Set("Authorization", "Bearer "+jwt)
 	req.Header.Set("X-Tenant-ID", "t1")
 	list := doJSON(t, req)
@@ -48,6 +48,9 @@ func TestAuditDiffAndCounts(t *testing.T) {
 
 	var id, cc int
 	for i := 0; i < jlen(list, "items"); i++ {
+		if jint(list, fmt.Sprintf("items.%d.db_id", i)) != dbID {
+			continue
+		}
 		if jget(list, fmt.Sprintf("items.%d.tableName", i)) != "posts" {
 			continue
 		}
@@ -58,7 +61,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 		}
 	}
 	if id == 0 {
-		t.Fatalf("no diffable audit log found for table=posts")
+		t.Fatalf("no diffable audit log found for db_id=%d table=posts", dbID)
 	}
 
 	req2, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs/%d/diff", id), nil)
