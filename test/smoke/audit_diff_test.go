@@ -3,6 +3,7 @@ package smoke
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -28,6 +29,8 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	dbRes := doJSON(t, reqDB)
 	dbID := jint(dbRes, "id")
 
+	since := time.Now().UTC().Format(time.RFC3339)
+
 	body := fmt.Sprintf(`{"db_id":%d,"table":"posts","column":"diff_test_col","type":"text"}`, dbID)
 	reqCreate, _ := http.NewRequest("POST", e.URL+"/v1/custom-fields", strings.NewReader(body))
 	reqCreate.Header.Set("Authorization", "Bearer "+jwt)
@@ -35,7 +38,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	reqCreate.Header.Set("X-Tenant-ID", "t1")
 	_ = doJSON(t, reqCreate)
 
-	req, _ := http.NewRequest("GET", e.URL+"/v1/audit-logs?page=1&limit=10", nil)
+	req, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs?limit=10&table=posts&from=%s", url.QueryEscape(since)), nil)
 	req.Header.Set("Authorization", "Bearer "+jwt)
 	req.Header.Set("X-Tenant-ID", "t1")
 	list := doJSON(t, req)
@@ -45,6 +48,9 @@ func TestAuditDiffAndCounts(t *testing.T) {
 
 	var id, cc int
 	for i := 0; i < jlen(list, "items"); i++ {
+		if jget(list, fmt.Sprintf("items.%d.tableName", i)) != "posts" {
+			continue
+		}
 		if c := jint(list, fmt.Sprintf("items.%d.changeCount", i)); c > 0 {
 			id = jint(list, fmt.Sprintf("items.%d.id", i))
 			cc = c
@@ -52,7 +58,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 		}
 	}
 	if id == 0 {
-		t.Fatal("no diffable audit log found")
+		t.Fatalf("no diffable audit log found for table=posts")
 	}
 
 	req2, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs/%d/diff", id), nil)
