@@ -21,8 +21,17 @@ func TestAuditDiffAndCounts(t *testing.T) {
 		t.Fatal("no audit logs")
 	}
 
-	id := jint(list, "items.0.id")
-	cc := jint(list, "items.0.changeCount")
+	var id, cc int
+	for i := 0; i < jlen(list, "items"); i++ {
+		if c := jint(list, fmt.Sprintf("items.%d.changeCount", i)); c > 0 {
+			id = jint(list, fmt.Sprintf("items.%d.id", i))
+			cc = c
+			break
+		}
+	}
+	if id == 0 {
+		t.Fatal("no diffable audit log found")
+	}
 
 	req2, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs/%d/diff", id), nil)
 	req2.Header.Set("Authorization", "Bearer "+jwt)
