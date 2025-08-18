@@ -177,7 +177,7 @@ func (h *DatabaseHandler) create(ctx context.Context, in *createDBInput) (*creat
 		}
 		return nil, err
 	}
-	id, err := h.Repo.Create(ctx, monitordb.Database{TenantID: tid, Name: in.Body.Name, Driver: in.Body.Driver, DSNEnc: enc})
+	id, err := h.Repo.Create(ctx, monitordb.Database{TenantID: tid, Name: in.Body.Name, Driver: in.Body.Driver, DSN: in.Body.DSN, DSNEnc: enc})
 	if err != nil {
 		return nil, err
 	}

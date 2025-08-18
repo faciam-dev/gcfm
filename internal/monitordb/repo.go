@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	qbapi "github.com/faciam-dev/goquent-query-builder/api"
-	qbpostgres "github.com/faciam-dev/goquent-query-builder/database/postgres"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 )
@@ -18,6 +16,7 @@ type Database struct {
 	TenantID  string
 	Name      string
 	Driver    string
+	DSN       string
 	DSNEnc    []byte
 	CreatedAt time.Time
 }
@@ -51,21 +50,12 @@ func (r *Repo) Create(ctx context.Context, d Database) (int64, error) {
 		"tenant_id": d.TenantID,
 		"name":      d.Name,
 		"driver":    d.Driver,
-		"dsn_enc":   d.DSNEnc,
 	}
-	if _, ok := r.Dialect.(ormdriver.PostgresDialect); ok {
-		ib := qbapi.NewInsertQueryBuilder(qbpostgres.NewPostgreSQLQueryBuilder())
-		ib.Table(tbl).Insert(data)
-		sqlStr, args, err := ib.Build()
-		if err != nil {
-			return 0, err
-		}
-		sqlStr += " RETURNING id"
-		var id int64
-		if err := r.DB.QueryRowContext(ctx, sqlStr, args...).Scan(&id); err != nil {
-			return 0, err
-		}
-		return id, nil
+	if d.DSN != "" {
+		data["dsn"] = d.DSN
+	}
+	if len(d.DSNEnc) > 0 {
+		data["dsn_enc"] = d.DSNEnc
 	}
 	q := query.New(r.DB, tbl, r.Dialect).WithContext(ctx)
 	id, err := q.InsertGetId(data)
