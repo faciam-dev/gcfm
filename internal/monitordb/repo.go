@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
