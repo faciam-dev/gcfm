@@ -225,12 +225,12 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	tbl := h.TablePrefix + "audit_logs"
 	users := h.TablePrefix + "users"
 
-	coalesceBefore := "COALESCE(l.before_json, JSON_OBJECT())"
-	coalesceAfter := "COALESCE(l.after_json , JSON_OBJECT())"
+	coalesceBefore := "CAST(COALESCE(l.before_json, JSON_OBJECT()) AS CHAR)"
+	coalesceAfter := "CAST(COALESCE(l.after_json , JSON_OBJECT()) AS CHAR)"
 	isPg := false
 	if _, ok := h.Dialect.(driver.PostgresDialect); ok {
-		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)"
-		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)"
+		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)::text"
+		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)::text"
 		isPg = true
 	}
 

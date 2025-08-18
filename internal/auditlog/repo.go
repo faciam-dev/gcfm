@@ -47,11 +47,11 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	}
 	actorSub += ")"
 
-	coalesceBefore := "COALESCE(l.before_json, JSON_OBJECT())"
-	coalesceAfter := "COALESCE(l.after_json , JSON_OBJECT())"
+	coalesceBefore := "CAST(COALESCE(l.before_json, JSON_OBJECT()) AS CHAR)"
+	coalesceAfter := "CAST(COALESCE(l.after_json , JSON_OBJECT()) AS CHAR)"
 	if isPg {
-		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)"
-		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)"
+		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)::text"
+		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)::text"
 	}
 
 	q := query.New(r.DB, logs+" as l", r.Dialect).
