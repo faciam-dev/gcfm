@@ -21,8 +21,11 @@ func TestAuditDiffAndCounts(t *testing.T) {
 
 	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 
-	dbBody := fmt.Sprintf(`{"name":"local","driver":"postgres","dsn":"%s","dsn_enc":""}`, dsn)
-	reqDB, _ := http.NewRequest("POST", e.URL+"/v1/databases", strings.NewReader(dbBody))
+	dbBody := fmt.Sprintf(`{"name":"local","driver":"postgres","dsn":"%s"}`, dsn)
+	reqDB, err := http.NewRequest("POST", e.URL+"/v1/databases", strings.NewReader(dbBody))
+	if err != nil {
+		t.Fatal(err)
+	}
 	reqDB.Header.Set("Authorization", "Bearer "+jwt)
 	reqDB.Header.Set("Content-Type", "application/json")
 	reqDB.Header.Set("X-Tenant-ID", "t1")
@@ -32,13 +35,19 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	since := time.Now().UTC().Format(time.RFC3339)
 
 	body := fmt.Sprintf(`{"db_id":%d,"table":"posts","column":"diff_test_col","type":"text"}`, dbID)
-	reqCreate, _ := http.NewRequest("POST", e.URL+"/v1/custom-fields", strings.NewReader(body))
+	reqCreate, err := http.NewRequest("POST", e.URL+"/v1/custom-fields", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
 	reqCreate.Header.Set("Authorization", "Bearer "+jwt)
 	reqCreate.Header.Set("Content-Type", "application/json")
 	reqCreate.Header.Set("X-Tenant-ID", "t1")
 	_ = doJSON(t, reqCreate)
 
-	req, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs?limit=10&db_id=%d&table=posts&from=%s", dbID, url.QueryEscape(since)), nil)
+	req, err := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs?limit=10&db_id=%d&table=posts&from=%s", dbID, url.QueryEscape(since)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req.Header.Set("Authorization", "Bearer "+jwt)
 	req.Header.Set("X-Tenant-ID", "t1")
 	list := doJSON(t, req)
@@ -64,7 +73,10 @@ func TestAuditDiffAndCounts(t *testing.T) {
 		t.Fatalf("no diffable audit log found for db_id=%d table=posts", dbID)
 	}
 
-	req2, _ := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs/%d/diff", id), nil)
+	req2, err := http.NewRequest("GET", e.URL+fmt.Sprintf("/v1/audit-logs/%d/diff", id), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req2.Header.Set("Authorization", "Bearer "+jwt)
 	req2.Header.Set("X-Tenant-ID", "t1")
 	diff := doJSON(t, req2)
@@ -80,7 +92,10 @@ func TestAuditDiffAndCounts(t *testing.T) {
 		t.Fatalf("count mismatch: list=%d diff(add+del)=%d", cc, add+del)
 	}
 
-	req3, _ := http.NewRequest("GET", e.URL+"/v1/audit-logs?min_changes=0&max_changes=0", nil)
+	req3, err := http.NewRequest("GET", e.URL+"/v1/audit-logs?min_changes=0&max_changes=0", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	req3.Header.Set("Authorization", "Bearer "+jwt)
 	req3.Header.Set("X-Tenant-ID", "t1")
 	zero := doJSON(t, req3)
