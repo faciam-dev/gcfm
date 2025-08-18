@@ -7,27 +7,25 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/faciam-dev/gcfm/pkg/crypto"
 )
 
 func TestAuditDiffAndCounts(t *testing.T) {
 	e := newEnv(t)
 	defer e.close()
 
-	enc, err := crypto.Encrypt([]byte(os.Getenv("TEST_DATABASE_URL")))
-	if err != nil {
-		t.Fatalf("encrypt dsn: %v", err)
-	}
-	mustExec(t, e.DB, `
-        INSERT INTO gcfm_monitored_databases(id, tenant_id, name, driver, dsn_enc, created_at)
-        VALUES (1,'t1','local','postgres',$1,NOW())
-        ON CONFLICT (id) DO UPDATE SET tenant_id='t1', name='local', driver='postgres', dsn_enc=$1
-        `, enc)
+	dsn := os.Getenv("TEST_DATABASE_URL")
 
 	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 
-	body := `{"db_id":1,"table":"posts","column":"diff_test_col","type":"text"}`
+	dbBody := fmt.Sprintf(`{"name":"local","driver":"postgres","dsn":"%s"}`, dsn)
+	reqDB, _ := http.NewRequest("POST", e.URL+"/v1/databases", strings.NewReader(dbBody))
+	reqDB.Header.Set("Authorization", "Bearer "+jwt)
+	reqDB.Header.Set("Content-Type", "application/json")
+	reqDB.Header.Set("X-Tenant-ID", "t1")
+	dbRes := doJSON(t, reqDB)
+	dbID := jint(dbRes, "id")
+
+	body := fmt.Sprintf(`{"db_id":%d,"table":"posts","column":"diff_test_col","type":"text"}`, dbID)
 	reqCreate, _ := http.NewRequest("POST", e.URL+"/v1/custom-fields", strings.NewReader(body))
 	reqCreate.Header.Set("Authorization", "Bearer "+jwt)
 	reqCreate.Header.Set("Content-Type", "application/json")
