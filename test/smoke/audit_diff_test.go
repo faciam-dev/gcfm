@@ -21,7 +21,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 
 	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 
-	dbBody := fmt.Sprintf(`{"name":"local","driver":"postgres","dsn":"%s"}`, dsn)
+	dbBody := fmt.Sprintf(`{"name":"local","driver":"postgres","dsn":"%s","dsn_enc":""}`, dsn)
 	reqDB, _ := http.NewRequest("POST", e.URL+"/v1/databases", strings.NewReader(dbBody))
 	reqDB.Header.Set("Authorization", "Bearer "+jwt)
 	reqDB.Header.Set("Content-Type", "application/json")
