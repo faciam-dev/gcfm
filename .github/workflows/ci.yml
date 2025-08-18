@@ -33,7 +33,7 @@ jobs:
           rm -rf ~/.cache/go-build
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
           cache: false
       - run: gofmt -w $(git ls-files '*.go') && git diff --exit-code
       - name: Run tests

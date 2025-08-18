@@ -44,6 +44,12 @@ jobs:
       - name: Go mod download
         run: go mod download
 
+      - name: Wait for Postgres
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            sleep 5
+          done
+
       - name: Migrate (if needed)
         run: |
           go run ./cmd/fieldctl db migrate \
