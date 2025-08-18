@@ -27,7 +27,6 @@ import (
 // RBACHandler provides role and user listing endpoints.
 type RBACHandler struct {
 	DB           *sql.DB
-	Driver       string
 	Dialect      ormdriver.Dialect
 	Recorder     *audit.Recorder
 	PasswordCost int
@@ -388,51 +387,21 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 	missing := []string{}
 
 	if len(roles) > 0 {
-		// Build query and args for IN clause
-		var (
-			query    string
-			args     []interface{}
-			nameToID = make(map[string]int64, len(roles))
-		)
-
-		if h.Driver == "postgres" {
-			placeholders := make([]string, len(roles))
-			for i := range roles {
-				placeholders[i] = fmt.Sprintf("$%d", i+1)
-			}
-			query = fmt.Sprintf("SELECT id, name FROM %s WHERE name IN (%s)", h.t("roles"), strings.Join(placeholders, ","))
-			for _, r := range roles {
-				args = append(args, r)
-			}
-		} else {
-			placeholders := make([]string, len(roles))
-			for i := range roles {
-				placeholders[i] = "?"
-			}
-			query = fmt.Sprintf("SELECT id, name FROM %s WHERE name IN (%s)", h.t("roles"), strings.Join(placeholders, ","))
-			for _, r := range roles {
-				args = append(args, r)
-			}
+		q := query.New(h.DB, h.t("roles"), h.Dialect).
+			Select("id", "name").
+			WhereIn("name", roles).
+			WithContext(ctx)
+		var rRows []struct {
+			ID   int64  `goq:"id"`
+			Name string `goq:"name"`
 		}
-
-		rows, err := h.DB.QueryContext(ctx, query, args...)
-		if err != nil {
+		if err := q.Get(&rRows); err != nil {
 			return nil, err
 		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var id int64
-			var name string
-			if err := rows.Scan(&id, &name); err != nil {
-				return nil, err
-			}
-			nameToID[name] = id
+		nameToID := make(map[string]int64, len(rRows))
+		for _, row := range rRows {
+			nameToID[row.Name] = row.ID
 		}
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-
 		for _, name := range roles {
 			id, ok := nameToID[name]
 			if !ok {
@@ -466,7 +435,7 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 		created    time.Time
 		rawCreated any
 	)
-	if h.Driver == "postgres" {
+	if _, ok := h.Dialect.(ormdriver.PostgresDialect); ok {
 		err = tx.QueryRowContext(ctx, fmt.Sprintf("INSERT INTO %s(tenant_id, username, password_hash) VALUES($1,$2,$3) RETURNING id, created_at", h.t("users")), tid, in.Body.Username, hash).Scan(&id, &rawCreated)
 		if err == nil {
 			created, err = ParseAuditTime(rawCreated)
@@ -497,7 +466,7 @@ func (h *RBACHandler) createUser(ctx context.Context, in *createUserInput) (*use
 			valueStrings []string
 			valueArgs    []interface{}
 		)
-		if h.Driver == "postgres" {
+		if _, ok := h.Dialect.(ormdriver.PostgresDialect); ok {
 			argPos := 1
 			for _, rid := range roleIDs {
 				valueStrings = append(valueStrings, fmt.Sprintf("($%d,$%d)", argPos, argPos+1))
@@ -551,13 +520,25 @@ func (h *RBACHandler) createRole(ctx context.Context, in *createRoleInput) (*rol
 	if !roleNamePattern.MatchString(in.Body.Name) {
 		return nil, huma.Error422("name", "must match ^[a-z0-9_-]{1,64}$")
 	}
-	var comment any
+	var (
+		comment any
+		id      int64
+		err     error
+	)
 	if in.Body.Comment != nil && *in.Body.Comment != "" {
 		comment = *in.Body.Comment
 	}
-	id, err := query.New(h.DB, h.t("roles"), h.Dialect).
-		WithContext(ctx).
-		InsertGetId(map[string]any{"name": in.Body.Name, "comment": comment})
+	if _, ok := h.Dialect.(ormdriver.PostgresDialect); ok {
+		stmt := fmt.Sprintf("INSERT INTO %s(comment, name) VALUES($1,$2) RETURNING id", h.t("roles"))
+		err = h.DB.QueryRowContext(ctx, stmt, comment, in.Body.Name).Scan(&id)
+	} else {
+		res, execErr := h.DB.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s(comment, name) VALUES (?, ?)", h.t("roles")), comment, in.Body.Name)
+		if execErr != nil {
+			err = execErr
+		} else {
+			id, err = res.LastInsertId()
+		}
+	}
 	if err != nil {
 		if isDuplicateErr(err) {
 			return nil, huma.Error409Conflict("role already exists")
