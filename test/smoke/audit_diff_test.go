@@ -14,6 +14,9 @@ func TestAuditDiffAndCounts(t *testing.T) {
 	defer e.close()
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Fatal("TEST_DATABASE_URL not set")
+	}
 
 	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 
