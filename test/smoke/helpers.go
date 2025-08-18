@@ -113,9 +113,8 @@ func seed(t *testing.T, db *sql.DB) {
 	// Audit logs
 	mustExec(t, db, `
     INSERT INTO gcfm_audit_logs(tenant_id, actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count, applied_at)
-    VALUES
-      ('t1','1','update','acl','new1', '{}', '{"a":1}', 1,0,1, NOW());
-  `)
+    VALUES ('t1','1','update','acl','new1', $1::jsonb, $2::jsonb, 1,0,1, NOW());
+  `, "{}", `{"a":1}`)
 }
 
 func uname(i int) string { return "user" + fmt.Sprintf("%02d", i) }
