@@ -15,8 +15,8 @@ type Record struct {
 	Action       string
 	TableName    string
 	ColumnName   string
-	BeforeJSON   sql.NullString `db:"before_json,omitempty"`
-	AfterJSON    sql.NullString `db:"after_json,omitempty"`
+	BeforeJSON   sql.NullString `db:"before_json"`
+	AfterJSON    sql.NullString `db:"after_json"`
 	AddedCount   int
 	RemovedCount int
 	ChangeCount  int

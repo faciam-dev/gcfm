@@ -58,6 +58,9 @@ func (h *AuditHandler) getDiff(ctx context.Context,
 		}
 		return nil, err
 	}
+	if !rec.BeforeJSON.Valid && !rec.AfterJSON.Valid {
+		return nil, errors.New("both before and after JSON are empty")
+	}
 	unified, add, del := auditutil.UnifiedDiff([]byte(rec.BeforeJSON.String), []byte(rec.AfterJSON.String))
 	out := &auditDiffOutput{}
 	out.Body.Unified = unified
