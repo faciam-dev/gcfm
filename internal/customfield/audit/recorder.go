@@ -10,6 +10,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	audutil "github.com/faciam-dev/gcfm/pkg/audit"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
@@ -91,6 +92,7 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 		afterJSON = sql.NullString{Valid: false}
 	}
 	_, err = query.New(r.DB, tbl, r.Dialect).WithContext(ctx).Insert(map[string]any{
+		"tenant_id":     tenant.FromContext(ctx),
 		"actor":         actor,
 		"action":        action,
 		"table_name":    table,

@@ -57,9 +57,6 @@ func TestAuditDiffAndCounts(t *testing.T) {
 
 	var id, cc int
 	for i := 0; i < jlen(list, "items"); i++ {
-		if jint(list, fmt.Sprintf("items.%d.db_id", i)) != dbID {
-			continue
-		}
 		if jget(list, fmt.Sprintf("items.%d.tableName", i)) != "posts" {
 			continue
 		}

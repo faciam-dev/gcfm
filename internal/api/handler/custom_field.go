@@ -194,7 +194,10 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		}
 	}
 	actor := middleware.UserFromContext(ctx)
-	_ = h.Recorder.Write(ctx, actor, nil, &meta)
+	err = h.Recorder.Write(ctx, actor, nil, &meta)
+	if err != nil {
+		return nil, err
+	}
 	events.Emit(ctx, events.Event{Name: "cf.field.created", Time: time.Now(), Data: meta, ID: meta.TableName + "." + meta.ColumnName})
 	return &createOutput{Body: meta}, nil
 }

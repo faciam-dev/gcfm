@@ -82,6 +82,18 @@ func runMigrations(t *testing.T, dsn string) {
 	if err != nil {
 		t.Fatalf("migrate: %v\n%s", err, out)
 	}
+	_, err = db.Exec(`
+        CREATE TABLE IF NOT EXISTS posts (
+            id BIGSERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now()
+        );
+    `)
+	if err != nil {
+		t.Fatalf("create posts: %v", err)
+	}
 }
 
 func seed(t *testing.T, db *sql.DB) {
@@ -115,6 +127,12 @@ func seed(t *testing.T, db *sql.DB) {
     INSERT INTO gcfm_audit_logs(tenant_id, actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count, applied_at)
     VALUES ('t1','1','update','acl','new1', $1::jsonb, $2::jsonb, 1,0,1, NOW());
   `, "{}", `{"a":1}`)
+
+	// posts
+	mustExec(t, db, `
+		INSERT INTO posts (title, content) VALUES ('hello','world')
+	`)
+
 }
 
 func uname(i int) string { return "user" + fmt.Sprintf("%02d", i) }
