@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
@@ -47,29 +46,6 @@ func (r *Repo) Create(ctx context.Context, d Database) (int64, error) {
 		return 0, fmt.Errorf("repo not initialized")
 	}
 	tbl := r.table()
-	if _, ok := r.Dialect.(ormdriver.PostgresDialect); ok {
-		cols := []string{"tenant_id", "name", "driver"}
-		placeholders := []string{"$1", "$2", "$3"}
-		args := []any{d.TenantID, d.Name, d.Driver}
-		idx := 4
-		if d.DSN != "" {
-			cols = append(cols, "dsn")
-			placeholders = append(placeholders, fmt.Sprintf("$%d", idx))
-			args = append(args, d.DSN)
-			idx++
-		}
-		if len(d.DSNEnc) > 0 {
-			cols = append(cols, "dsn_enc")
-			placeholders = append(placeholders, fmt.Sprintf("$%d", idx))
-			args = append(args, d.DSNEnc)
-		}
-		stmt := fmt.Sprintf("INSERT INTO %s(%s) VALUES(%s) RETURNING id", tbl, strings.Join(cols, ","), strings.Join(placeholders, ","))
-		var id int64
-		if err := r.DB.QueryRowContext(ctx, stmt, args...).Scan(&id); err != nil {
-			return 0, err
-		}
-		return id, nil
-	}
 	data := map[string]any{
 		"tenant_id": d.TenantID,
 		"name":      d.Name,
