@@ -31,7 +31,7 @@ func GetByID(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, tenan
 		ID     int64
 		Driver string
 		DSN    string
-		Schema sql.NullString `db:"schema_name"`
+		Schema sql.NullString `db:"schema_name,omitempty"`
 		DSNEnc []byte         `db:"dsn_enc"`
 	}
 
