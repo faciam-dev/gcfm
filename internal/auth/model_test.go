@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"regexp"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
-	"regexp"
 )
 
 func TestUserRepoList(t *testing.T) {
@@ -63,12 +64,9 @@ func TestUserRepoListScanError(t *testing.T) {
 		AddRow("bad", "alice", "hash")
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "id", "username", "password_hash" FROM "gcfm_users" WHERE "tenant_id" = $1`)).
 		WithArgs("t1").WillReturnRows(rows)
-	users, err := repo.List(context.Background(), "t1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(users) != 1 || users[0].ID != 0 {
-		t.Fatalf("unexpected users: %#v", users)
+	_, err = repo.List(context.Background(), "t1")
+	if err == nil {
+		t.Fatalf("expected error")
 	}
 }
 
