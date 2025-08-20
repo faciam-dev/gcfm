@@ -50,8 +50,10 @@ func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, sc
 		switch dialect.(type) {
 		case ormdriver.MySQLDialect, *ormdriver.MySQLDialect:
 			q = q.WhereRaw("table_schema = DATABASE()", nil)
+		case ormdriver.PostgresDialect, *ormdriver.PostgresDialect:
+			q = q.Where("table_schema", "public")
 		default:
-			q = q.Where("table_schema", schema)
+			// For other dialects, omit the schema filter
 		}
 	}
 
