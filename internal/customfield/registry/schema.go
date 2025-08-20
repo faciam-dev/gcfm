@@ -40,18 +40,16 @@ func quoteIdentifier(driver, ident string) string {
 var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
 func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table, column string) (bool, error) {
-	q := query.New(db, "information_schema.columns", dialect).
-		SelectRaw("COUNT(*) as cnt").
+	cnt, err := query.New(db, "information_schema.columns", dialect).
 		Where("table_schema", schema).
 		Where("table_name", table).
 		Where("column_name", column).
-		WithContext(ctx)
+		WithContext(ctx).Count("*")
 
-	var res struct{ Cnt int }
-	if err := q.First(&res); err != nil {
+	if err != nil {
 		return false, err
 	}
-	return res.Cnt > 0, nil
+	return cnt > 0, nil
 }
 
 func supportsDefault(driver, typ string) bool {
