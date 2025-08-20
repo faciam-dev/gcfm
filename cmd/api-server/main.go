@@ -20,6 +20,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
 	md "github.com/faciam-dev/gcfm/pkg/metadata"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-co-op/gocron"
 )
 
@@ -40,13 +41,19 @@ func main() {
 
 	var db *sql.DB
 	var err error
+	var dialect ormdriver.Dialect
+	if *driver == "postgres" {
+		dialect = ormdriver.PostgresDialect{}
+	} else {
+		dialect = ormdriver.MySQLDialect{}
+	}
 	if *dsn != "" {
 		db, err = sql.Open(*driver, *dsn)
 		if err != nil {
 			logger.L.Error("db open", "err", err)
 			os.Exit(1)
 		}
-		if err := config.CheckPrefix(context.Background(), db, *driver, *tblPrefix); err != nil {
+		if err := config.CheckPrefix(context.Background(), db, dialect, *tblPrefix); err != nil {
 			logger.L.Error("prefix check", "err", err)
 			os.Exit(1)
 		}
@@ -63,7 +70,7 @@ func main() {
 	api := server.New(db, dbCfg)
 
 	if db != nil {
-		repo := &monitordb.Repo{DB: db, Driver: dbCfg.Driver, TablePrefix: dbCfg.TablePrefix}
+		repo := &monitordb.Repo{DB: db, Driver: dbCfg.Driver, Dialect: dialect, TablePrefix: dbCfg.TablePrefix}
 		s := gocron.NewScheduler(time.UTC)
 		s.Cron("0 3 * * *").Do(func() {
 			ctx := context.Background()

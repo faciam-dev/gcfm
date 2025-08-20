@@ -104,6 +104,10 @@ github.com/ebitengine/purego v0.8.2 h1:jPPGWs2sZ1UgOSgD2bClL0MJIqu58nOmIcBuXr62z
 github.com/ebitengine/purego v0.8.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/faciam-dev/goquent v0.1.2 h1:ADgSxOeVFUUlDOw5wLSlSESnZyv83ZmeSw/W06OAy/0=
 github.com/faciam-dev/goquent v0.1.2/go.mod h1:d1sCX1C/k6inNTQn23p5us5WozB/Ar/bDPrxoLrkCuc=
+github.com/faciam-dev/goquent v0.2.1 h1:QBWSxdJ3ZcZc/0JiMn9dMs2JugAx7tfiCnnen4URnok=
+github.com/faciam-dev/goquent v0.2.1/go.mod h1:d1sCX1C/k6inNTQn23p5us5WozB/Ar/bDPrxoLrkCuc=
+github.com/faciam-dev/goquent v0.3.0 h1:d3H5z/Zf7KZrVK/u8TJGygq2IXOD6Qk7UXlXh02OsAA=
+github.com/faciam-dev/goquent v0.3.0/go.mod h1:d1sCX1C/k6inNTQn23p5us5WozB/Ar/bDPrxoLrkCuc=
 github.com/faciam-dev/goquent-query-builder v0.0.0-20250619111145-259bb0c46fca h1:rwrVW/ZUfEk0vRBOFl30B3b4rgUGx9g+2StAiJb3XQg=
 github.com/faciam-dev/goquent-query-builder v0.0.0-20250619111145-259bb0c46fca/go.mod h1:4H0KSF3vKYF9ieLwrj5EOW1Q7c0ISSrq/cBLuJvOK7c=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=

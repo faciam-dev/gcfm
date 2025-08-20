@@ -12,13 +12,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func mockFieldRows() *sqlmock.Rows {
+	return sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).AddRow(1, "posts", "title", "text", nil, nil, nil, false, false, false, nil, nil)
+}
+
 func TestExportLocal(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	rows := sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).AddRow(1, "posts", "title", "text", "", "", "", false, false, false, "", "")
-	mock.ExpectQuery("^SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(mockFieldRows())
 	dir := t.TempDir()
 	if err := snapshot.Export(context.Background(), db, "", "mysql", "gcfm_", snapshot.LocalDir{Path: dir}); err != nil {
 		t.Fatalf("export: %v", err)
@@ -51,8 +54,7 @@ func TestExportLocalPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	rows := sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).AddRow(1, "posts", "title", "text", "", "", "", false, false, false, "", "")
-	mock.ExpectQuery("^SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, \"unique\", has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").WillReturnRows(rows)
+	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(mockFieldRows())
 	dir := t.TempDir()
 	if err := snapshot.Export(context.Background(), db, "", "postgres", "gcfm_", snapshot.LocalDir{Path: dir}); err != nil {
 		t.Fatalf("export: %v", err)

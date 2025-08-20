@@ -21,6 +21,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
 	sdk "github.com/faciam-dev/gcfm/sdk"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func TestAPI_ListTablesAndCustomFieldsByDBID(t *testing.T) {
@@ -52,7 +53,7 @@ func TestAPI_ListTablesAndCustomFieldsByDBID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres"}
+	repo := &monitordb.Repo{DB: centralDB, Driver: "postgres", Dialect: ormdriver.PostgresDialect{}}
 	enc, _ := crypto.Encrypt([]byte(remoteDSN))
 	id, err := repo.Create(ctx, monitordb.Database{TenantID: "t1", Name: "remote", Driver: "postgres", DSNEnc: enc})
 	if err != nil {

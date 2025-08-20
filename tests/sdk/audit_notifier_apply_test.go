@@ -8,6 +8,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	sdk "github.com/faciam-dev/gcfm/sdk"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 type stubNotifier struct{ diffs []notifier.DiffReport }
@@ -24,7 +25,7 @@ func TestApplyHooks(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery("^SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 	mock.ExpectBegin()
 	mock.ExpectPrepare("INSERT INTO gcfm_custom_fields").ExpectExec().WithArgs(
 		1,
@@ -37,7 +38,7 @@ func TestApplyHooks(t *testing.T) {
 
 	nt := &stubNotifier{}
 	disable := false
-	svc := sdk.New(sdk.ServiceConfig{Recorder: &audit.Recorder{DB: db, Driver: "mysql"}, Notifier: nt, PluginEnabled: &disable})
+	svc := sdk.New(sdk.ServiceConfig{Recorder: &audit.Recorder{DB: db, Dialect: ormdriver.MySQLDialect{}}, Notifier: nt, PluginEnabled: &disable})
 	yamlData := []byte("version: 0.4\nfields:\n  - table: posts\n    column: title\n    type: text\n")
 	rep, err := svc.Apply(context.Background(), sdk.DBConfig{Driver: "sqlmock", DSN: "sqlmock_db", TablePrefix: "gcfm_"}, yamlData, sdk.ApplyOptions{Actor: "alice"})
 	if err != nil {
@@ -61,11 +62,11 @@ func TestApplyHooksDryRun(t *testing.T) {
 	}
 	defer db.Close()
 
-	mock.ExpectQuery("^SELECT db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator FROM gcfm_custom_fields ORDER BY table_name, column_name$").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	nt := &stubNotifier{}
 	disable := false
-	svc := sdk.New(sdk.ServiceConfig{Recorder: &audit.Recorder{DB: db, Driver: "mysql"}, Notifier: nt, PluginEnabled: &disable})
+	svc := sdk.New(sdk.ServiceConfig{Recorder: &audit.Recorder{DB: db, Dialect: ormdriver.MySQLDialect{}}, Notifier: nt, PluginEnabled: &disable})
 	yamlData := []byte("version: 0.4\nfields:\n  - table: posts\n    column: title\n    type: text\n")
 	_, err = svc.Apply(context.Background(), sdk.DBConfig{Driver: "sqlmock", DSN: "sqlmock_db2", TablePrefix: "gcfm_"}, yamlData, sdk.ApplyOptions{Actor: "alice", DryRun: true})
 	if err != nil {

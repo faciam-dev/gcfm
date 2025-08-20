@@ -10,13 +10,16 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
+	"github.com/faciam-dev/gcfm/internal/tenant"
 	audutil "github.com/faciam-dev/gcfm/pkg/audit"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // Recorder writes audit logs to the database.
 type Recorder struct {
 	DB          *sql.DB
-	Driver      string // mysql or postgres
+	Dialect     ormdriver.Dialect
 	TablePrefix string
 }
 
@@ -76,10 +79,6 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 	}
 
 	tbl := r.TablePrefix + "audit_logs"
-	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
-	if r.Driver == "postgres" {
-		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
-	}
 	var beforeJSON sql.NullString
 	if before != nil {
 		beforeJSON = sql.NullString{String: string(before), Valid: true}
@@ -92,7 +91,18 @@ func (r *Recorder) Write(ctx context.Context, actor string, old, new *registry.F
 	} else {
 		afterJSON = sql.NullString{Valid: false}
 	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, table, column, beforeJSON, afterJSON, addCnt, delCnt, addCnt+delCnt)
+	_, err = query.New(r.DB, tbl, r.Dialect).WithContext(ctx).Insert(map[string]any{
+		"tenant_id":     tenant.FromContext(ctx),
+		"actor":         actor,
+		"action":        action,
+		"table_name":    table,
+		"column_name":   column,
+		"before_json":   beforeJSON,
+		"after_json":    afterJSON,
+		"added_count":   addCnt,
+		"removed_count": delCnt,
+		"change_count":  addCnt + delCnt,
+	})
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {
@@ -109,12 +119,18 @@ func (r *Recorder) WriteAction(ctx context.Context, actor, action, targetVer, di
 		return nil
 	}
 	tbl := r.TablePrefix + "audit_logs"
-	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
-	if r.Driver == "postgres" {
-		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
-	}
 	before := sql.NullString{Valid: diffSummary != "", String: diffSummary}
-	_, err := r.DB.ExecContext(ctx, q, actor, action, "registry", targetVer, before, sql.NullString{Valid: false}, 0, 0, 0)
+	_, err := query.New(r.DB, tbl, r.Dialect).WithContext(ctx).Insert(map[string]any{
+		"actor":         actor,
+		"action":        action,
+		"table_name":    "registry",
+		"column_name":   targetVer,
+		"before_json":   before,
+		"after_json":    sql.NullString{Valid: false},
+		"added_count":   0,
+		"removed_count": 0,
+		"change_count":  0,
+	})
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {
@@ -133,11 +149,17 @@ func (r *Recorder) WriteJSON(ctx context.Context, actor, action string, payload 
 		return err
 	}
 	tbl := r.TablePrefix + "audit_logs"
-	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
-	if r.Driver == "postgres" {
-		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
-	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, sql.NullString{Valid: false}, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data), 0, 0, 0)
+	_, err = query.New(r.DB, tbl, r.Dialect).WithContext(ctx).Insert(map[string]any{
+		"actor":         actor,
+		"action":        action,
+		"table_name":    sql.NullString{Valid: false},
+		"column_name":   sql.NullString{Valid: false},
+		"before_json":   sql.NullString{Valid: false},
+		"after_json":    string(data),
+		"added_count":   0,
+		"removed_count": 0,
+		"change_count":  0,
+	})
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {
@@ -156,11 +178,17 @@ func (r *Recorder) WriteTableJSON(ctx context.Context, actor, action, table stri
 		return err
 	}
 	tbl := r.TablePrefix + "audit_logs"
-	q := fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES (?,?,?,?,?,?,?,?,?)", tbl)
-	if r.Driver == "postgres" {
-		q = fmt.Sprintf("INSERT INTO %s(actor, action, table_name, column_name, before_json, after_json, added_count, removed_count, change_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)", tbl)
-	}
-	_, err = r.DB.ExecContext(ctx, q, actor, action, table, sql.NullString{Valid: false}, sql.NullString{Valid: false}, string(data), 0, 0, 0)
+	_, err = query.New(r.DB, tbl, r.Dialect).WithContext(ctx).Insert(map[string]any{
+		"actor":         actor,
+		"action":        action,
+		"table_name":    table,
+		"column_name":   sql.NullString{Valid: false},
+		"before_json":   sql.NullString{Valid: false},
+		"after_json":    string(data),
+		"added_count":   0,
+		"removed_count": 0,
+		"change_count":  0,
+	})
 	if err == nil {
 		metrics.AuditEvents.WithLabelValues(action).Inc()
 	} else {

@@ -19,6 +19,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // DatabaseHandler manages monitored databases via REST.
@@ -66,7 +68,7 @@ type dbTablesOutput struct{ Body []string }
 // GET /v1/databases/{id}/tables returns the list of tables for the monitored DB specified by db_id
 func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*dbTablesOutput, error) {
 	tid := tenant.FromContext(ctx)
-	mdb, err := cfmdb.GetByID(ctx, h.Repo.DB, h.Repo.Driver, h.Repo.TablePrefix, tid, p.ID)
+	mdb, err := cfmdb.GetByID(ctx, h.Repo.DB, h.Repo.Dialect, h.Repo.TablePrefix, tid, p.ID)
 	if err != nil {
 		if errors.Is(err, cfmdb.ErrNotFound) {
 			return nil, huma.Error422("id", "database not found")
@@ -79,39 +81,39 @@ func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*d
 	}
 	defer target.Close()
 
-	var rows *sql.Rows
+	var dialect ormdriver.Dialect
 	switch mdb.Driver {
-	case "mysql":
-		rows, err = target.QueryContext(ctx, `
-      SELECT table_name
-        FROM information_schema.tables
-       WHERE table_schema = DATABASE()
-       ORDER BY table_name`)
 	case "postgres":
+		dialect = ormdriver.PostgresDialect{}
+	case "mysql":
+		dialect = ormdriver.MySQLDialect{}
+	default:
+		return nil, huma.Error422("driver", "unsupported driver")
+	}
+
+	type tbl struct {
+		Name string `db:"table_name"`
+	}
+	q := query.New(target, "information_schema.tables", dialect).
+		Select("table_name").
+		OrderBy("table_name", "asc")
+	switch dialect.(type) {
+	case ormdriver.PostgresDialect:
 		schema := mdb.Schema
 		if schema == "" {
 			schema = "public"
 		}
-		rows, err = target.QueryContext(ctx, `
-      SELECT table_name
-        FROM information_schema.tables
-       WHERE table_schema = $1
-       ORDER BY table_name`, schema)
-	default:
-		return nil, huma.Error422("driver", "unsupported driver")
+		q.Where("table_schema", schema)
+	case ormdriver.MySQLDialect:
+		q.WhereRaw("table_schema = DATABASE()", nil)
 	}
-	if err != nil {
+	var rows []tbl
+	if err := q.WithContext(ctx).Get(&rows); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var out []string
-	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i] = r.Name
 	}
 	return &dbTablesOutput{Body: out}, nil
 }
@@ -175,7 +177,7 @@ func (h *DatabaseHandler) create(ctx context.Context, in *createDBInput) (*creat
 		}
 		return nil, err
 	}
-	id, err := h.Repo.Create(ctx, monitordb.Database{TenantID: tid, Name: in.Body.Name, Driver: in.Body.Driver, DSNEnc: enc})
+	id, err := h.Repo.Create(ctx, monitordb.Database{TenantID: tid, Name: in.Body.Name, Driver: in.Body.Driver, DSN: in.Body.DSN, DSNEnc: enc})
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 	"gopkg.in/yaml.v3"
 )
 
@@ -44,101 +46,95 @@ func decompress(data []byte) ([]byte, error) {
 	return io.ReadAll(zr)
 }
 
-func Insert(ctx context.Context, db *sql.DB, driver, prefix, tenant, semver, author string, yaml []byte) (Record, error) {
-	table := prefix + "registry_snapshots"
-	q := fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES ($1,$2,$3,$4) RETURNING id, taken_at", table)
-	if driver != "postgres" {
-		q = fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES (?,?,?,?)", table)
-	}
-	res := Record{Semver: semver, Author: author}
-	if driver == "postgres" {
-		if err := db.QueryRowContext(ctx, q, tenant, semver, yaml, author).Scan(&res.ID, &res.TakenAt); err != nil {
-			return Record{}, err
-		}
-	} else {
-		r, err := db.ExecContext(ctx, q, tenant, semver, yaml, author)
-		if err != nil {
-			return Record{}, err
-		}
-		id, _ := r.LastInsertId()
-		res.ID = id
-		var t any
-		sel := fmt.Sprintf("SELECT taken_at FROM %s WHERE id=?", table)
-		if err := db.QueryRowContext(ctx, sel, id).Scan(&t); err == nil {
-			if ts, err := parseDBTime(t); err == nil {
-				res.TakenAt = ts
-			} else {
-				return Record{}, err
-			}
-		} else {
-			return Record{}, err
-		}
-	}
-	return res, nil
+type SnapshotData struct {
+	Tenant string
+	Semver string
+	Author string
+	YAML   []byte
 }
 
-func Get(ctx context.Context, db *sql.DB, driver, prefix, tenant, ver string) (Record, error) {
+func Insert(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, data SnapshotData) (Record, error) {
 	table := prefix + "registry_snapshots"
-	q := fmt.Sprintf("SELECT id, semver, yaml, taken_at, author FROM %s WHERE tenant_id=$1 AND semver=$2", table)
-	if driver != "postgres" {
-		q = fmt.Sprintf("SELECT id, semver, yaml, taken_at, author FROM %s WHERE tenant_id=? AND semver=?", table)
+	if _, ok := dialect.(ormdriver.PostgresDialect); ok {
+		stmt := fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES($1,$2,$3,$4) RETURNING id, taken_at", table)
+		var (
+			id int64
+			ts time.Time
+		)
+		if err := db.QueryRowContext(ctx, stmt, data.Tenant, data.Semver, data.YAML, data.Author).Scan(&id, &ts); err != nil {
+			return Record{}, err
+		}
+		return Record{ID: id, Semver: data.Semver, YAML: data.YAML, TakenAt: ts, Author: data.Author}, nil
 	}
-	var r Record
-	var t any
-	err := db.QueryRowContext(ctx, q, tenant, ver).Scan(&r.ID, &r.Semver, &r.YAML, &t, &r.Author)
+	id, err := query.New(db, table, dialect).WithContext(ctx).InsertGetId(map[string]any{
+		"tenant_id": data.Tenant,
+		"semver":    data.Semver,
+		"yaml":      data.YAML,
+		"author":    data.Author,
+	})
 	if err != nil {
+		return Record{}, err
+	}
+	var ts struct {
+		TakenAt time.Time `db:"taken_at"`
+	}
+	if err := query.New(db, table, dialect).Select("taken_at").Where("id", id).WithContext(ctx).First(&ts); err != nil {
+		return Record{}, err
+	}
+	return Record{ID: id, Semver: data.Semver, YAML: data.YAML, TakenAt: ts.TakenAt, Author: data.Author}, nil
+}
+
+func Get(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, tenant, ver string) (Record, error) {
+	table := prefix + "registry_snapshots"
+	q := query.New(db, table, dialect).
+		Select("id", "semver", "yaml", "taken_at", "author").
+		Where("tenant_id", tenant).
+		Where("semver", ver).
+		WithContext(ctx)
+
+	var r Record
+	if err := q.First(&r); err != nil {
 		return r, err
 	}
-	r.TakenAt, err = parseDBTime(t)
-	return r, err
+	return r, nil
 }
 
-func List(ctx context.Context, db *sql.DB, driver, prefix, tenant string, limit int) ([]Record, error) {
+func List(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, tenant string, limit int) ([]Record, error) {
 	if limit == 0 {
 		limit = 20
 	}
 	table := prefix + "registry_snapshots"
-	q := fmt.Sprintf("SELECT id, semver, taken_at, author FROM %s WHERE tenant_id=$1 ORDER BY id DESC LIMIT $2", table)
-	if driver != "postgres" {
-		q = fmt.Sprintf("SELECT id, semver, taken_at, author FROM %s WHERE tenant_id=? ORDER BY id DESC LIMIT ?", table)
-	}
-	rows, err := db.QueryContext(ctx, q, tenant, limit)
-	if err != nil {
+	q := query.New(db, table, dialect).
+		Select("id", "semver", "taken_at", "author").
+		Where("tenant_id", tenant).
+		OrderBy("id", "desc").
+		Limit(limit).
+		WithContext(ctx)
+
+	var rows []Record
+	if err := q.Get(&rows); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []Record
-	for rows.Next() {
-		var r Record
-		var t any
-		if err := rows.Scan(&r.ID, &r.Semver, &t, &r.Author); err != nil {
-			return nil, err
-		}
-		ts, err := parseDBTime(t)
-		if err != nil {
-			return nil, err
-		}
-		r.TakenAt = ts
-		out = append(out, r)
-	}
-	return out, rows.Err()
+	return rows, nil
 }
 
-func LatestSemver(ctx context.Context, db *sql.DB, driver, prefix, tenant string) (string, error) {
+func LatestSemver(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, tenant string) (string, error) {
 	table := prefix + "registry_snapshots"
-	q := fmt.Sprintf("SELECT semver FROM %s WHERE tenant_id=$1 ORDER BY id DESC LIMIT 1", table)
-	if driver != "postgres" {
-		q = fmt.Sprintf("SELECT semver FROM %s WHERE tenant_id=? ORDER BY id DESC LIMIT 1", table)
-	}
-	var s string
-	err := db.QueryRowContext(ctx, q, tenant).Scan(&s)
-	if err != nil {
+	q := query.New(db, table, dialect).
+		Select("semver").
+		Where("tenant_id", tenant).
+		OrderBy("id", "desc").
+		Limit(1).
+		WithContext(ctx)
+
+	var row struct{ Semver string }
+	if err := q.First(&row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "0.0.0", nil
 		}
 		return "", err
 	}
-	return s, nil
+	return row.Semver, nil
 }
 
 func NextSemver(prev, bump string) string {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
 	"github.com/faciam-dev/gcfm/sdk"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func newRevertCmd() *cobra.Command {
@@ -42,7 +43,13 @@ func newRevertCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
-			rec, err := snapshot.Get(ctx, db, driverFlag, tablePrefix, tenant, toVer)
+			var dialect ormdriver.Dialect
+			if driverFlag == "postgres" {
+				dialect = ormdriver.PostgresDialect{}
+			} else {
+				dialect = ormdriver.MySQLDialect{}
+			}
+			rec, err := snapshot.Get(ctx, db, dialect, tablePrefix, tenant, toVer)
 			if err != nil {
 				return err
 			}

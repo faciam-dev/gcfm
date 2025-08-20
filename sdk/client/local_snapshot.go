@@ -6,13 +6,15 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
 	sdk "github.com/faciam-dev/gcfm/sdk"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 type snapshotLocal struct {
-	dsn    string
-	driver string
-	schema string
-	prefix string
+	dsn     string
+	driver  string
+	schema  string
+	prefix  string
+	dialect ormdriver.Dialect
 }
 
 // NewLocalSnapshot returns a SnapshotClient that uses direct DB access.
@@ -20,7 +22,13 @@ func NewLocalSnapshot(dsn, driver, schema, prefix string) sdk.SnapshotClient {
 	if prefix == "" {
 		prefix = "gcfm_"
 	}
-	return &snapshotLocal{dsn: dsn, driver: driver, schema: schema, prefix: prefix}
+	var dialect ormdriver.Dialect
+	if driver == "postgres" {
+		dialect = ormdriver.PostgresDialect{}
+	} else {
+		dialect = ormdriver.MySQLDialect{}
+	}
+	return &snapshotLocal{dsn: dsn, driver: driver, schema: schema, prefix: prefix, dialect: dialect}
 }
 
 func (l *snapshotLocal) open() (*sql.DB, error) {
@@ -33,7 +41,7 @@ func (l *snapshotLocal) List(ctx context.Context, tenant string) ([]sdk.Snapshot
 		return nil, err
 	}
 	defer func() { _ = db.Close() }()
-	recs, err := snapshot.List(ctx, db, l.driver, l.prefix, tenant, 20)
+	recs, err := snapshot.List(ctx, db, l.dialect, l.prefix, tenant, 20)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +67,7 @@ func (l *snapshotLocal) Create(ctx context.Context, tenant, bump, msg string) (s
 	if err != nil {
 		return sdk.Snapshot{}, err
 	}
-	last, err := snapshot.LatestSemver(ctx, db, l.driver, l.prefix, tenant)
+	last, err := snapshot.LatestSemver(ctx, db, l.dialect, l.prefix, tenant)
 	if err != nil {
 		return sdk.Snapshot{}, err
 	}
@@ -67,7 +75,13 @@ func (l *snapshotLocal) Create(ctx context.Context, tenant, bump, msg string) (s
 		bump = "patch"
 	}
 	ver := snapshot.NextSemver(last, bump)
-	rec, err := snapshot.Insert(ctx, db, l.driver, l.prefix, tenant, ver, "", comp)
+	snapshotData := snapshot.SnapshotData{
+		Tenant: tenant,
+		Semver: ver,
+		Author: "",
+		YAML:   comp,
+	}
+	rec, err := snapshot.Insert(ctx, db, l.dialect, l.prefix, snapshotData)
 	if err != nil {
 		return sdk.Snapshot{}, err
 	}
@@ -80,7 +94,7 @@ func (l *snapshotLocal) Apply(ctx context.Context, tenant, ver string) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	rec, err := snapshot.Get(ctx, db, l.driver, l.prefix, tenant, ver)
+	rec, err := snapshot.Get(ctx, db, l.dialect, l.prefix, tenant, ver)
 	if err != nil {
 		return err
 	}
@@ -99,11 +113,11 @@ func (l *snapshotLocal) Diff(ctx context.Context, tenant, from, to string) (stri
 		return "", err
 	}
 	defer func() { _ = db.Close() }()
-	a, err := snapshot.Get(ctx, db, l.driver, l.prefix, tenant, from)
+	a, err := snapshot.Get(ctx, db, l.dialect, l.prefix, tenant, from)
 	if err != nil {
 		return "", err
 	}
-	b, err := snapshot.Get(ctx, db, l.driver, l.prefix, tenant, to)
+	b, err := snapshot.Get(ctx, db, l.dialect, l.prefix, tenant, to)
 	if err != nil {
 		return "", err
 	}

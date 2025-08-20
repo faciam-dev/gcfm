@@ -3,9 +3,10 @@ package snapshot
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/faciam-dev/gcfm/internal/api/schema"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 const registryVersion = "0.3"
@@ -17,31 +18,26 @@ type Registry struct {
 }
 
 // ExportRegistry retrieves registry information for a tenant from the database.
-func ExportRegistry(ctx context.Context, db *sql.DB, drv, prefix, tid string) (*Registry, error) {
-	table := prefix + "custom_fields"
-	var query string
-	switch drv {
-	case "postgres":
-		query = fmt.Sprintf(`SELECT table_name, column_name, data_type FROM %s WHERE tenant_id=$1 ORDER BY db_id, table_name, column_name`, table)
-	default:
-		query = fmt.Sprintf(`SELECT table_name, column_name, data_type FROM %s WHERE tenant_id=? ORDER BY db_id, table_name, column_name`, table)
+func ExportRegistry(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, tid string) (*Registry, error) {
+	tbl := prefix + "custom_fields"
+	q := query.New(db, tbl, dialect).
+		Select("table_name", "column_name", "data_type").
+		Where("tenant_id", tid).
+		OrderBy("db_id", "asc").
+		OrderBy("table_name", "asc").
+		OrderBy("column_name", "asc").
+		WithContext(ctx)
+	var rows []struct {
+		TableName  string `db:"table_name"`
+		ColumnName string `db:"column_name"`
+		DataType   string `db:"data_type"`
 	}
-	rows, err := db.QueryContext(ctx, query, tid)
-	if err != nil {
+	if err := q.Get(&rows); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var f []schema.Field
-	for rows.Next() {
-		var t, c, typ string
-		if err := rows.Scan(&t, &c, &typ); err != nil {
-			return nil, err
-		}
-		f = append(f, schema.Field{Table: t, Column: c, Type: typ})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	f := make([]schema.Field, 0, len(rows))
+	for _, r := range rows {
+		f = append(f, schema.Field{Table: r.TableName, Column: r.ColumnName, Type: r.DataType})
 	}
 	return &Registry{Version: registryVersion, Fields: f}, nil
 }

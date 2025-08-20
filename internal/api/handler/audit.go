@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
+
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/api/schema"
 	"github.com/faciam-dev/gcfm/internal/auditlog"
@@ -22,7 +25,7 @@ import (
 
 type AuditHandler struct {
 	DB          *sql.DB
-	Driver      string
+	Dialect     driver.Dialect
 	TablePrefix string
 }
 
@@ -42,24 +45,23 @@ type auditDiffOutput struct {
 }
 
 // getDiff returns unified diff for an audit record
+
 func (h *AuditHandler) getDiff(ctx context.Context,
 	p *struct {
 		ID int64 `path:"id"`
 	}) (*auditDiffOutput, error) {
-	var before, after sql.NullString
-	tbl := h.TablePrefix + "audit_logs"
-	query := fmt.Sprintf("SELECT COALESCE(before_json::text,'{}'), COALESCE(after_json::text,'{}') FROM %s WHERE id = $1", tbl)
-	if h.Driver == "mysql" {
-		query = fmt.Sprintf("SELECT COALESCE(JSON_UNQUOTE(before_json), '{}'), COALESCE(JSON_UNQUOTE(after_json), '{}') FROM %s WHERE id = ?", tbl)
-	}
-	if err := h.DB.QueryRowContext(ctx, query, p.ID).Scan(&before, &after); err != nil {
+	repo := auditlog.Repo{DB: h.DB, Dialect: h.Dialect, TablePrefix: h.TablePrefix}
+	rec, err := repo.FindByID(ctx, p.ID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("not found")
 		}
 		return nil, err
 	}
-
-	unified, add, del := auditutil.UnifiedDiff([]byte(before.String), []byte(after.String))
+	if !rec.BeforeJSON.Valid && !rec.AfterJSON.Valid {
+		return nil, errors.New("both before and after JSON are empty")
+	}
+	unified, add, del := auditutil.UnifiedDiff([]byte(rec.BeforeJSON.String), []byte(rec.AfterJSON.String))
 	out := &auditDiffOutput{}
 	out.Body.Unified = unified
 	out.Body.Added = add
@@ -224,95 +226,88 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	}
 
 	tbl := h.TablePrefix + "audit_logs"
+	users := h.TablePrefix + "users"
 
-	args := []any{}
-	next := func() string {
-		if h.Driver == "postgres" {
-			return fmt.Sprintf("$%d", len(args)+1)
-		}
-		return "?"
+	coalesceBefore := "CAST(COALESCE(l.before_json, JSON_OBJECT()) AS CHAR)"
+	coalesceAfter := "CAST(COALESCE(l.after_json , JSON_OBJECT()) AS CHAR)"
+	isPg := false
+	if _, ok := h.Dialect.(driver.PostgresDialect); ok {
+		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)::text"
+		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)::text"
+		isPg = true
 	}
 
-	wh := []string{"tenant_id = " + next()}
-	args = append(args, tid)
+	actorSub := "(SELECT username FROM " + users + " u WHERE "
+	if isPg {
+		actorSub += "u.id::text = l.actor"
+	} else {
+		actorSub += "u.id = CAST(l.actor AS UNSIGNED)"
+	}
+	actorSub += ")"
+
+	q := query.New(h.DB, tbl+" as l", h.Dialect).
+		Select("l.id").
+		SelectRaw("COALESCE("+actorSub+", l.actor) as actor").
+		Select("l.action").
+		SelectRaw("COALESCE(l.table_name, '') as table_name").
+		SelectRaw("COALESCE(l.column_name, '') as column_name").
+		SelectRaw(coalesceBefore+" as before_json").
+		SelectRaw(coalesceAfter+" as after_json").
+		Select("l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
+		Where("l.tenant_id", tid)
 
 	if p.Actor != "" {
-		wh = append(wh, "actor = "+next())
-		args = append(args, p.Actor)
+		q.Where("l.actor", p.Actor)
 	}
 	if p.Table != "" {
-		wh = append(wh, "table_name = "+next())
-		args = append(args, p.Table)
+		q.Where("l.table_name", p.Table)
 	}
 	if p.Column != "" {
-		wh = append(wh, "column_name = "+next())
-		args = append(args, p.Column)
+		q.Where("l.column_name", p.Column)
 	}
 	if p.Action != "" {
-		acts := strings.Split(p.Action, ",")
-		placeholders := make([]string, 0, len(acts))
-		for _, a := range acts {
+		acts := []string{}
+		for _, a := range strings.Split(p.Action, ",") {
 			a = strings.TrimSpace(a)
 			if a == "" {
 				continue
 			}
-			placeholders = append(placeholders, next())
-			args = append(args, a)
+			acts = append(acts, a)
 		}
-		if len(placeholders) > 0 {
-			wh = append(wh, "action IN ("+strings.Join(placeholders, ",")+")")
+		if len(acts) > 0 {
+			q.WhereIn("l.action", acts)
 		}
 	}
 	if p.From != "" {
 		if t, err := time.Parse(time.RFC3339, p.From); err == nil {
-			wh = append(wh, "applied_at >= "+next())
-			args = append(args, t)
+			q.Where("l.applied_at", ">=", t)
 		}
 	}
 	if p.To != "" {
 		if t, err := time.Parse(time.RFC3339, p.To); err == nil {
-			wh = append(wh, "applied_at < "+next())
-			args = append(args, t.Add(24*time.Hour))
+			q.Where("l.applied_at", "<", t.Add(24*time.Hour))
 		}
 	}
 	if p.Cursor != "" {
 		if ts, id, err := decodeCursor(p.Cursor); err == nil {
-			ph1 := next()
-			args = append(args, ts)
-			ph2 := next()
-			args = append(args, ts)
-			ph3 := next()
-			args = append(args, id)
-			wh = append(wh, "(applied_at < "+ph1+" OR (applied_at = "+ph2+" AND id < "+ph3+"))")
+			q.WhereGroup(func(g *query.Query) {
+				g.Where("l.applied_at", "<", ts)
+				g.OrWhereGroup(func(g2 *query.Query) {
+					g2.Where("l.applied_at", "=", ts)
+					g2.Where("l.id", "<", id)
+				})
+			})
 		}
 	}
 
-	where := "WHERE " + strings.Join(wh, " AND ")
+	q.OrderBy("l.applied_at", "desc").OrderBy("l.id", "desc").
+		Limit(limit*auditLogOverfetchMultiplier + 1)
 
-	coalesceBefore := "COALESCE(before_json, JSON_OBJECT())"
-	coalesceAfter := "COALESCE(after_json , JSON_OBJECT())"
-	if h.Driver == "postgres" {
-		coalesceBefore = "COALESCE(before_json, '{}'::jsonb)"
-		coalesceAfter = "COALESCE(after_json , '{}'::jsonb)"
+	sqlStr, args, err := q.Build()
+	if err != nil {
+		return nil, err
 	}
-
-	limitPlaceholder := next()
-	args = append(args, limit*auditLogOverfetchMultiplier+1)
-
-	query := fmt.Sprintf(`
-      SELECT id, actor, action,
-             COALESCE(table_name, '') AS table_name,
-             COALESCE(column_name, '') AS column_name,
-             `+coalesceBefore+` AS before_json,
-             `+coalesceAfter+` AS after_json,
-             added_count, removed_count, change_count,
-             applied_at
-        FROM %s
-      `+where+`
-        ORDER BY applied_at DESC, id DESC
-        LIMIT `+limitPlaceholder, tbl)
-
-	rows, err := h.DB.QueryContext(ctx, query, args...)
+	rows, err := h.DB.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
 		logger.L.Error("query audit logs", "err", err)
 		return nil, err
@@ -343,7 +338,6 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		it.BeforeJson = append([]byte(nil), bj...)
 		it.AfterJson = append([]byte(nil), aj...)
 		if chCnt == 0 && it.Action != "snapshot" && it.Action != "rollback" {
-			// diff unavailable for legacy records; should be backfilled via migration
 			it.Summary = "diff unavailable"
 		} else if it.Action == "snapshot" || it.Action == "rollback" {
 			it.Summary = string(bj)
@@ -368,25 +362,18 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 		logger.L.Error("iterate audit rows", "err", err)
 		return nil, err
 	}
-
 	if more {
-		c := encodeCursor(lastReturnedApplied, lastReturnedID)
-		nextCursor = &c
+		nc := encodeCursor(lastReturnedApplied, lastReturnedID)
+		nextCursor = &nc
 	}
-
-	return &auditListOutput{
-		Body: struct {
-			Items      []AuditDTO `json:"items"`
-			NextCursor *string    `json:"nextCursor,omitempty"`
-		}{
-			Items:      items,
-			NextCursor: nextCursor,
-		},
-	}, nil
+	out := &auditListOutput{}
+	out.Body.Items = items
+	out.Body.NextCursor = nextCursor
+	return out, nil
 }
 
 func (h *AuditHandler) get(ctx context.Context, p *auditGetParams) (*auditGetOutput, error) {
-	repo := auditlog.Repo{DB: h.DB, Driver: h.Driver, TablePrefix: h.TablePrefix}
+	repo := auditlog.Repo{DB: h.DB, Dialect: h.Dialect, TablePrefix: h.TablePrefix}
 	rec, err := repo.FindByID(ctx, p.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

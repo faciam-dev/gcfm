@@ -30,6 +30,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/roles"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -62,6 +63,12 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 
 	driver := cfg.Driver
 	dsn := cfg.DSN
+	var dialect ormdriver.Dialect
+	if driver == "postgres" {
+		dialect = ormdriver.PostgresDialect{}
+	} else {
+		dialect = ormdriver.MySQLDialect{}
+	}
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		logger.L.Error("JWT_SECRET environment variable is not set. Application cannot start.")
@@ -88,7 +95,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		e.AddPolicy("admin", "/admin/*", "PUT")
 		e.AddPolicy("admin", "/admin/*", "DELETE")
 		if db != nil {
-			if err := rbac.Load(context.Background(), db, cfg.TablePrefix, e); err != nil {
+			if err := rbac.Load(context.Background(), db, dialect, cfg.TablePrefix, e); err != nil {
 				logger.L.Error("load rbac", "err", err)
 			}
 		}
@@ -102,7 +109,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 
 	// Register login & refresh handlers before applying auth middleware so
 	// that they remain publicly accessible.
-	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, JWT: jwtHandler})
+	auth.Register(api, &auth.Handler{Repo: &auth.UserRepo{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix}, JWT: jwtHandler})
 
 	// Apply authentication middleware for subsequent endpoints.
 	api.UseMiddleware(auth.Middleware(api, jwtHandler))
@@ -110,7 +117,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	// ---- role resolver used by RBAC and capabilities ----
 	resolver := func(ctx context.Context, user string) ([]string, error) {
 		tid := tenant.FromContext(ctx)
-		return roles.OfUser(ctx, db, driver, cfg.TablePrefix, user, tid)
+		return roles.OfUser(ctx, db, dialect, cfg.TablePrefix, user, tid)
 	}
 
 	// Register authenticated capability endpoint before RBAC enforcement.
@@ -122,7 +129,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 	api.UseMiddleware(middleware.MetricsMW)
 
-	rec := &audit.Recorder{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}
+	rec := &audit.Recorder{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix}
 
 	evtConf, err := events.LoadConfig(os.Getenv("CF_EVENTS_CONFIG"))
 	if err != nil {
@@ -143,7 +150,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	} else if err != nil {
 		logger.L.Error("kafka sink", "err", err)
 	}
-	events.Default = events.NewDispatcher(evtConf, &events.SQLDLQ{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, sinks...)
+	events.Default = events.NewDispatcher(evtConf, &events.SQLDLQ{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix}, sinks...)
 	var mongoCli *mongo.Client
 	if driver == "mongo" && dsn != "" {
 		cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI(dsn))
@@ -161,13 +168,13 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		}
 	}
 
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix})
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix})
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
-	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
-	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
-	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Driver: driver, PasswordCost: bcrypt.DefaultCost, TablePrefix: cfg.TablePrefix, Recorder: rec})
-	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
-	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
+	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, Dialect: dialect, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
+	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
+	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Dialect: dialect, PasswordCost: bcrypt.DefaultCost, TablePrefix: cfg.TablePrefix, Recorder: rec})
+	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
+	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
 	// simple scope middleware placeholder; integrates with JWT claims if available
 	scope := func(scopes ...string) func(huma.Context, func(huma.Context)) {
@@ -177,7 +184,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 	admintargets.RegisterRoutes(api, admintargets.Deps{Meta: sqlmetastore.NewSQLMetaStore(db, driver, schema), Rec: rec, Auth: scope})
 	if db != nil {
-		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Driver: driver, TablePrefix: cfg.TablePrefix})
+		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	}
 	return api
 }

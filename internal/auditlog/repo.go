@@ -3,7 +3,9 @@ package auditlog
 import (
 	"context"
 	"database/sql"
-	"fmt"
+
+	"github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // Record represents a single audit log entry in the database.
@@ -13,8 +15,8 @@ type Record struct {
 	Action       string
 	TableName    string
 	ColumnName   string
-	BeforeJSON   sql.NullString
-	AfterJSON    sql.NullString
+	BeforeJSON   sql.NullString `db:"before_json"`
+	AfterJSON    sql.NullString `db:"after_json"`
 	AddedCount   int
 	RemovedCount int
 	ChangeCount  int
@@ -24,7 +26,7 @@ type Record struct {
 // Repo provides access to audit log records.
 type Repo struct {
 	DB          *sql.DB
-	Driver      string
+	Dialect     driver.Dialect
 	TablePrefix string
 }
 
@@ -35,26 +37,38 @@ func (r *Repo) FindByID(ctx context.Context, id int64) (Record, error) {
 	}
 	logs := r.TablePrefix + "audit_logs"
 	users := r.TablePrefix + "users"
-	var q string
-	if r.Driver == "mysql" {
-		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action,
-       COALESCE(l.table_name, '') AS table_name, COALESCE(l.column_name, '') AS column_name,
-       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
-FROM %s l
-LEFT JOIN %s u ON u.id = CAST(l.actor AS UNSIGNED)
-WHERE l.id=?`, logs, users)
+	isPg := false
+	actorSub := "(SELECT username FROM " + users + " u WHERE "
+	if _, ok := r.Dialect.(driver.PostgresDialect); ok {
+		actorSub += "u.id::text = l.actor"
+		isPg = true
 	} else {
-		q = fmt.Sprintf(`SELECT l.id, COALESCE(u.username, l.actor) AS actor, l.action,
-       COALESCE(l.table_name, '') AS table_name, COALESCE(l.column_name, '') AS column_name,
-       l.before_json, l.after_json, l.added_count, l.removed_count, l.change_count, l.applied_at
-FROM %s l
-LEFT JOIN %s u ON u.id::text = l.actor
-WHERE l.id=$1`, logs, users)
+		actorSub += "u.id = CAST(l.actor AS UNSIGNED)"
 	}
+	actorSub += ")"
+
+	coalesceBefore := "CAST(COALESCE(l.before_json, JSON_OBJECT()) AS CHAR)"
+	coalesceAfter := "CAST(COALESCE(l.after_json , JSON_OBJECT()) AS CHAR)"
+	if isPg {
+		coalesceBefore = "COALESCE(l.before_json, '{}'::jsonb)::text"
+		coalesceAfter = "COALESCE(l.after_json , '{}'::jsonb)::text"
+	}
+
+	q := query.New(r.DB, logs+" as l", r.Dialect).
+		Select("l.id").
+		SelectRaw("COALESCE("+actorSub+", l.actor) as actor").
+		Select("l.action").
+		SelectRaw("COALESCE(l.table_name, '') as table_name").
+		SelectRaw("COALESCE(l.column_name, '') as column_name").
+		SelectRaw(coalesceBefore+" as before_json").
+		SelectRaw(coalesceAfter+" as after_json").
+		Select("l.added_count", "l.removed_count", "l.change_count", "l.applied_at").
+		Where("l.id", id).
+		WithContext(ctx)
+
 	var rec Record
-	err := r.DB.QueryRowContext(ctx, q, id).Scan(
-		&rec.ID, &rec.Actor, &rec.Action, &rec.TableName, &rec.ColumnName,
-		&rec.BeforeJSON, &rec.AfterJSON, &rec.AddedCount, &rec.RemovedCount, &rec.ChangeCount, &rec.AppliedAt,
-	)
-	return rec, err
+	if err := q.First(&rec); err != nil {
+		return rec, err
+	}
+	return rec, nil
 }

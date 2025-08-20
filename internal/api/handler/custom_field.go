@@ -20,6 +20,8 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -28,6 +30,7 @@ type CustomFieldHandler struct {
 	DB          *sql.DB
 	Mongo       *mongo.Client
 	Driver      string
+	Dialect     ormdriver.Dialect
 	Recorder    *audit.Recorder
 	Schema      string
 	TablePrefix string
@@ -113,7 +116,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if exists {
 		return nil, huma.Error422("body", "field already exists for this db/table/column")
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, *in.Body.DBID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Dialect, h.TablePrefix, tid, *in.Body.DBID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -128,7 +131,16 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, in.Body.Table)
+	var dialect ormdriver.Dialect
+	switch mdb.Driver {
+	case "postgres":
+		dialect = ormdriver.PostgresDialect{}
+	case "mysql":
+		dialect = ormdriver.MySQLDialect{}
+	default:
+		return nil, huma.Error422("db_id", "unsupported driver")
+	}
+	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, in.Body.Table)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +172,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := registry.ColumnExistsSQL(ctx, target, mdb.Driver, mdb.Schema, meta.TableName, meta.ColumnName)
+		exists, err := registry.ColumnExists(ctx, target, dialect, mdb.Schema, meta.TableName, meta.ColumnName)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +194,10 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		}
 	}
 	actor := middleware.UserFromContext(ctx)
-	_ = h.Recorder.Write(ctx, actor, nil, &meta)
+	err = h.Recorder.Write(ctx, actor, nil, &meta)
+	if err != nil {
+		return nil, err
+	}
 	events.Emit(ctx, events.Event{Name: "cf.field.created", Time: time.Now(), Data: meta, ID: meta.TableName + "." + meta.ColumnName})
 	return &createOutput{Body: meta}, nil
 }
@@ -233,30 +248,25 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, co
 		}
 		return &m, nil
 	default:
-		var (
-			query string
-			args  []any
-		)
 		tbl := h.TablePrefix + "custom_fields"
-		switch h.Driver {
-		case "postgres":
-			query = fmt.Sprintf("SELECT data_type FROM %s WHERE db_id=$1 AND table_name=$2 AND column_name=$3", tbl)
-			args = []any{dbID, table, column}
-		case "mysql":
-			query = fmt.Sprintf("SELECT data_type FROM %s WHERE db_id=? AND table_name=? AND column_name=?", tbl)
-			args = []any{dbID, table, column}
-		default:
-			return nil, fmt.Errorf("unsupported driver: %s", h.Driver)
+		if err := validateIdentifier(tbl); err != nil {
+			return nil, err
 		}
-		var typ string
-		err := h.DB.QueryRowContext(ctx, query, args...).Scan(&typ)
-		if err == sql.ErrNoRows {
+		q := query.New(h.DB, tbl, h.Dialect).
+			Select("data_type").
+			Where("db_id", dbID).
+			Where("table_name", table).
+			Where("column_name", column).
+			WithContext(ctx)
+		var row struct{ DataType string }
+		err := q.First(&row)
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		if err != nil {
 			return nil, err
 		}
-		return &registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: typ}, nil
+		return &registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: row.DataType}, nil
 	}
 }
 
@@ -276,7 +286,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		}
 		dbID = *in.Body.DBID
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, dbID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Dialect, h.TablePrefix, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -291,7 +301,16 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	var dialect ormdriver.Dialect
+	switch mdb.Driver {
+	case "postgres":
+		dialect = ormdriver.PostgresDialect{}
+	case "mysql":
+		dialect = ormdriver.MySQLDialect{}
+	default:
+		return nil, huma.Error422("db_id", "unsupported driver")
+	}
+	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +339,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := registry.ColumnExistsSQL(ctx, target, mdb.Driver, mdb.Schema, table, column)
+		exists, err := registry.ColumnExists(ctx, target, dialect, mdb.Schema, table, column)
 		if err != nil {
 			return nil, err
 		}
@@ -374,7 +393,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if oldMeta != nil {
 		dbID = oldMeta.DBID
 	}
-	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Driver, h.TablePrefix, tid, dbID)
+	mdb, err := monitordbrepo.GetByID(ctx, h.DB, h.Dialect, h.TablePrefix, tid, dbID)
 	if err != nil {
 		if errors.Is(err, monitordbrepo.ErrNotFound) {
 			return nil, huma.Error422("db_id", "referenced database not found")
@@ -389,7 +408,16 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, err
 	}
 	defer target.Close()
-	ok, err := monitordbrepo.TableExists(ctx, target, mdb.Driver, mdb.Schema, table)
+	var dialect ormdriver.Dialect
+	switch mdb.Driver {
+	case "postgres":
+		dialect = ormdriver.PostgresDialect{}
+	case "mysql":
+		dialect = ormdriver.MySQLDialect{}
+	default:
+		return nil, huma.Error422("db_id", "unsupported driver")
+	}
+	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -432,50 +460,38 @@ func (h *CustomFieldHandler) validateDB(ctx context.Context, tenantID string, db
 	if err := validateIdentifier(tbl); err != nil {
 		return err
 	}
-	var (
-		query string
-		args  []any
-	)
-	switch h.Driver {
-	case "postgres":
-		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=$1 AND tenant_id=$2", tbl)
-		args = []any{dbID, tenantID}
-	default:
-		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE id=? AND tenant_id=?", tbl)
-		args = []any{dbID, tenantID}
-	}
-	var n int
-	if err := h.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+	q := query.New(h.DB, tbl, h.Dialect).
+		SelectRaw("COUNT(*) as count").
+		Where("id", dbID).
+		Where("tenant_id", tenantID).
+		WithContext(ctx)
+	var row struct{ Count int }
+	if err := q.First(&row); err != nil {
 		return err
 	}
-	if n == 0 {
+	if row.Count == 0 {
 		return fmt.Errorf("referenced database not found")
 	}
 	return nil
 }
 
 func (h *CustomFieldHandler) existsField(ctx context.Context, tenantID string, dbID int64, table, column string) (bool, error) {
-	var (
-		query string
-		args  []any
-	)
 	tbl := h.TablePrefix + "custom_fields"
 	if err := validateIdentifier(tbl); err != nil {
 		return false, err
 	}
-	switch h.Driver {
-	case "postgres":
-		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE tenant_id=$1 AND db_id=$2 AND table_name=$3 AND column_name=$4", tbl)
-		args = []any{tenantID, dbID, table, column}
-	default:
-		query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE tenant_id=? AND db_id=? AND table_name=? AND column_name=?", tbl)
-		args = []any{tenantID, dbID, table, column}
-	}
-	var n int
-	if err := h.DB.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+	q := query.New(h.DB, tbl, h.Dialect).
+		SelectRaw("COUNT(*) as count").
+		Where("tenant_id", tenantID).
+		Where("db_id", dbID).
+		Where("table_name", table).
+		Where("column_name", column).
+		WithContext(ctx)
+	var row struct{ Count int }
+	if err := q.First(&row); err != nil {
 		return false, err
 	}
-	return n > 0, nil
+	return row.Count > 0, nil
 }
 
 var identPattern = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
 	"github.com/faciam-dev/gcfm/sdk"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func newSnapshotCmd() *cobra.Command {
@@ -50,7 +51,13 @@ func newSnapshotCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			last, err := snapshot.LatestSemver(ctx, db, driverFlag, tablePrefix, tenant)
+			var dialect ormdriver.Dialect
+			if driverFlag == "postgres" {
+				dialect = ormdriver.PostgresDialect{}
+			} else {
+				dialect = ormdriver.MySQLDialect{}
+			}
+			last, err := snapshot.LatestSemver(ctx, db, dialect, tablePrefix, tenant)
 			if err != nil {
 				return err
 			}
@@ -58,7 +65,12 @@ func newSnapshotCmd() *cobra.Command {
 				bump = "patch"
 			}
 			ver := snapshot.NextSemver(last, bump)
-			rec, err := snapshot.Insert(ctx, db, driverFlag, tablePrefix, tenant, ver, message, comp)
+			rec, err := snapshot.Insert(ctx, db, dialect, tablePrefix, snapshot.SnapshotData{
+				Tenant: tenant,
+				Semver: ver,
+				Author: message,
+				YAML:   comp,
+			})
 			if err != nil {
 				return err
 			}

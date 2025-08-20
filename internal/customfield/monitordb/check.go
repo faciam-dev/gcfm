@@ -3,27 +3,35 @@ package monitordb
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/url"
 	"strings"
+
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
-func TableExists(ctx context.Context, db *sql.DB, driver, schema, table string) (bool, error) {
-	switch driver {
-	case "mysql":
-		var n int
-		err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND LOWER(table_name) = LOWER(?)`, table).Scan(&n)
-		return n > 0, err
-	case "postgres":
+func TableExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table string) (bool, error) {
+	q := query.New(db, "information_schema.tables", dialect).
+		SelectRaw("COUNT(*) as cnt").
+		WhereRaw("LOWER(table_name) = LOWER(:t)", map[string]any{"t": table})
+	switch dialect.(type) {
+	case ormdriver.PostgresDialect:
 		if schema == "" {
 			schema = "public"
 		}
-		var ok bool
-		err := db.QueryRowContext(ctx, `SELECT to_regclass($1||'.'||$2) IS NOT NULL`, schema, table).Scan(&ok)
-		return ok, err
+		q.Where("table_schema", schema)
+	case ormdriver.MySQLDialect:
+		q.WhereRaw("table_schema = DATABASE()", nil)
 	default:
-		return false, fmt.Errorf("unsupported driver: %s", driver)
+		q.Where("table_schema", schema)
 	}
+	var res struct {
+		Cnt int `db:"cnt"`
+	}
+	if err := q.WithContext(ctx).First(&res); err != nil {
+		return false, err
+	}
+	return res.Cnt > 0, nil
 }
 
 // HasDatabaseName returns true if DSN appears to include a database name.

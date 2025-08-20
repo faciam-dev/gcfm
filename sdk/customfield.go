@@ -86,7 +86,7 @@ func (s *service) listFromMeta(ctx context.Context, dbID int64, table string) ([
 
 func (s *service) addColumn(ctx context.Context, dec TargetDecision, fm registry.FieldMeta) error {
 	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		exists, err := registry.ColumnExistsSQL(ctx, t.DB, t.Driver, t.Schema, fm.TableName, fm.ColumnName)
+		exists, err := registry.ColumnExists(ctx, t.DB, t.Dialect, t.Schema, fm.TableName, fm.ColumnName)
 		if err != nil {
 			return err
 		}
@@ -99,7 +99,7 @@ func (s *service) addColumn(ctx context.Context, dec TargetDecision, fm registry
 
 func (s *service) upsertColumn(ctx context.Context, dec TargetDecision, fm registry.FieldMeta) error {
 	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		exists, err := registry.ColumnExistsSQL(ctx, t.DB, t.Driver, t.Schema, fm.TableName, fm.ColumnName)
+		exists, err := registry.ColumnExists(ctx, t.DB, t.Dialect, t.Schema, fm.TableName, fm.ColumnName)
 		if err != nil {
 			return err
 		}

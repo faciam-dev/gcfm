@@ -261,7 +261,7 @@ func toSchema(r metapkg.TargetRowWithLabels) schema.Target {
 		Key:           r.Key,
 		Driver:        r.Driver,
 		DSN:           r.DSN,
-		Schema:        r.Schema,
+		DBSchema:      r.Schema,
 		Labels:        r.Labels,
 		MaxOpenConns:  r.MaxOpenConns,
 		MaxIdleConns:  r.MaxIdleConns,
@@ -460,8 +460,8 @@ func (h handler) patch(ctx context.Context, in *targetPatchInput) (*targetOutput
 	if in.Body.DSN != nil {
 		row.DSN = *in.Body.DSN
 	}
-	if in.Body.Schema != nil {
-		row.Schema = *in.Body.Schema
+	if in.Body.DBSchema != nil {
+		row.Schema = *in.Body.DBSchema
 	}
 	if in.Body.Labels != nil {
 		if err := validateLabels(in.Body.Labels); err != nil {
@@ -657,7 +657,7 @@ func createOrUpsert(ctx context.Context, m metapkg.MetaStore, in schema.TargetIn
 	defer rollbackIfNeeded(tx)
 
 	row := metapkg.TargetRow{
-		Key: in.Key, Driver: in.Driver, DSN: in.DSN, Schema: in.Schema,
+		Key: in.Key, Driver: in.Driver, DSN: in.DSN, Schema: in.DBSchema,
 		MaxOpenConns: in.MaxOpenConns, MaxIdleConns: in.MaxIdleConns,
 		ConnMaxIdle: time.Millisecond * time.Duration(in.ConnMaxIdleMs),
 		ConnMaxLife: time.Millisecond * time.Duration(in.ConnMaxLifeMs),

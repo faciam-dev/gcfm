@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	ccrypto "github.com/faciam-dev/gcfm/internal/customfield/crypto"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 type Record struct {
@@ -19,24 +21,42 @@ type Record struct {
 
 var ErrNotFound = errors.New("monitored database not found")
 
-func GetByID(ctx context.Context, db *sql.DB, driver, prefix, tenant string, id int64) (Record, error) {
+func GetByID(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, tenant string, id int64) (Record, error) {
 	tbl := prefix + "monitored_databases"
 	if prefix == "" {
 		tbl = "gcfm_monitored_databases"
 	}
-	q := fmt.Sprintf(`SELECT id, driver, dsn, COALESCE(schema_name,''), dsn_enc FROM %s WHERE id=? AND tenant_id=?`, tbl)
-	if driver == "postgres" {
-		q = fmt.Sprintf(`SELECT id, driver, dsn, COALESCE(schema_name,''), dsn_enc FROM %s WHERE id=$1 AND tenant_id=$2`, tbl)
+
+	type dbRecord struct {
+		ID     int64
+		Driver string
+		DSN    string
+		Schema sql.NullString `db:"schema_name,omitempty"`
+		DSNEnc []byte         `db:"dsn_enc"`
 	}
-	var rec Record
-	// if monitored_databases table lacks tenant_id, remove tenant condition accordingly
-	err := db.QueryRowContext(ctx, q, id, tenant).Scan(&rec.ID, &rec.Driver, &rec.DSN, &rec.Schema, &rec.DSNEnc)
-	if err == sql.ErrNoRows {
-		return Record{}, ErrNotFound
-	}
-	if err != nil {
+
+	q := query.New(db, tbl, d).
+		Select("id", "driver", "dsn", "schema_name", "dsn_enc").
+		Where("id", id).
+		Where("tenant_id", tenant).
+		WithContext(ctx)
+
+	var tmp dbRecord
+	if err := q.First(&tmp); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Record{}, ErrNotFound
+		}
 		return Record{}, err
 	}
+
+	rec := Record{
+		ID:     tmp.ID,
+		Driver: tmp.Driver,
+		DSN:    tmp.DSN,
+		Schema: tmp.Schema.String,
+		DSNEnc: tmp.DSNEnc,
+	}
+
 	// decrypt DSN if only encrypted form is available
 	if rec.DSN == "" && len(rec.DSNEnc) > 0 {
 		pt, derr := ccrypto.Decrypt(rec.DSNEnc)

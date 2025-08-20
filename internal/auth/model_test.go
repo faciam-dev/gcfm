@@ -5,7 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"regexp"
+
 	"github.com/DATA-DOG/go-sqlmock"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func TestUserRepoList(t *testing.T) {
@@ -13,11 +16,11 @@ func TestUserRepoList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	repo := &UserRepo{DB: db, Driver: "postgres", TablePrefix: "gcfm_"}
+	repo := &UserRepo{DB: db, Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
 	rows := sqlmock.NewRows([]string{"id", "username", "password_hash"}).
 		AddRow(1, "alice", "hash").
 		AddRow(2, "bob", "hash2")
-	mock.ExpectQuery("^SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=\\$1$").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "id", "username", "password_hash" FROM "gcfm_users" WHERE "tenant_id" = $1`)).
 		WithArgs("t1").WillReturnRows(rows)
 	users, err := repo.List(context.Background(), "t1")
 	if err != nil {
@@ -43,8 +46,8 @@ func TestUserRepoListQueryError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	repo := &UserRepo{DB: db, Driver: "postgres", TablePrefix: "gcfm_"}
-	mock.ExpectQuery("^SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=\\$1$").
+	repo := &UserRepo{DB: db, Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "id", "username", "password_hash" FROM "gcfm_users" WHERE "tenant_id" = $1`)).
 		WithArgs("t1").WillReturnError(errors.New("bad"))
 	if _, err := repo.List(context.Background(), "t1"); err == nil {
 		t.Fatalf("expected error")
@@ -56,12 +59,13 @@ func TestUserRepoListScanError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	repo := &UserRepo{DB: db, Driver: "postgres", TablePrefix: "gcfm_"}
+	repo := &UserRepo{DB: db, Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
 	rows := sqlmock.NewRows([]string{"id", "username", "password_hash"}).
 		AddRow("bad", "alice", "hash")
-	mock.ExpectQuery("^SELECT id, username, password_hash FROM gcfm_users WHERE tenant_id=\\$1$").
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "id", "username", "password_hash" FROM "gcfm_users" WHERE "tenant_id" = $1`)).
 		WithArgs("t1").WillReturnRows(rows)
-	if _, err := repo.List(context.Background(), "t1"); err == nil {
+	_, err = repo.List(context.Background(), "t1")
+	if err == nil {
 		t.Fatalf("expected error")
 	}
 }
@@ -71,8 +75,8 @@ func TestUserRepoGetRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	repo := &UserRepo{DB: db, Driver: "postgres", TablePrefix: "gcfm_"}
-	mock.ExpectQuery("^SELECT r.name FROM gcfm_user_roles ur JOIN gcfm_roles r ON ur.role_id=r.id WHERE ur.user_id=\\$1$").WithArgs(1).
+	repo := &UserRepo{DB: db, Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "r"."name" FROM "gcfm_user_roles" as "ur" INNER JOIN "gcfm_roles" as "r" ON "ur"."role_id" = "r"."id" WHERE "ur"."user_id" = $1`)).WithArgs(1).
 		WillReturnRows(sqlmock.NewRows([]string{"name"}).AddRow("admin").AddRow("viewer"))
 	roles, err := repo.GetRoles(context.Background(), 1)
 	if err != nil {

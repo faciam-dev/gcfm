@@ -3,12 +3,15 @@ package roles
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"strconv"
+
+	"github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 // OfUser returns role names for the given user within a tenant.
 // The user parameter may be either a numeric ID or a username.
-func OfUser(ctx context.Context, db *sql.DB, driver, prefix, user, tenantID string) ([]string, error) {
+func OfUser(ctx context.Context, db *sql.DB, dialect driver.Dialect, prefix, user, tenantID string) ([]string, error) {
 	if db == nil {
 		return nil, nil
 	}
@@ -19,40 +22,35 @@ func OfUser(ctx context.Context, db *sql.DB, driver, prefix, user, tenantID stri
 			break
 		}
 	}
-	var q string
 	ur := prefix + "user_roles"
 	users := prefix + "users"
 	rolesTbl := prefix + "roles"
-	var args []any
-	if driver == "mysql" {
-		if isID {
-			q = fmt.Sprintf("SELECT r.name FROM %s ur JOIN %s u ON u.id = ur.user_id JOIN %s r ON r.id = ur.role_id WHERE ur.user_id = ? AND u.tenant_id = ? ORDER BY r.name", ur, users, rolesTbl)
-			args = []any{user, tenantID}
-		} else {
-			q = fmt.Sprintf("SELECT r.name FROM %s ur JOIN %s u ON u.id = ur.user_id JOIN %s r ON r.id = ur.role_id WHERE u.username = ? AND u.tenant_id = ? ORDER BY r.name", ur, users, rolesTbl)
-			args = []any{user, tenantID}
-		}
-	} else {
-		if isID {
-			q = fmt.Sprintf("SELECT r.name FROM %s ur JOIN %s u ON u.id = ur.user_id JOIN %s r ON r.id = ur.role_id WHERE ur.user_id = $1 AND u.tenant_id = $2 ORDER BY r.name", ur, users, rolesTbl)
-			args = []any{user, tenantID}
-		} else {
-			q = fmt.Sprintf("SELECT r.name FROM %s ur JOIN %s u ON u.id = ur.user_id JOIN %s r ON r.id = ur.role_id WHERE u.username = $1 AND u.tenant_id = $2 ORDER BY r.name", ur, users, rolesTbl)
-			args = []any{user, tenantID}
-		}
-	}
-	rows, err := db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var roles []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+
+	q := query.New(db, ur+" as ur", dialect).
+		Select("r.name").
+		Join(users+" as u", "ur.user_id", "=", "u.id").
+		Join(rolesTbl+" as r", "ur.role_id", "=", "r.id").
+		Where("u.tenant_id", tenantID)
+
+	if isID {
+		uid, err := strconv.ParseUint(user, 10, 64)
+		if err != nil {
 			return nil, err
 		}
-		roles = append(roles, name)
+		q = q.Where("ur.user_id", uid)
+	} else {
+		q = q.Where("u.username", user)
 	}
-	return roles, rows.Err()
+
+	q = q.OrderBy("r.name", "asc").WithContext(ctx)
+
+	var rows []struct{ Name string }
+	if err := q.Get(&rows); err != nil {
+		return nil, err
+	}
+	roles := make([]string, 0, len(rows))
+	for _, r := range rows {
+		roles = append(roles, r.Name)
+	}
+	return roles, nil
 }
