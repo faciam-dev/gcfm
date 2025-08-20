@@ -2,11 +2,13 @@ package monitordb
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 
 	"github.com/faciam-dev/gcfm/internal/customfield"
+	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
@@ -32,6 +34,9 @@ func ScanDatabase(ctx context.Context, repo *Repo, id int64, tenant string) (tab
 		return 0, 0, 0, nil, err
 	}
 	dsn := string(dsnBytes)
+	if !monitordbrepo.HasDatabaseName(d.Driver, dsn) {
+		return 0, 0, 0, nil, fmt.Errorf("monitored database DSN must include database name")
+	}
 	schema := schemaFromDSN(d.Driver, dsn)
 	svc := sdk.New(sdk.ServiceConfig{})
 	metas, err := svc.Scan(ctx, sdk.DBConfig{Driver: d.Driver, DSN: dsn, Schema: schema})

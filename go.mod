@@ -122,7 +122,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
 	github.com/casbin/casbin/v2 v2.108.0
 	github.com/danielgtaylor/huma/v2 v2.33.0
-	github.com/faciam-dev/goquent v0.3.0
+	github.com/faciam-dev/goquent v0.3.1
 	github.com/faciam-dev/goquent-query-builder v0.0.0-20250619111145-259bb0c46fca
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-chi/chi/v5 v5.2.2

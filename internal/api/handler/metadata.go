@@ -92,7 +92,8 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 
 func listPhysicalTables(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect) ([]md.TableInfo, error) {
 	q := query.New(db, "information_schema.tables", dialect).
-		Select("table_schema", "table_name").
+		SelectRaw("table_schema AS table_schema").
+		SelectRaw("table_name AS table_name").
 		Where("table_type", "BASE TABLE").
 		OrderBy("table_schema", "asc").
 		OrderBy("table_name", "asc")
