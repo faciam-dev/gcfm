@@ -75,7 +75,13 @@ func (l *snapshotLocal) Create(ctx context.Context, tenant, bump, msg string) (s
 		bump = "patch"
 	}
 	ver := snapshot.NextSemver(last, bump)
-	rec, err := snapshot.Insert(ctx, db, l.dialect, l.prefix, tenant, ver, "", comp)
+	snapshotData := snapshot.SnapshotData{
+		Tenant: tenant,
+		Semver: ver,
+		Author: "",
+		YAML:   comp,
+	}
+	rec, err := snapshot.Insert(ctx, db, l.dialect, l.prefix, snapshotData)
 	if err != nil {
 		return sdk.Snapshot{}, err
 	}

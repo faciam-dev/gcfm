@@ -65,7 +65,12 @@ func newSnapshotCmd() *cobra.Command {
 				bump = "patch"
 			}
 			ver := snapshot.NextSemver(last, bump)
-			rec, err := snapshot.Insert(ctx, db, dialect, tablePrefix, tenant, ver, message, comp)
+			rec, err := snapshot.Insert(ctx, db, dialect, tablePrefix, snapshot.SnapshotData{
+				Tenant: tenant,
+				Semver: ver,
+				Author: message,
+				YAML:   comp,
+			})
 			if err != nil {
 				return err
 			}

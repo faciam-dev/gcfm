@@ -129,7 +129,12 @@ func (h *SnapshotHandler) create(ctx context.Context, in *snapshotCreateInput) (
 	if ver == "" {
 		ver = snapshot.NextSemver(last, bump)
 	}
-	rec, err := snapshot.Insert(ctx, h.DB, h.Dialect, h.TablePrefix, tid, ver, "", comp)
+	rec, err := snapshot.Insert(ctx, h.DB, h.Dialect, h.TablePrefix, snapshot.SnapshotData{
+		Tenant: tid,
+		Semver: ver,
+		Author: "",
+		YAML:   comp,
+	})
 	if err != nil {
 		return nil, err
 	}

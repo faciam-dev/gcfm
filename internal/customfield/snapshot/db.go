@@ -46,7 +46,14 @@ func decompress(data []byte) ([]byte, error) {
 	return io.ReadAll(zr)
 }
 
-func Insert(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, tenant, semver, author string, yaml []byte) (Record, error) {
+type SnapshotData struct {
+	Tenant string
+	Semver string
+	Author string
+	YAML   []byte
+}
+
+func Insert(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, data SnapshotData) (Record, error) {
 	table := prefix + "registry_snapshots"
 	if _, ok := dialect.(ormdriver.PostgresDialect); ok {
 		stmt := fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES($1,$2,$3,$4) RETURNING id, taken_at", table)
@@ -54,16 +61,16 @@ func Insert(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, 
 			id int64
 			ts time.Time
 		)
-		if err := db.QueryRowContext(ctx, stmt, tenant, semver, yaml, author).Scan(&id, &ts); err != nil {
+		if err := db.QueryRowContext(ctx, stmt, data.Tenant, data.Semver, data.YAML, data.Author).Scan(&id, &ts); err != nil {
 			return Record{}, err
 		}
-		return Record{ID: id, Semver: semver, YAML: yaml, TakenAt: ts, Author: author}, nil
+		return Record{ID: id, Semver: data.Semver, YAML: data.YAML, TakenAt: ts, Author: data.Author}, nil
 	}
 	id, err := query.New(db, table, dialect).WithContext(ctx).InsertGetId(map[string]any{
-		"tenant_id": tenant,
-		"semver":    semver,
-		"yaml":      yaml,
-		"author":    author,
+		"tenant_id": data.Tenant,
+		"semver":    data.Semver,
+		"yaml":      data.YAML,
+		"author":    data.Author,
 	})
 	if err != nil {
 		return Record{}, err
@@ -74,7 +81,7 @@ func Insert(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, 
 	if err := query.New(db, table, dialect).Select("taken_at").Where("id", id).WithContext(ctx).First(&ts); err != nil {
 		return Record{}, err
 	}
-	return Record{ID: id, Semver: semver, YAML: yaml, TakenAt: ts.TakenAt, Author: author}, nil
+	return Record{ID: id, Semver: data.Semver, YAML: data.YAML, TakenAt: ts.TakenAt, Author: data.Author}, nil
 }
 
 func Get(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix, tenant, ver string) (Record, error) {
