@@ -19,11 +19,11 @@ func TestListParsesCreatedAt(t *testing.T) {
 	defer db.Close()
 
 	r := &Repo{DB: db, Dialect: ormdriver.MySQLDialect{}, Driver: "mysql"}
-	rows := sqlmock.NewRows([]string{"id", "tenant_id", "name", "driver", "dsn_enc", "created_at"}).
-		AddRow(1, "t1", "db1", "mysql", []byte("enc"), time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC))
+	rows := sqlmock.NewRows([]string{"id", "tenant_id", "name", "driver", "dsn", "dsn_enc", "created_at"}).
+		AddRow(1, "t1", "db1", "mysql", "plain", []byte("enc"), time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC))
 
 	sqlStr, _, _ := query.New(db, "gcfm_monitored_databases", ormdriver.MySQLDialect{}).
-		Select("id", "tenant_id", "name", "driver", "dsn_enc", "created_at").
+		Select("id", "tenant_id", "name", "driver", "dsn", "dsn_enc", "created_at").
 		Where("tenant_id", "t1").
 		OrderBy("id", "asc").
 		Build()

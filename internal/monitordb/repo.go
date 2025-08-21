@@ -72,7 +72,7 @@ func (r *Repo) List(ctx context.Context, tenant string) ([]Database, error) {
 	}
 	var res []Database
 	q := query.New(r.DB, r.table(), r.Dialect).
-		Select("id", "tenant_id", "name", "driver", "dsn_enc", "created_at").
+		Select("id", "tenant_id", "name", "driver", "dsn", "dsn_enc", "created_at").
 		Where("tenant_id", tenant).
 		OrderBy("id", "asc").
 		WithContext(ctx)
@@ -89,7 +89,7 @@ func (r *Repo) ListAll(ctx context.Context) ([]Database, error) {
 	}
 	var res []Database
 	q := query.New(r.DB, r.table(), r.Dialect).
-		Select("id", "tenant_id", "name", "driver", "dsn_enc", "created_at").
+		Select("id", "tenant_id", "name", "driver", "dsn", "dsn_enc", "created_at").
 		OrderBy("id", "asc").
 		WithContext(ctx)
 	if err := q.Get(&res); err != nil {
@@ -105,7 +105,7 @@ func (r *Repo) Get(ctx context.Context, tenant string, id int64) (Database, erro
 	}
 	var d Database
 	q := query.New(r.DB, r.table(), r.Dialect).
-		Select("id", "tenant_id", "name", "driver", "dsn_enc", "created_at").
+		Select("id", "tenant_id", "name", "driver", "dsn", "dsn_enc", "created_at").
 		Where("tenant_id", tenant).
 		Where("id", id).
 		WithContext(ctx)
