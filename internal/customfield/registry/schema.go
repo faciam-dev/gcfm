@@ -40,12 +40,24 @@ func quoteIdentifier(driver, ident string) string {
 var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
 func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table, column string) (bool, error) {
-	cnt, err := query.New(db, "information_schema.columns", dialect).
-		Where("table_schema", schema).
+	q := query.New(db, "information_schema.columns", dialect).
 		Where("table_name", table).
-		Where("column_name", column).
-		WithContext(ctx).Count("*")
+		Where("column_name", column)
 
+	if schema != "" {
+		q = q.Where("table_schema", schema)
+	} else {
+		switch dialect.(type) {
+		case ormdriver.MySQLDialect, *ormdriver.MySQLDialect:
+			q = q.WhereRaw("table_schema = DATABASE()", nil)
+		case ormdriver.PostgresDialect, *ormdriver.PostgresDialect:
+			q = q.Where("table_schema", "public")
+		default:
+			// For other dialects, omit the schema filter
+		}
+	}
+
+	cnt, err := q.WithContext(ctx).Count("*")
 	if err != nil {
 		return false, err
 	}

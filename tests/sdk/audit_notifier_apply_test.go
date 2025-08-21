@@ -2,6 +2,7 @@ package sdk_test
 
 import (
 	"context"
+	"regexp"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -9,6 +10,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
 type stubNotifier struct{ diffs []notifier.DiffReport }
@@ -25,7 +27,16 @@ func TestApplyHooks(t *testing.T) {
 	}
 	defer db.Close()
 
+	t.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
+
 	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	sqlStr, _, _ := query.New(db, "gcfm_monitored_databases", ormdriver.MySQLDialect{}).
+		Select("id").
+		Where("id", 1).
+		Where("tenant_id", "default").
+		Build()
+	mock.ExpectQuery(regexp.QuoteMeta(sqlStr)).WithArgs(1, "default").WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectExec("INSERT IGNORE INTO `gcfm_monitored_databases`").WithArgs(1, "default", "db_1", "mysql", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectBegin()
 	mock.ExpectPrepare("INSERT INTO gcfm_custom_fields").ExpectExec().WithArgs(
 		1,
@@ -62,6 +73,7 @@ func TestApplyHooksDryRun(t *testing.T) {
 	}
 	defer db.Close()
 
+	t.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
 	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	nt := &stubNotifier{}

@@ -204,16 +204,26 @@ func (h *DatabaseHandler) list(ctx context.Context, _ *struct{}) (*listDBOutput,
 				canWrite = true
 			}
 		}
-		dec, err := crypto.Decrypt(d.DSNEnc)
-		if err != nil {
-			return nil, huma.NewError(http.StatusInternalServerError, fmt.Sprintf("failed to decrypt DSN for database ID %d: %v", d.ID, err))
+		var dsn []byte
+		if len(d.DSNEnc) > 0 {
+			dec, derr := crypto.Decrypt(d.DSNEnc)
+			if derr != nil {
+				return nil, huma.NewError(http.StatusInternalServerError, fmt.Sprintf("failed to decrypt DSN for database ID %d: %v", d.ID, derr))
+			}
+			dsn = dec
+		} else {
+			dsn = []byte(d.DSN)
+		}
+		encStr := ""
+		if len(d.DSNEnc) > 0 {
+			encStr = base64.StdEncoding.EncodeToString(d.DSNEnc)
 		}
 		items[i] = schema.Database{
 			ID:        d.ID,
 			Name:      d.Name,
 			Driver:    d.Driver,
-			DSN:       string(dec),
-			DSNEnc:    base64.StdEncoding.EncodeToString(d.DSNEnc),
+			DSN:       string(dsn),
+			DSNEnc:    encStr,
 			CreatedAt: d.CreatedAt,
 		}
 		if !canWrite {
