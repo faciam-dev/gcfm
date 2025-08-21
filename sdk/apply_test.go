@@ -13,6 +13,7 @@ import (
 )
 
 func TestApplyEnsuresMonitoredDB(t *testing.T) {
+	t.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
 	db, mock, err := sqlmock.NewWithDSN("apply_dsn")
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
@@ -35,8 +36,8 @@ func TestApplyEnsuresMonitoredDB(t *testing.T) {
 		WithArgs(int64(1), "default").
 		WillReturnRows(sqlmock.NewRows([]string{}))
 
-	mock.ExpectExec(regexp.QuoteMeta("INSERT IGNORE INTO gcfm_monitored_databases (id, tenant_id, name, driver, dsn) VALUES (?,?,?,?, '')")).
-		WithArgs(int64(1), "default", "db_1", "mysql").
+	mock.ExpectExec(regexp.QuoteMeta("INSERT IGNORE INTO gcfm_monitored_databases (id, tenant_id, name, driver, dsn, dsn_enc) VALUES (?,?,?,?, '', ?)")).
+		WithArgs(int64(1), "default", "db_1", "mysql", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectBegin()

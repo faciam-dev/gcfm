@@ -93,15 +93,19 @@ func EnsureExists(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, 
 	}
 	name := fmt.Sprintf("db_%d", id)
 	driver := "mysql"
+	enc, err := ccrypto.Encrypt([]byte{})
+	if err != nil {
+		return fmt.Errorf("ensure encrypt: %w", err)
+	}
 	switch d.(type) {
 	case ormdriver.PostgresDialect, *ormdriver.PostgresDialect:
 		driver = "postgres"
-		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, tenant_id, name, driver, dsn) VALUES ($1,$2,$3,$4,'') ON CONFLICT DO NOTHING", tbl), id, tenant, name, driver)
+		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, tenant_id, name, driver, dsn, dsn_enc) VALUES ($1,$2,$3,$4,'',$5) ON CONFLICT DO NOTHING", tbl), id, tenant, name, driver, enc)
 		if err != nil {
 			return fmt.Errorf("ensure insert: %w", err)
 		}
 	default:
-		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s (id, tenant_id, name, driver, dsn) VALUES (?,?,?,?, '')", tbl), id, tenant, name, driver)
+		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s (id, tenant_id, name, driver, dsn, dsn_enc) VALUES (?,?,?,?, '', ?)", tbl), id, tenant, name, driver, enc)
 		if err != nil {
 			return fmt.Errorf("ensure insert: %w", err)
 		}
