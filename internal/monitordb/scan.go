@@ -76,6 +76,16 @@ func ScanDatabase(ctx context.Context, repo *Repo, id int64, tenant string) (tab
 	return tables, inserted, updated, skipped, err
 }
 
+// fieldKey is used as a composite key for table and column names.
+type fieldKey struct {
+	table  string
+	column string
+}
+
+func makeFieldKey(table, column string) fieldKey {
+	return fieldKey{table: table, column: column}
+}
+
 // mergeValidators copies validator values from existing metadata to metas when
 // the latter lack a validator. This prevents rescan operations from clearing
 // validators that were previously configured for a column.
@@ -83,17 +93,17 @@ func mergeValidators(metas, existing []registry.FieldMeta) {
 	if len(existing) == 0 {
 		return
 	}
-	cache := make(map[string]string, len(existing))
+	cache := make(map[fieldKey]string, len(existing))
 	for _, e := range existing {
 		if e.Validator != "" {
-			cache[e.TableName+"."+e.ColumnName] = e.Validator
+			cache[makeFieldKey(e.TableName, e.ColumnName)] = e.Validator
 		}
 	}
 	for i := range metas {
 		if metas[i].Validator != "" {
 			continue
 		}
-		if v, ok := cache[metas[i].TableName+"."+metas[i].ColumnName]; ok {
+		if v, ok := cache[makeFieldKey(metas[i].TableName, metas[i].ColumnName)]; ok {
 			metas[i].Validator = v
 		}
 	}
