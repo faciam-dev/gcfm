@@ -69,14 +69,14 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 		TableName    string         `db:"table_name"`
 		ColumnName   string         `db:"column_name"`
 		DataType     string         `db:"data_type"`
-		LabelKey     sql.NullString `db:"label_key,omitempty"`
-		Widget       sql.NullString `db:"widget,omitempty"`
-		Placeholder  sql.NullString `db:"placeholder_key,omitempty"`
+		LabelKey     sql.NullString `db:"label_key"`
+		Widget       sql.NullString `db:"widget"`
+		Placeholder  sql.NullString `db:"placeholder_key"`
 		Nullable     bool           `db:"nullable"`
 		Unique       bool           `db:"unique"`
 		HasDefault   bool           `db:"has_default"`
-		DefaultValue sql.NullString `db:"default_value,omitempty"`
-		Validator    sql.NullString `db:"validator,omitempty"`
+		DefaultValue sql.NullString `db:"default_value"`
+		Validator    sql.NullString `db:"validator"`
 	}
 
 	var rows []row
@@ -130,14 +130,14 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 		TableName    string         `db:"table_name"`
 		ColumnName   string         `db:"column_name"`
 		DataType     string         `db:"data_type"`
-		LabelKey     sql.NullString `db:"label_key,omitempty"`
-		Widget       sql.NullString `db:"widget,omitempty"`
-		Placeholder  sql.NullString `db:"placeholder_key,omitempty"`
+		LabelKey     sql.NullString `db:"label_key"`
+		Widget       sql.NullString `db:"widget"`
+		Placeholder  sql.NullString `db:"placeholder_key"`
 		Nullable     bool           `db:"nullable"`
 		Unique       bool           `db:"unique"`
 		HasDefault   bool           `db:"has_default"`
-		DefaultValue sql.NullString `db:"default_value,omitempty"`
-		Validator    sql.NullString `db:"validator,omitempty"`
+		DefaultValue sql.NullString `db:"default_value"`
+		Validator    sql.NullString `db:"validator"`
 	}
 
 	var rows []row
@@ -191,14 +191,14 @@ func LoadSQLByDB(ctx context.Context, db *sql.DB, conf DBConfig, tenant string, 
 		TableName    string         `db:"table_name"`
 		ColumnName   string         `db:"column_name"`
 		DataType     string         `db:"data_type"`
-		LabelKey     sql.NullString `db:"label_key,omitempty"`
-		Widget       sql.NullString `db:"widget,omitempty"`
-		Placeholder  sql.NullString `db:"placeholder_key,omitempty"`
+		LabelKey     sql.NullString `db:"label_key"`
+		Widget       sql.NullString `db:"widget"`
+		Placeholder  sql.NullString `db:"placeholder_key"`
 		Nullable     bool           `db:"nullable"`
 		Unique       bool           `db:"unique"`
 		HasDefault   bool           `db:"has_default"`
-		DefaultValue sql.NullString `db:"default_value,omitempty"`
-		Validator    sql.NullString `db:"validator,omitempty"`
+		DefaultValue sql.NullString `db:"default_value"`
+		Validator    sql.NullString `db:"validator"`
 	}
 
 	var rows []row

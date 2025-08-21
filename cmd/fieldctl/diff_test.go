@@ -15,9 +15,8 @@ import (
 const selectCustomFields = "SELECT `db_id`, `table_name`, `column_name`, `data_type`, `label_key`, `widget`, `placeholder_key`, `nullable`, `unique`, `has_default`, `default_value`, `validator` FROM `gcfm_custom_fields` ORDER BY table_name, column_name"
 
 func fieldRows(m sqlmock.Sqlmock) *sqlmock.Rows {
-	ns := sql.NullString{}
 	return m.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
-		AddRow(1, "posts", "title", "text", ns, ns, ns, false, false, false, ns, ns)
+		AddRow(1, "posts", "title", "text", nil, nil, nil, false, false, false, nil, nil)
 }
 
 type passthroughConverter struct{}
