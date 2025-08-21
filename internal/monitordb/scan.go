@@ -43,6 +43,15 @@ func ScanDatabase(ctx context.Context, repo *Repo, id int64, tenant string) (tab
 	if err != nil {
 		return 0, 0, 0, nil, err
 	}
+
+	// Preserve existing validators so a rescan does not clear them when
+	// the scanned metadata lacks validator information.
+	existing, err := registry.LoadSQLByDB(ctx, repo.DB, registry.DBConfig{Driver: repo.Driver, TablePrefix: repo.TablePrefix}, d.TenantID, id)
+	if err != nil {
+		return 0, 0, 0, nil, err
+	}
+	mergeValidators(metas, existing)
+
 	var (
 		filtered []registry.FieldMeta
 		tblSet   = make(map[string]struct{})
@@ -65,6 +74,29 @@ func ScanDatabase(ctx context.Context, repo *Repo, id int64, tenant string) (tab
 	tables = len(tblSet)
 	inserted, updated, err = registry.UpsertSQLByTenant(ctx, repo.DB, repo.Driver, d.TenantID, filtered)
 	return tables, inserted, updated, skipped, err
+}
+
+// mergeValidators copies validator values from existing metadata to metas when
+// the latter lack a validator. This prevents rescan operations from clearing
+// validators that were previously configured for a column.
+func mergeValidators(metas, existing []registry.FieldMeta) {
+	if len(existing) == 0 {
+		return
+	}
+	cache := make(map[string]string, len(existing))
+	for _, e := range existing {
+		if e.Validator != "" {
+			cache[e.TableName+"."+e.ColumnName] = e.Validator
+		}
+	}
+	for i := range metas {
+		if metas[i].Validator != "" {
+			continue
+		}
+		if v, ok := cache[metas[i].TableName+"."+metas[i].ColumnName]; ok {
+			metas[i].Validator = v
+		}
+	}
 }
 
 func schemaFromDSN(driver, dsn string) string {
