@@ -235,11 +235,15 @@ func splitID(id string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, column string) (*registry.FieldMeta, error) {
+func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, column string) (*registry.FieldMeta, error) {
 	switch h.Driver {
 	case "mongo":
+		filter := bson.M{"table_name": table, "column_name": column}
+		if dbID != nil {
+			filter["db_id"] = *dbID
+		}
 		var m registry.FieldMeta
-		err := h.Mongo.Database(h.Schema).Collection("custom_fields").FindOne(ctx, bson.M{"db_id": dbID, "table_name": table, "column_name": column}).Decode(&m)
+		err := h.Mongo.Database(h.Schema).Collection("custom_fields").FindOne(ctx, filter).Decode(&m)
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -253,12 +257,17 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, co
 			return nil, err
 		}
 		q := query.New(h.DB, tbl, h.Dialect).
-			Select("data_type").
-			Where("db_id", dbID).
+			Select("db_id", "data_type").
 			Where("table_name", table).
 			Where("column_name", column).
 			WithContext(ctx)
-		var row struct{ DataType string }
+		if dbID != nil {
+			q = q.Where("db_id", *dbID)
+		}
+		var row struct {
+			DBID     int64  `db:"db_id"`
+			DataType string `db:"data_type"`
+		}
 		err := q.First(&row)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -266,7 +275,7 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID int64, table, co
 		if err != nil {
 			return nil, err
 		}
-		return &registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: row.DataType}, nil
+		return &registry.FieldMeta{DBID: row.DBID, TableName: table, ColumnName: column, DataType: row.DataType}, nil
 	}
 }
 
@@ -318,7 +327,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		msg := fmt.Sprintf("table %q not found in target database", table)
 		return nil, huma.Error422("table", msg)
 	}
-	oldMeta, err := h.getField(ctx, dbID, table, column)
+	oldMeta, err := h.getField(ctx, &dbID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
@@ -386,7 +395,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	}
 	tid := tenant.FromContext(ctx)
 	dbID := pkgmonitordb.DefaultDBID
-	oldMeta, err := h.getField(ctx, dbID, table, column)
+	oldMeta, err := h.getField(ctx, nil, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve field metadata: %w", err)
 	}
