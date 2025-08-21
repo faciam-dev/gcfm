@@ -14,10 +14,12 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 	"github.com/faciam-dev/gcfm/internal/metrics"
+	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
 )
 
 func recordApplyError(table string) {
@@ -115,6 +117,19 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			return rep, err
 		}
 		defer func() { _ = db.Close() }()
+		dialect := driverDialect(drv)
+		ids := make(map[int64]struct{})
+		for _, m := range upserts {
+			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
+		}
+		for _, m := range dels {
+			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
+		}
+		for id := range ids {
+			if err := monitordbrepo.EnsureExists(ctx, db, dialect, cfg.TablePrefix, "default", id); err != nil {
+				return rep, err
+			}
+		}
 		if err := registry.DeleteSQL(ctx, db, drv, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
@@ -133,6 +148,19 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			return rep, err
 		}
 		defer func() { _ = db.Close() }()
+		dialect := driverDialect("mysql")
+		ids := make(map[int64]struct{})
+		for _, m := range upserts {
+			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
+		}
+		for _, m := range dels {
+			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
+		}
+		for id := range ids {
+			if err := monitordbrepo.EnsureExists(ctx, db, dialect, cfg.TablePrefix, "default", id); err != nil {
+				return rep, err
+			}
+		}
 		if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)

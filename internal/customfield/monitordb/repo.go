@@ -73,3 +73,38 @@ func GetByID(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, tenan
 	}
 	return rec, nil
 }
+
+// EnsureExists inserts a placeholder monitored database record if the specified ID is missing.
+func EnsureExists(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, tenant string, id int64) error {
+	tbl := prefix + "monitored_databases"
+	if prefix == "" {
+		tbl = "gcfm_monitored_databases"
+	}
+	q := query.New(db, tbl, d).
+		Select("id").
+		Where("id", id).
+		Where("tenant_id", tenant).
+		WithContext(ctx)
+	var tmp struct{ ID int64 }
+	if err := q.First(&tmp); err == nil {
+		return nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	name := fmt.Sprintf("db_%d", id)
+	driver := "mysql"
+	switch d.(type) {
+	case ormdriver.PostgresDialect, *ormdriver.PostgresDialect:
+		driver = "postgres"
+		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, tenant_id, name, driver, dsn) VALUES ($1,$2,$3,$4,'') ON CONFLICT DO NOTHING", tbl), id, tenant, name, driver)
+		if err != nil {
+			return fmt.Errorf("ensure insert: %w", err)
+		}
+	default:
+		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s (id, tenant_id, name, driver, dsn) VALUES (?,?,?,?, '')", tbl), id, tenant, name, driver)
+		if err != nil {
+			return fmt.Errorf("ensure insert: %w", err)
+		}
+	}
+	return nil
+}
