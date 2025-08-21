@@ -36,7 +36,7 @@ func TestApplyHooks(t *testing.T) {
 		Where("tenant_id", "default").
 		Build()
 	mock.ExpectQuery(regexp.QuoteMeta(sqlStr)).WithArgs(1, "default").WillReturnRows(sqlmock.NewRows([]string{"id"}))
-	mock.ExpectExec("INSERT IGNORE INTO gcfm_monitored_databases").WithArgs(1, "default", "db_1", "mysql", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT IGNORE INTO `gcfm_monitored_databases`").WithArgs(1, "default", "db_1", "mysql", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectBegin()
 	mock.ExpectPrepare("INSERT INTO gcfm_custom_fields").ExpectExec().WithArgs(
 		1,

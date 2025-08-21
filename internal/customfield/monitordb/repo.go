@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	ccrypto "github.com/faciam-dev/gcfm/internal/customfield/crypto"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
@@ -80,6 +81,7 @@ func EnsureExists(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, 
 	if prefix == "" {
 		tbl = "gcfm_monitored_databases"
 	}
+	qtbl := quoteIdentifier(d, tbl)
 	q := query.New(db, tbl, d).
 		Select("id").
 		Where("id", id).
@@ -100,15 +102,24 @@ func EnsureExists(ctx context.Context, db *sql.DB, d ormdriver.Dialect, prefix, 
 	switch d.(type) {
 	case ormdriver.PostgresDialect, *ormdriver.PostgresDialect:
 		driver = "postgres"
-		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, tenant_id, name, driver, dsn, dsn_enc) VALUES ($1,$2,$3,$4,'',$5) ON CONFLICT DO NOTHING", tbl), id, tenant, name, driver, enc)
+		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, tenant_id, name, driver, dsn, dsn_enc) VALUES ($1,$2,$3,$4,'',$5) ON CONFLICT DO NOTHING", qtbl), id, tenant, name, driver, enc)
 		if err != nil {
 			return fmt.Errorf("ensure insert: %w", err)
 		}
 	default:
-		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s (id, tenant_id, name, driver, dsn, dsn_enc) VALUES (?,?,?,?, '', ?)", tbl), id, tenant, name, driver, enc)
+		_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT IGNORE INTO %s (id, tenant_id, name, driver, dsn, dsn_enc) VALUES (?,?,?,?, '', ?)", qtbl), id, tenant, name, driver, enc)
 		if err != nil {
 			return fmt.Errorf("ensure insert: %w", err)
 		}
 	}
 	return nil
+}
+
+func quoteIdentifier(d ormdriver.Dialect, ident string) string {
+	switch d.(type) {
+	case ormdriver.PostgresDialect, *ormdriver.PostgresDialect:
+		return `"` + strings.ReplaceAll(ident, `"`, `""`) + `"`
+	default:
+		return "`" + strings.ReplaceAll(ident, "`", "``") + "`"
+	}
 }

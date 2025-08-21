@@ -20,6 +20,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func recordApplyError(table string) {
@@ -118,17 +119,8 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		}
 		defer func() { _ = db.Close() }()
 		dialect := driverDialect(drv)
-		ids := make(map[int64]struct{})
-		for _, m := range upserts {
-			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
-		}
-		for _, m := range dels {
-			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
-		}
-		for id := range ids {
-			if err := monitordbrepo.EnsureExists(ctx, db, dialect, cfg.TablePrefix, "default", id); err != nil {
-				return rep, err
-			}
+		if err := ensureMonitoredDBsExist(ctx, db, dialect, cfg.TablePrefix, upserts, dels); err != nil {
+			return rep, err
 		}
 		if err := registry.DeleteSQL(ctx, db, drv, dels); err != nil {
 			if len(dels) > 0 {
@@ -149,17 +141,8 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		}
 		defer func() { _ = db.Close() }()
 		dialect := driverDialect("mysql")
-		ids := make(map[int64]struct{})
-		for _, m := range upserts {
-			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
-		}
-		for _, m := range dels {
-			ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
-		}
-		for id := range ids {
-			if err := monitordbrepo.EnsureExists(ctx, db, dialect, cfg.TablePrefix, "default", id); err != nil {
-				return rep, err
-			}
+		if err := ensureMonitoredDBsExist(ctx, db, dialect, cfg.TablePrefix, upserts, dels); err != nil {
+			return rep, err
 		}
 		if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
 			if len(dels) > 0 {
@@ -227,4 +210,20 @@ func CalculateDiff(changes []registry.Change) DiffReport {
 		}
 	}
 	return rep
+}
+
+func ensureMonitoredDBsExist(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, upserts, dels []registry.FieldMeta) error {
+	ids := make(map[int64]struct{})
+	for _, m := range upserts {
+		ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
+	}
+	for _, m := range dels {
+		ids[pkgmonitordb.NormalizeDBID(m.DBID)] = struct{}{}
+	}
+	for id := range ids {
+		if err := monitordbrepo.EnsureExists(ctx, db, dialect, prefix, "default", id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
