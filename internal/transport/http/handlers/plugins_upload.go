@@ -53,9 +53,11 @@ type WidgetDTO struct {
 
 // uploadPluginInput defines expected multipart form fields.
 type uploadPluginInput struct {
-	File        *multipart.FileHeader `form:"file" json:"file" required:"true"`
-	TenantScope string                `form:"tenant_scope" json:"tenant_scope"`
-	Tenants     []string              `form:"tenants" json:"tenants"`
+	Body struct {
+		File        *multipart.FileHeader `form:"file" required:"true"`
+		TenantScope string                `form:"tenant_scope"`
+		Tenants     []string              `form:"tenants"`
+	}
 }
 
 type uploadPluginOutput struct {
@@ -86,22 +88,22 @@ func (h *Handlers) uploadPlugin(ctx context.Context, in *uploadPluginInput) (*up
 		maxMB = 20
 	}
 
-	if in.File == nil {
+	if in.Body.File == nil {
 		return nil, huma.NewError(http.StatusBadRequest, "file is required", nil)
 	}
-	if in.File.Size > int64(maxMB)*1024*1024 {
+	if in.Body.File.Size > int64(maxMB)*1024*1024 {
 		return nil, huma.NewError(http.StatusBadRequest, "file too large", nil)
 	}
 
-	f, err := in.File.Open()
+	f, err := in.Body.File.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	w, err := h.PluginUploader.HandleUpload(ctx, f, in.File.Filename, plugins.UploadOptions{
-		TenantScope: in.TenantScope,
-		Tenants:     in.Tenants,
+	w, err := h.PluginUploader.HandleUpload(ctx, f, in.Body.File.Filename, plugins.UploadOptions{
+		TenantScope: in.Body.TenantScope,
+		Tenants:     in.Body.Tenants,
 	})
 	if err != nil {
 		if plugins.IsClientErr(err) {
