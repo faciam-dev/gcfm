@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
-	"strconv"
 )
 
 func New(db *sql.DB, cfg DBConfig) huma.API {
@@ -202,14 +202,14 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		}
 		acceptExt = parts
 	}
-	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: &widgetsnotify.Notifier{DB: db}, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
-	ph := &pluginhandlers.Handlers{Auth: authz{}, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
-	ph.RegisterPluginRoutes(api)
-	wreg := widgetreg.NewInMemory()
 	var wrepo widgetsrepo.Repo
 	if db != nil && driver == "postgres" {
 		wrepo = widgetsrepo.NewPGRepo(db)
 	}
+	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: &widgetsnotify.Notifier{DB: db}, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
+	ph := &pluginhandlers.Handlers{Auth: authz{}, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
+	ph.RegisterPluginRoutes(api)
+	wreg := widgetreg.NewInMemory()
 	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)
@@ -258,6 +258,6 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 
 type authz struct{}
 
-func (authz) HasCapability(ctx huma.Context, cap string) bool {
+func (authz) HasCapability(ctx context.Context, cap string) bool {
 	return true
 }

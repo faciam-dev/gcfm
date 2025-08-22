@@ -1,18 +1,19 @@
 package handlers
 
 import (
+	"context"
+	"mime/multipart"
 	"net/http"
 	"strconv"
-
-	huma "github.com/danielgtaylor/huma/v2"
-
-	"github.com/faciam-dev/gcfm/internal/service/plugins"
 	"time"
+
+	huma "github.com/faciam-dev/gcfm/internal/huma"
+	"github.com/faciam-dev/gcfm/internal/service/plugins"
 )
 
 // Authz defines capability checks used by handlers.
 type Authz interface {
-	HasCapability(ctx huma.Context, cap string) bool
+	HasCapability(ctx context.Context, cap string) bool
 }
 
 // Config holds handler configuration.
@@ -50,6 +51,20 @@ type WidgetDTO struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
+// uploadPluginInput defines expected multipart form fields.
+type uploadPluginInput struct {
+	File        *multipart.FileHeader `form:"file" json:"file" required:"true"`
+	TenantScope string                `form:"tenant_scope" json:"tenant_scope"`
+	Tenants     []string              `form:"tenants" json:"tenants"`
+}
+
+type uploadPluginOutput struct {
+	Body    UploadPluginResponse
+	Headers struct {
+		XUploadedSize string `header:"X-Uploaded-Size"`
+	}
+}
+
 // RegisterPluginRoutes registers the upload endpoint.
 func (h *Handlers) RegisterPluginRoutes(api huma.API) {
 	huma.Register(api, huma.Operation{
@@ -58,44 +73,47 @@ func (h *Handlers) RegisterPluginRoutes(api huma.API) {
 		Path:        "/v1/plugins",
 		Summary:     "Upload plugin",
 		Tags:        []string{"Plugin"},
-	}, func(ctx huma.Context) (*UploadPluginResponse, error) {
-		if h.Auth != nil && !h.Auth.HasCapability(ctx, "plugins:write") {
-			return nil, huma.NewError(huma.ErrForbidden, "missing capability plugins:write")
-		}
+	}, h.uploadPlugin)
+}
 
-		req := ctx.Request()
-		maxMB := h.Cfg.PluginsMaxUploadMB
-		if maxMB <= 0 {
-			maxMB = 20
-		}
-		req.Body = http.MaxBytesReader(ctx.ResponseWriter(), req.Body, int64(maxMB)*1024*1024)
-		if err := req.ParseMultipartForm(int64(maxMB) * 1024 * 1024); err != nil {
-			return nil, huma.NewError(huma.ErrBadRequest, "invalid multipart form: "+err.Error())
-		}
+func (h *Handlers) uploadPlugin(ctx context.Context, in *uploadPluginInput) (*uploadPluginOutput, error) {
+	if h.Auth != nil && !h.Auth.HasCapability(ctx, "plugins:write") {
+		return nil, huma.NewError(http.StatusForbidden, "missing capability plugins:write", nil)
+	}
 
-		file, fh, err := req.FormFile("file")
-		if err != nil {
-			return nil, huma.NewError(huma.ErrBadRequest, "file is required")
-		}
-		defer file.Close()
+	maxMB := h.Cfg.PluginsMaxUploadMB
+	if maxMB <= 0 {
+		maxMB = 20
+	}
 
-		tenantScope := req.FormValue("tenant_scope")
-		tenants := req.MultipartForm.Value["tenants[]"]
+	if in.File == nil {
+		return nil, huma.NewError(http.StatusBadRequest, "file is required", nil)
+	}
+	if in.File.Size > int64(maxMB)*1024*1024 {
+		return nil, huma.NewError(http.StatusBadRequest, "file too large", nil)
+	}
 
-		w, err := h.PluginUploader.HandleUpload(ctx, file, fh.Filename, plugins.UploadOptions{TenantScope: tenantScope, Tenants: tenants})
-		if err != nil {
-			code := http.StatusInternalServerError
-			if plugins.IsClientErr(err) {
-				code = http.StatusBadRequest
-			}
-			return nil, huma.NewError(&huma.ErrorDetail{Status: code, Title: http.StatusText(code), Detail: err.Error()})
-		}
+	f, err := in.File.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
-		dto := toWidgetDTO(w)
-		ctx.Header().Set("Content-Type", "application/json")
-		ctx.Header().Set("X-Uploaded-Size", strconv.FormatInt(w.PackageSize, 10))
-		return &UploadPluginResponse{OK: true, Widget: dto}, nil
+	w, err := h.PluginUploader.HandleUpload(ctx, f, in.File.Filename, plugins.UploadOptions{
+		TenantScope: in.TenantScope,
+		Tenants:     in.Tenants,
 	})
+	if err != nil {
+		if plugins.IsClientErr(err) {
+			return nil, huma.NewError(http.StatusBadRequest, err.Error(), nil)
+		}
+		return nil, huma.NewError(http.StatusInternalServerError, err.Error(), nil)
+	}
+
+	dto := toWidgetDTO(w)
+	out := &uploadPluginOutput{Body: UploadPluginResponse{OK: true, Widget: dto}}
+	out.Headers.XUploadedSize = strconv.FormatInt(w.PackageSize, 10)
+	return out, nil
 }
 
 func toWidgetDTO(w *plugins.UploadedWidget) WidgetDTO {

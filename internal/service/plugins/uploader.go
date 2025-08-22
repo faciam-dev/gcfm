@@ -161,19 +161,19 @@ func (u *Uploader) HandleUpload(ctx context.Context, f multipart.File, filename 
 	}
 
 	if u.StoreDir != "" {
-		_ = u.persist(tmpPath, filename)
+		_ = u.persist(tmpPath, filename, w.ID)
 	}
 	return w, nil
 }
 
-func (u *Uploader) persist(src, orig string) error {
+func (u *Uploader) persist(src, orig, id string) error {
 	if u.StoreDir == "" {
 		return nil
 	}
 	if err := os.MkdirAll(u.StoreDir, 0o755); err != nil {
 		return err
 	}
-	dst := filepath.Join(u.StoreDir, filepath.Base(orig))
+	dst := filepath.Join(u.StoreDir, fmt.Sprintf("%s_%s", id, filepath.Base(orig)))
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -301,7 +301,8 @@ func decodeManifest(b []byte) (*Manifest, error) {
 }
 
 func zipslip(name string) bool {
-	return strings.Contains(name, "..")
+	cleaned := filepath.Clean(name)
+	return filepath.IsAbs(cleaned) || strings.HasPrefix(cleaned, "..") || strings.Contains(cleaned, "../")
 }
 
 func validateManifest(m *Manifest) error {

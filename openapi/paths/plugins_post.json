@@ -9,11 +9,23 @@
           "schema": {
             "type": "object",
             "properties": {
-              "file": {"type": "string", "format": "binary"},
-              "tenant_scope": {"type": "string"},
-              "tenants[]": {"type": "array", "items": {"type": "string"}}
+              "file": {
+                "type": "string",
+                "format": "binary"
+              },
+              "tenant_scope": {
+                "type": "string"
+              },
+              "tenants": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             },
-            "required": ["file"]
+            "required": [
+              "file"
+            ]
           }
         }
       }
@@ -23,16 +35,27 @@
         "description": "OK",
         "content": {
           "application/json": {
-            "schema": {"$ref": "../schemas/PluginUploadResponse.json"}
+            "schema": {
+              "$ref": "../schemas/PluginUploadResponse.json"
+            }
           }
         }
       },
-      "400": {"description": "Bad Request"},
-      "403": {"description": "Forbidden"},
-      "415": {"description": "Unsupported Media Type"},
-      "422": {"description": "Unprocessable Entity"},
-      "500": {"description": "Internal Server Error"}
+      "400": {
+        "description": "Bad Request"
+      },
+      "403": {
+        "description": "Forbidden"
+      },
+      "415": {
+        "description": "Unsupported Media Type"
+      },
+      "422": {
+        "description": "Unprocessable Entity"
+      },
+      "500": {
+        "description": "Internal Server Error"
+      }
     }
   }
 }
-
