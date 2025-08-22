@@ -102,7 +102,36 @@ func TestMeCapsPluginsList(t *testing.T) {
 	if !out.Body.Capabilities["plugins:list"] {
 		t.Fatalf("expected plugins:list true")
 	}
+	if out.Body.Capabilities["widgets:list"] {
+		t.Fatalf("expected widgets:list false")
+	}
+}
+
+func TestMeCapsWidgetsList(t *testing.T) {
+	m := model.NewModel()
+	m.AddDef("r", "r", "sub, obj, act")
+	m.AddDef("p", "p", "sub, obj, act")
+	m.AddDef("e", "e", "some(where (p.eft == allow))")
+	m.AddDef("m", "m", "r.sub == p.sub && keyMatch2(r.obj, p.obj) && r.act == p.act")
+
+	e, err := casbin.NewEnforcer(m)
+	if err != nil {
+		t.Fatalf("enforcer: %v", err)
+	}
+	if _, err := e.AddPolicy("tester", "/v1/metadata/widgets", "GET"); err != nil {
+		t.Fatalf("policy: %v", err)
+	}
+
+	h := &AuthHandler{Enf: e}
+	ctx := context.WithValue(context.Background(), middleware.UserKey(), "tester")
+	out, err := h.meCaps(ctx, nil)
+	if err != nil {
+		t.Fatalf("meCaps: %v", err)
+	}
 	if !out.Body.Capabilities["widgets:list"] {
 		t.Fatalf("expected widgets:list true")
+	}
+	if out.Body.Capabilities["plugins:list"] {
+		t.Fatalf("expected plugins:list false")
 	}
 }

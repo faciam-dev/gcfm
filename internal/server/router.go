@@ -25,10 +25,13 @@ import (
 	"github.com/faciam-dev/gcfm/internal/plugin"
 	"github.com/faciam-dev/gcfm/internal/plugin/fsrepo"
 	"github.com/faciam-dev/gcfm/internal/rbac"
+	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
+	widgetsrepo "github.com/faciam-dev/gcfm/internal/repository/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/internal/util"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-chi/chi/v5"
@@ -176,6 +179,44 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
+	wreg := widgetreg.NewInMemory()
+	var wrepo widgetsrepo.Repo
+	if db != nil && driver == "postgres" {
+		wrepo = widgetsrepo.NewPGRepo(db)
+	}
+	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo}
+	handler.RegisterWidget(api, wh)
+	r.Get("/v1/metadata/widgets/stream", wh.Stream)
+
+	if wrepo != nil {
+		rows, _, err := wrepo.List(context.Background(), widgetsrepo.Filter{})
+		if err != nil {
+			logger.L.Error("load widgets", "err", err)
+		} else {
+			ws := make([]widgetreg.Widget, len(rows))
+			for i, r := range rows {
+				ws[i] = widgetreg.Widget{
+					ID:           r.ID,
+					Name:         r.Name,
+					Version:      r.Version,
+					Type:         r.Type,
+					Scopes:       r.Scopes,
+					Enabled:      r.Enabled,
+					Description:  util.Deref(r.Description),
+					Capabilities: r.Capabilities,
+					Homepage:     util.Deref(r.Homepage),
+					Meta:         r.Meta,
+					Tenants:      r.Tenants,
+					UpdatedAt:    r.UpdatedAt,
+				}
+			}
+			wreg.ApplyDiff(context.Background(), ws, nil)
+		}
+		listener := widgetreg.NewPGListener(dsn, wrepo, wreg, logger.L)
+		if _, err := listener.Start(context.Background()); err != nil {
+			logger.L.Error("start widget listener", "err", err)
+		}
+	}
 	// simple scope middleware placeholder; integrates with JWT claims if available
 	scope := func(scopes ...string) func(huma.Context, func(huma.Context)) {
 		return func(ctx huma.Context, next func(huma.Context)) {
