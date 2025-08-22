@@ -58,46 +58,80 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 		p.Offset = 0
 	}
 	p.Limit = util.SanitizeLimit(p.Limit)
-	f := widgetsrepo.Filter{Tenant: tenantID, ScopeIn: p.Scope, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
-	etag, last, err := h.Repo.GetETagAndLastMod(ctx, f)
-	if err != nil {
-		return nil, err
+
+	checkNotModified := func(etag string, last time.Time) error {
+		lastStr := last.UTC().Format(http.TimeFormat)
+		if p.IfNoneMatch != "" && p.IfNoneMatch == etag {
+			hdr := http.Header{}
+			hdr.Set("ETag", etag)
+			hdr.Set("Last-Modified", lastStr)
+			return humago.ErrorWithHeaders(humago.NewError(http.StatusNotModified, ""), hdr)
+		}
+		if !p.IfModifiedSince.IsZero() && !last.After(p.IfModifiedSince) {
+			hdr := http.Header{}
+			hdr.Set("ETag", etag)
+			hdr.Set("Last-Modified", lastStr)
+			return humago.ErrorWithHeaders(humago.NewError(http.StatusNotModified, ""), hdr)
+		}
+		return nil
 	}
-	lastStr := last.UTC().Format(http.TimeFormat)
-	if p.IfNoneMatch != "" && p.IfNoneMatch == etag {
-		hdr := http.Header{}
-		hdr.Set("ETag", etag)
-		hdr.Set("Last-Modified", lastStr)
-		return nil, humago.ErrorWithHeaders(humago.NewError(http.StatusNotModified, ""), hdr)
-	}
-	if !p.IfModifiedSince.IsZero() && !last.After(p.IfModifiedSince) {
-		hdr := http.Header{}
-		hdr.Set("ETag", etag)
-		hdr.Set("Last-Modified", lastStr)
-		return nil, humago.ErrorWithHeaders(humago.NewError(http.StatusNotModified, ""), hdr)
-	}
-	rows, total, err := h.Repo.List(ctx, f)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]widgets.Widget, len(rows))
-	for i, r := range rows {
-		items[i] = widgets.Widget{
-			ID:           r.ID,
-			Name:         r.Name,
-			Version:      r.Version,
-			Type:         r.Type,
-			Scopes:       r.Scopes,
-			Enabled:      r.Enabled,
-			Description:  util.Deref(r.Description),
-			Capabilities: r.Capabilities,
-			Homepage:     util.Deref(r.Homepage),
-			UpdatedAt:    r.UpdatedAt,
-			Meta:         r.Meta,
-			Tenants:      r.Tenants,
+
+	var (
+		items []widgets.Widget
+		total int
+		etag  string
+		last  time.Time
+		err   error
+	)
+
+	if h.Repo != nil {
+		f := widgetsrepo.Filter{Tenant: tenantID, ScopeIn: p.Scope, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
+		etag, last, err = h.Repo.GetETagAndLastMod(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkNotModified(etag, last); err != nil {
+			return nil, err
+		}
+		var rows []widgetsrepo.Row
+		rows, total, err = h.Repo.List(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		items = make([]widgets.Widget, len(rows))
+		for i, r := range rows {
+			items[i] = widgets.Widget{
+				ID:           r.ID,
+				Name:         r.Name,
+				Version:      r.Version,
+				Type:         r.Type,
+				Scopes:       r.Scopes,
+				Enabled:      r.Enabled,
+				Description:  util.Deref(r.Description),
+				Capabilities: r.Capabilities,
+				Homepage:     util.Deref(r.Homepage),
+				UpdatedAt:    r.UpdatedAt,
+				Meta:         r.Meta,
+				Tenants:      r.Tenants,
+			}
+		}
+	} else {
+		items, total, etag, last, err = h.Reg.List(ctx, widgets.Options{
+			Scope:  p.Scope,
+			Tenant: tenantID,
+			Q:      p.Q,
+			Limit:  p.Limit,
+			Offset: p.Offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := checkNotModified(etag, last); err != nil {
+			return nil, err
 		}
 	}
-	out := &widgetsOut{ETag: etag, LastModified: lastStr}
+
+	out := &widgetsOut{ETag: etag, LastModified: last.UTC().Format(http.TimeFormat)}
 	out.Body.Widgets = items
 	out.Body.Total = total
 	return out, nil
