@@ -2,7 +2,8 @@ package widgets
 
 import (
 	"context"
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
 	"sort"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ type Registry interface {
 	List(ctx context.Context, opt Options) ([]Widget, int, string, time.Time, error)
 	Upsert(ctx context.Context, w Widget) error
 	Remove(ctx context.Context, id string) error
+	ApplyDiff(ctx context.Context, upserts []Widget, removes []string) (string, time.Time, error)
 	Subscribe() (<-chan Event, func())
 }
 
@@ -50,7 +52,7 @@ type inMemory struct {
 	items   map[string]Widget
 	subs    map[chan Event]struct{}
 	lastMod time.Time
-	version uint64
+	etag    string
 }
 
 func NewInMemory() Registry {
@@ -116,33 +118,44 @@ func (r *inMemory) List(ctx context.Context, opt Options) ([]Widget, int, string
 	}
 	items := append([]Widget{}, filtered[start:end]...)
 
-	etag := fmt.Sprintf("\"%d\"", r.version)
-	return items, total, etag, r.lastMod, nil
+	return items, total, r.etag, r.lastMod, nil
 }
 
 func (r *inMemory) Upsert(ctx context.Context, w Widget) error {
-	if w.UpdatedAt.IsZero() {
-		w.UpdatedAt = time.Now().UTC()
-	}
-	r.mu.Lock()
-	r.items[w.ID] = w
-	r.version++
-	r.lastMod = time.Now().UTC()
-	subs := cloneSubs(r.subs)
-	r.mu.Unlock()
-	broadcast(subs, Event{Type: "upsert", Item: &w})
-	return nil
+	_, _, err := r.ApplyDiff(ctx, []Widget{w}, nil)
+	return err
 }
 
 func (r *inMemory) Remove(ctx context.Context, id string) error {
+	_, _, err := r.ApplyDiff(ctx, nil, []string{id})
+	return err
+}
+
+func (r *inMemory) ApplyDiff(ctx context.Context, upserts []Widget, removes []string) (string, time.Time, error) {
 	r.mu.Lock()
-	delete(r.items, id)
-	r.version++
-	r.lastMod = time.Now().UTC()
+	for _, w := range upserts {
+		if w.UpdatedAt.IsZero() {
+			w.UpdatedAt = time.Now().UTC()
+		}
+		r.items[w.ID] = w
+	}
+	for _, id := range removes {
+		delete(r.items, id)
+	}
+	// recompute etag and last-modified
+	r.etag, r.lastMod = computeStateHash(r.items)
 	subs := cloneSubs(r.subs)
 	r.mu.Unlock()
-	broadcast(subs, Event{Type: "remove", ID: id})
-	return nil
+
+	for _, w := range upserts {
+		ww := w
+		broadcast(subs, Event{Type: "upsert", Item: &ww})
+	}
+	for _, id := range removes {
+		broadcast(subs, Event{Type: "remove", ID: id})
+	}
+
+	return r.etag, r.lastMod, nil
 }
 
 func (r *inMemory) Subscribe() (<-chan Event, func()) {
@@ -181,4 +194,22 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+func computeStateHash(items map[string]Widget) (string, time.Time) {
+	if len(items) == 0 {
+		sum := sha256.Sum256(nil)
+		return "\"" + hex.EncodeToString(sum[:]) + "\"", time.Time{}
+	}
+	parts := make([]string, 0, len(items))
+	var last time.Time
+	for _, w := range items {
+		if w.UpdatedAt.After(last) {
+			last = w.UpdatedAt
+		}
+		parts = append(parts, w.ID+"@"+w.Version+"#"+w.UpdatedAt.UTC().Format(time.RFC3339Nano))
+	}
+	sort.Strings(parts)
+	h := sha256.Sum256([]byte(strings.Join(parts, "")))
+	return "\"" + hex.EncodeToString(h[:]) + "\"", last
 }

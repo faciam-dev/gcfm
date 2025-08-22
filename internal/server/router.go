@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -181,6 +182,31 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	wh := &handler.WidgetHandler{Reg: wreg}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)
+
+	// load widgets from disk and optionally watch for changes
+	wdir := os.Getenv("WIDGETS_DIR")
+	if wdir == "" {
+		wdir = filepath.Join(base, "configs", "widgets")
+	}
+	if os.Getenv("WIDGETS_WATCH_RELOAD_ON_START") != "false" {
+		if widgets, err := widgetreg.LoadAll(wdir); err != nil {
+			logger.L.Error("load widgets", "err", err)
+		} else {
+			wreg.ApplyDiff(context.Background(), widgets, nil)
+		}
+	}
+	if os.Getenv("WIDGETS_WATCH_ENABLE") != "false" {
+		debounce := 150
+		if v := os.Getenv("WIDGETS_WATCH_DEBOUNCE_MS"); v != "" {
+			if ms, err := strconv.Atoi(v); err == nil {
+				debounce = ms
+			}
+		}
+		watcher := widgetreg.NewWatcher(wdir, wreg, time.Duration(debounce)*time.Millisecond, logger.L)
+		if _, err := watcher.Start(context.Background()); err != nil {
+			logger.L.Error("start widget watcher", "err", err)
+		}
+	}
 	// simple scope middleware placeholder; integrates with JWT claims if available
 	scope := func(scopes ...string) func(huma.Context, func(huma.Context)) {
 		return func(ctx huma.Context, next func(huma.Context)) {
