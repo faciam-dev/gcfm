@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {"type": "string"},
+    "name": {"type": "string"},
+    "version": {"type": "string"},
+    "type": {"type": "string"},
+    "scopes": {"type": "array", "items": {"type": "string"}},
+    "enabled": {"type": "boolean"},
+    "description": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"type": "string"}},
+    "homepage": {"type": "string"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "meta": {"type": "object"}
+  },
+  "required": ["id", "name", "version", "type", "scopes", "enabled", "updated_at"]
+}

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "widgets": {
+      "type": "array",
+      "items": {"$ref": "./Widget.json"}
+    },
+    "total": {"type": "integer"}
+  },
+  "required": ["widgets", "total"]
+}
