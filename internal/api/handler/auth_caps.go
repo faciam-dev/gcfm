@@ -55,8 +55,9 @@ var capMatrix = map[string]struct{ Path, Method string }{
 	"custom_fields:delete": {"/v1/custom-fields", "DELETE"},
 
 	// Plugins & Widgets
-	"plugins:list": {"/v1/plugins", "GET"},
-	"widgets:list": {"/v1/metadata/widgets", "GET"},
+	"plugins:list":  {"/v1/plugins", "GET"},
+	"plugins:write": {"/v1/plugins", "POST"},
+	"widgets:list":  {"/v1/metadata/widgets", "GET"},
 
 	// Snapshots
 	"snapshots:list":   {"/v1/snapshots", "GET"},

@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {"type": "boolean"},
+    "widget": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "type": {"type": "string"},
+        "scopes": {"type": "array", "items": {"type": "string"}},
+        "enabled": {"type": "boolean"},
+        "description": {"type": "string"},
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "homepage": {"type": "string"},
+        "meta": {"type": "object"},
+        "tenant_scope": {"type": "string"},
+        "tenants": {"type": "array", "items": {"type": "string"}},
+        "updated_at": {"type": "string", "format": "date-time"}
+      },
+      "required": ["id","name","version","type","scopes","enabled","tenant_scope","tenants","updated_at"]
+    }
+  },
+  "required": ["ok","widget"]
+}
+

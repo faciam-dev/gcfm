@@ -22,6 +22,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
+	widgetsnotify "github.com/faciam-dev/gcfm/internal/notify/widgets"
 	"github.com/faciam-dev/gcfm/internal/plugin"
 	"github.com/faciam-dev/gcfm/internal/plugin/fsrepo"
 	"github.com/faciam-dev/gcfm/internal/rbac"
@@ -30,7 +31,9 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
+	pluginsvc "github.com/faciam-dev/gcfm/internal/service/plugins"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	pluginhandlers "github.com/faciam-dev/gcfm/internal/transport/http/handlers"
 	"github.com/faciam-dev/gcfm/internal/util"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
@@ -40,6 +43,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
+	"strconv"
 )
 
 func New(db *sql.DB, cfg DBConfig) huma.API {
@@ -179,6 +183,28 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
+
+	// Plugin upload
+	maxMB := 20
+	if v := os.Getenv("PLUGINS_MAX_UPLOAD_MB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			maxMB = n
+		}
+	}
+	tmpDir := os.Getenv("PLUGINS_TMP_DIR")
+	storeDir := os.Getenv("PLUGINS_STORE_DIR")
+	accept := os.Getenv("PLUGINS_ACCEPT_EXT")
+	acceptExt := []string{".zip", ".tgz", ".tar.gz"}
+	if accept != "" {
+		parts := strings.Split(accept, ",")
+		for i := range parts {
+			parts[i] = strings.TrimSpace(parts[i])
+		}
+		acceptExt = parts
+	}
+	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: &widgetsnotify.Notifier{DB: db}, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
+	ph := &pluginhandlers.Handlers{Auth: authz{}, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
+	ph.RegisterPluginRoutes(api)
 	wreg := widgetreg.NewInMemory()
 	var wrepo widgetsrepo.Repo
 	if db != nil && driver == "postgres" {
@@ -228,4 +254,10 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	}
 	return api
+}
+
+type authz struct{}
+
+func (authz) HasCapability(ctx huma.Context, cap string) bool {
+	return true
 }

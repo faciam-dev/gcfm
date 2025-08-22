@@ -11,7 +11,11 @@ import (
 
 // Config holds global configuration values.
 type Config struct {
-	TablePrefix string `env:"TABLE_PREFIX,default=gcfm_"`
+	TablePrefix        string   `env:"TABLE_PREFIX,default=gcfm_"`
+	PluginsMaxUploadMB int      `env:"PLUGINS_MAX_UPLOAD_MB,default=20"`
+	PluginsTmpDir      string   `env:"PLUGINS_TMP_DIR"`
+	PluginsAcceptExt   []string `env:"PLUGINS_ACCEPT_EXT,default=.zip,.tgz,.tar.gz" envSeparator:","`
+	PluginsStoreDir    string   `env:"PLUGINS_STORE_DIR"`
 }
 
 // T prefixes the given table name with the configured prefix.
