@@ -297,14 +297,14 @@ CREATE TABLE IF NOT EXISTS gcfm_widgets (
   name          TEXT NOT NULL,
   version       VARCHAR(64) NOT NULL,
   type          VARCHAR(32) NOT NULL DEFAULT 'widget',
-  scopes        JSON NOT NULL DEFAULT '["system"]',
+  scopes        JSON NOT NULL,
   enabled       BOOLEAN NOT NULL DEFAULT TRUE,
   description   TEXT,
-  capabilities  JSON NOT NULL DEFAULT '[]',
+  capabilities  JSON NOT NULL,
   homepage      TEXT,
-  meta          JSON NOT NULL DEFAULT '{}',
+  meta          JSON NOT NULL,
   tenant_scope  VARCHAR(16) NOT NULL DEFAULT 'system',
-  tenants       JSON NOT NULL DEFAULT '[]',
+  tenants       JSON NOT NULL,
   updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
