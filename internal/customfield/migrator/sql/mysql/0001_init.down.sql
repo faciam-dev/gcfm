@@ -12,3 +12,4 @@ DROP TABLE IF EXISTS gcfm_target_labels;
 DROP TABLE IF EXISTS gcfm_targets;
 DROP TABLE IF EXISTS gcfm_target_config_version;
 DROP TABLE IF EXISTS gcfm_registry_schema_version;
+DROP TABLE IF EXISTS gcfm_widgets;
