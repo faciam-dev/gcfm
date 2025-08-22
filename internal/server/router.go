@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/plugin/fsrepo"
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
+	widgetsrepo "github.com/faciam-dev/gcfm/internal/repository/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
@@ -179,32 +179,41 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
 	wreg := widgetreg.NewInMemory()
-	wh := &handler.WidgetHandler{Reg: wreg}
+	var wrepo widgetsrepo.Repo
+	if db != nil && driver == "postgres" {
+		wrepo = widgetsrepo.NewPGRepo(db)
+	}
+	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)
 
-	// load widgets from disk and optionally watch for changes
-	wdir := os.Getenv("WIDGETS_DIR")
-	if wdir == "" {
-		wdir = filepath.Join(base, "configs", "widgets")
-	}
-	if os.Getenv("WIDGETS_WATCH_RELOAD_ON_START") != "false" {
-		if widgets, err := widgetreg.LoadAll(wdir); err != nil {
+	if wrepo != nil {
+		rows, _, err := wrepo.List(context.Background(), widgetsrepo.Filter{})
+		if err != nil {
 			logger.L.Error("load widgets", "err", err)
 		} else {
-			wreg.ApplyDiff(context.Background(), widgets, nil)
-		}
-	}
-	if os.Getenv("WIDGETS_WATCH_ENABLE") != "false" {
-		debounce := 150
-		if v := os.Getenv("WIDGETS_WATCH_DEBOUNCE_MS"); v != "" {
-			if ms, err := strconv.Atoi(v); err == nil {
-				debounce = ms
+			ws := make([]widgetreg.Widget, len(rows))
+			for i, r := range rows {
+				ws[i] = widgetreg.Widget{
+					ID:           r.ID,
+					Name:         r.Name,
+					Version:      r.Version,
+					Type:         r.Type,
+					Scopes:       r.Scopes,
+					Enabled:      r.Enabled,
+					Description:  derefPtr(r.Description),
+					Capabilities: r.Capabilities,
+					Homepage:     derefPtr(r.Homepage),
+					Meta:         r.Meta,
+					Tenants:      r.Tenants,
+					UpdatedAt:    r.UpdatedAt,
+				}
 			}
+			wreg.ApplyDiff(context.Background(), ws, nil)
 		}
-		watcher := widgetreg.NewWatcher(wdir, wreg, time.Duration(debounce)*time.Millisecond, logger.L)
-		if _, err := watcher.Start(context.Background()); err != nil {
-			logger.L.Error("start widget watcher", "err", err)
+		listener := widgetreg.NewPGListener(dsn, wrepo, wreg, logger.L)
+		if _, err := listener.Start(context.Background()); err != nil {
+			logger.L.Error("start widget listener", "err", err)
 		}
 	}
 	// simple scope middleware placeholder; integrates with JWT claims if available
@@ -218,4 +227,11 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	}
 	return api
+}
+
+func derefPtr(p *string) string {
+	if p != nil {
+		return *p
+	}
+	return ""
 }

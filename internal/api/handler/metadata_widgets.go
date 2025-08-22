@@ -10,12 +10,14 @@ import (
 	humago "github.com/danielgtaylor/huma/v2"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/registry/widgets"
+	widgetsrepo "github.com/faciam-dev/gcfm/internal/repository/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
 )
 
 type WidgetHandler struct {
-	Reg widgets.Registry
+	Reg  widgets.Registry
+	Repo widgetsrepo.Repo
 }
 
 type listWidgetParams struct {
@@ -51,8 +53,16 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 	user := middleware.UserFromContext(ctx)
 	logger.L.Info("widgets list", "tenant", tenantID, "user", user)
 
-	opt := widgets.Options{Scope: p.Scope, Tenant: tenantID, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
-	items, total, etag, last, err := h.Reg.List(ctx, opt)
+	if p.Offset < 0 {
+		p.Offset = 0
+	}
+	if p.Limit <= 0 {
+		p.Limit = 50
+	} else if p.Limit > 200 {
+		p.Limit = 200
+	}
+	f := widgetsrepo.Filter{Tenant: tenantID, ScopeIn: p.Scope, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
+	etag, last, err := h.Repo.GetETagAndLastMod(ctx, f)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +79,27 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 		hdr.Set("Last-Modified", lastStr)
 		return nil, humago.ErrorWithHeaders(humago.NewError(http.StatusNotModified, ""), hdr)
 	}
-
+	rows, total, err := h.Repo.List(ctx, f)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]widgets.Widget, len(rows))
+	for i, r := range rows {
+		items[i] = widgets.Widget{
+			ID:           r.ID,
+			Name:         r.Name,
+			Version:      r.Version,
+			Type:         r.Type,
+			Scopes:       r.Scopes,
+			Enabled:      r.Enabled,
+			Description:  deref(r.Description),
+			Capabilities: r.Capabilities,
+			Homepage:     deref(r.Homepage),
+			UpdatedAt:    r.UpdatedAt,
+			Meta:         r.Meta,
+			Tenants:      r.Tenants,
+		}
+	}
 	out := &widgetsOut{ETag: etag, LastModified: lastStr}
 	out.Body.Widgets = items
 	out.Body.Total = total
@@ -133,4 +163,11 @@ func (h *WidgetHandler) Stream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+func deref(p *string) string {
+	if p != nil {
+		return *p
+	}
+	return ""
 }
