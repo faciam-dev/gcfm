@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/faciam-dev/gcfm/internal/util"
 )
 
 type Widget struct {
@@ -102,12 +104,7 @@ func (r *inMemory) List(ctx context.Context, opt Options) ([]Widget, int, string
 	if opt.Offset < 0 {
 		opt.Offset = 0
 	}
-	if opt.Limit <= 0 {
-		opt.Limit = 50
-	}
-	if opt.Limit > 200 {
-		opt.Limit = 200
-	}
+	opt.Limit = util.SanitizeLimit(opt.Limit)
 	start := opt.Offset
 	if start > total {
 		start = total

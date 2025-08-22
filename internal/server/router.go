@@ -31,6 +31,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/internal/util"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-chi/chi/v5"
@@ -201,9 +202,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 					Type:         r.Type,
 					Scopes:       r.Scopes,
 					Enabled:      r.Enabled,
-					Description:  derefPtr(r.Description),
+					Description:  util.Deref(r.Description),
 					Capabilities: r.Capabilities,
-					Homepage:     derefPtr(r.Homepage),
+					Homepage:     util.Deref(r.Homepage),
 					Meta:         r.Meta,
 					Tenants:      r.Tenants,
 					UpdatedAt:    r.UpdatedAt,
@@ -227,11 +228,4 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	}
 	return api
-}
-
-func derefPtr(p *string) string {
-	if p != nil {
-		return *p
-	}
-	return ""
 }

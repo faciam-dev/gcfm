@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +47,7 @@ func (w *Watcher) Start(ctx context.Context) (func(), error) {
 		for {
 			select {
 			case ev := <-fw.Events:
+				// shouldIgnore is defined in loader.go
 				if shouldIgnore(ev.Name) || !strings.HasSuffix(ev.Name, ".json") {
 					continue
 				}
@@ -98,8 +98,6 @@ func (w *Watcher) applyPaths(ctx context.Context, paths []string) {
 			if id, ok := w.known[p]; ok {
 				removes = append(removes, id)
 				delete(w.known, p)
-			} else if id := idFromPath(p); id != "" {
-				removes = append(removes, id)
 			}
 			continue
 		}
@@ -116,12 +114,4 @@ func (w *Watcher) applyPaths(ctx context.Context, paths []string) {
 	if _, _, err := w.reg.ApplyDiff(ctx, upserts, removes); err != nil {
 		w.logger.Error("apply diff failed", "err", err)
 	}
-}
-
-func idFromPath(p string) string {
-	base := filepath.Base(p)
-	if strings.HasSuffix(base, ".json") {
-		return strings.TrimSuffix(base, ".json")
-	}
-	return ""
 }

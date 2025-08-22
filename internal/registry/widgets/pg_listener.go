@@ -7,6 +7,7 @@ import (
 	"time"
 
 	widgetsrepo "github.com/faciam-dev/gcfm/internal/repository/widgets"
+	"github.com/faciam-dev/gcfm/internal/util"
 	"github.com/lib/pq"
 )
 
@@ -64,9 +65,9 @@ func (l *PGListener) apply(ctx context.Context, id string) {
 		Type:         row.Type,
 		Scopes:       row.Scopes,
 		Enabled:      row.Enabled,
-		Description:  deref(row.Description),
+		Description:  util.Deref(row.Description),
 		Capabilities: row.Capabilities,
-		Homepage:     deref(row.Homepage),
+		Homepage:     util.Deref(row.Homepage),
 		Meta:         row.Meta,
 		Tenants:      row.Tenants,
 		UpdatedAt:    row.UpdatedAt,
@@ -74,11 +75,4 @@ func (l *PGListener) apply(ctx context.Context, id string) {
 	if err := l.Reg.Upsert(ctx, w); err != nil && l.Logger != nil {
 		l.Logger.Warn("registry upsert", "id", id, "err", err)
 	}
-}
-
-func deref(p *string) string {
-	if p != nil {
-		return *p
-	}
-	return ""
 }

@@ -13,6 +13,7 @@ import (
 	widgetsrepo "github.com/faciam-dev/gcfm/internal/repository/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/internal/util"
 )
 
 type WidgetHandler struct {
@@ -56,11 +57,7 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 	if p.Offset < 0 {
 		p.Offset = 0
 	}
-	if p.Limit <= 0 {
-		p.Limit = 50
-	} else if p.Limit > 200 {
-		p.Limit = 200
-	}
+	p.Limit = util.SanitizeLimit(p.Limit)
 	f := widgetsrepo.Filter{Tenant: tenantID, ScopeIn: p.Scope, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
 	etag, last, err := h.Repo.GetETagAndLastMod(ctx, f)
 	if err != nil {
@@ -92,9 +89,9 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 			Type:         r.Type,
 			Scopes:       r.Scopes,
 			Enabled:      r.Enabled,
-			Description:  deref(r.Description),
+			Description:  util.Deref(r.Description),
 			Capabilities: r.Capabilities,
-			Homepage:     deref(r.Homepage),
+			Homepage:     util.Deref(r.Homepage),
 			UpdatedAt:    r.UpdatedAt,
 			Meta:         r.Meta,
 			Tenants:      r.Tenants,
@@ -163,11 +160,4 @@ func (h *WidgetHandler) Stream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
-}
-
-func deref(p *string) string {
-	if p != nil {
-		return *p
-	}
-	return ""
 }
