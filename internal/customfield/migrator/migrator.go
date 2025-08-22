@@ -108,13 +108,57 @@ func (m *Migrator) Current(ctx context.Context, db *sql.DB) (int, error) {
 }
 
 func splitSQL(src string) []string {
-	stmts := strings.Split(src, ";")
-	var res []string
-	for _, s := range stmts {
-		s = strings.TrimSpace(s)
-		if s != "" {
-			res = append(res, s)
+	var (
+		res       []string
+		buf       strings.Builder
+		inSingle  bool
+		inDouble  bool
+		dollarTag string
+	)
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		if dollarTag != "" {
+			if strings.HasPrefix(src[i:], dollarTag) {
+				buf.WriteString(dollarTag)
+				i += len(dollarTag) - 1
+				dollarTag = ""
+				continue
+			}
+			buf.WriteByte(c)
+			continue
 		}
+		switch c {
+		case '\'':
+			inSingle = !inSingle
+		case '"':
+			inDouble = !inDouble
+		case '$':
+			if !inSingle && !inDouble {
+				j := i + 1
+				for j < len(src) && ((src[j] >= 'a' && src[j] <= 'z') || (src[j] >= 'A' && src[j] <= 'Z') || (src[j] >= '0' && src[j] <= '9') || src[j] == '_') {
+					j++
+				}
+				if j < len(src) && src[j] == '$' {
+					dollarTag = src[i : j+1]
+					buf.WriteString(dollarTag)
+					i = j
+					continue
+				}
+			}
+		case ';':
+			if !inSingle && !inDouble {
+				s := strings.TrimSpace(buf.String())
+				if s != "" {
+					res = append(res, s)
+				}
+				buf.Reset()
+				continue
+			}
+		}
+		buf.WriteByte(c)
+	}
+	if s := strings.TrimSpace(buf.String()); s != "" {
+		res = append(res, s)
 	}
 	return res
 }
