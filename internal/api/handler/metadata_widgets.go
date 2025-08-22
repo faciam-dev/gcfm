@@ -93,21 +93,43 @@ func (h *WidgetHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	ch, unsub := h.Reg.Subscribe()
 	defer unsub()
 
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-ticker.C:
+			if _, err := fmt.Fprintf(w, ": keepalive\n\n"); err != nil {
+				logger.L.Error("sse keepalive failed", "error", err)
+				return
+			}
+			flusher.Flush()
 		case ev := <-ch:
-			fmt.Fprintf(w, "event: %s\n", ev.Type)
-			var b []byte
+			if _, err := fmt.Fprintf(w, "event: %s\n", ev.Type); err != nil {
+				logger.L.Error("sse write failed", "error", err)
+				return
+			}
+			var (
+				b   []byte
+				err error
+			)
 			if ev.Item != nil {
-				b, _ = json.Marshal(ev.Item)
+				b, err = json.Marshal(ev.Item)
 			} else if ev.ID != "" {
-				b, _ = json.Marshal(map[string]string{"id": ev.ID})
+				b, err = json.Marshal(map[string]string{"id": ev.ID})
 			} else {
 				b = []byte("{}")
 			}
-			fmt.Fprintf(w, "data: %s\n\n", b)
+			if err != nil {
+				logger.L.Error("sse marshal failed", "error", err)
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+				logger.L.Error("sse write failed", "error", err)
+				return
+			}
 			flusher.Flush()
 		}
 	}

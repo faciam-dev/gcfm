@@ -146,7 +146,7 @@ func (r *inMemory) Remove(ctx context.Context, id string) error {
 }
 
 func (r *inMemory) Subscribe() (<-chan Event, func()) {
-	ch := make(chan Event, 1)
+	ch := make(chan Event, 16) // allow brief slowdowns without dropping events
 	r.mu.Lock()
 	r.subs[ch] = struct{}{}
 	r.mu.Unlock()
