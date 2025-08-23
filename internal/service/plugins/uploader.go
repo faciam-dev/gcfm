@@ -69,6 +69,7 @@ type WidgetsNotifier interface {
 // Logger represents the minimal logging interface used by the uploader.
 type Logger interface {
 	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
 }
 
 // Uploader handles plugin uploads.
@@ -148,10 +149,17 @@ func (u *Uploader) HandleUpload(ctx context.Context, f multipart.File, filename 
 		PackageSize:  size,
 	}
 
-	if u.Repo != nil {
-		if err := u.Repo.Upsert(ctx, ToRow(w)); err != nil {
-			return nil, err
+	if u.Repo == nil {
+		if u.Logger != nil {
+			u.Logger.Error("widget repo not configured")
 		}
+		return nil, errors.New("widget repo not configured")
+	}
+	if err := u.Repo.Upsert(ctx, ToRow(w)); err != nil {
+		if u.Logger != nil {
+			u.Logger.Error("widget upsert failed", "id", w.ID, "version", w.Version, "tenant_scope", w.TenantScope, "err", err)
+		}
+		return nil, err
 	}
 
 	if u.Notifier != nil {

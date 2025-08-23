@@ -204,8 +204,12 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		acceptExt = parts
 	}
 	var wrepo widgetsrepo.Repo
-	if db != nil && driver == "postgres" {
-		wrepo = widgetsrepo.NewPGRepo(db)
+	if db != nil {
+		if driver == "postgres" {
+			wrepo = widgetsrepo.NewPGRepo(db)
+		} else if driver == "mysql" {
+			wrepo = widgetsrepo.NewMySQLRepo(db)
+		}
 	}
 	redisChannel := os.Getenv("WIDGETS_REDIS_CHANNEL")
 	if redisChannel == "" {
