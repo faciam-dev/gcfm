@@ -16,7 +16,7 @@
               "tenant_scope": {
                 "type": "string"
               },
-              "tenants[]": {
+              "tenants": {
                 "type": "array",
                 "items": {
                   "type": "string"

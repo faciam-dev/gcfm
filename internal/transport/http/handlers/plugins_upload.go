@@ -52,9 +52,9 @@ type WidgetDTO struct {
 
 // PluginUploadForm describes the expected multipart form fields.
 type PluginUploadForm struct {
-	File        *huma.File `json:"file" required:"true" doc:"ZIP/TGZ package"`
-	TenantScope string     `json:"tenant_scope,omitempty" doc:"system|tenant"`
-	Tenants     []string   `json:"tenants[]" doc:"限定テナント(繰り返し可)"`
+	File        huma.FormFile `form:"file" required:"true" doc:"ZIP/TGZ package"`
+	TenantScope string        `form:"tenant_scope,omitempty" doc:"system|tenant"`
+	Tenants     []string      `form:"tenants" doc:"限定テナント(繰り返し可)"`
 }
 
 type uploadPluginOutput struct {
@@ -74,7 +74,7 @@ func (h *Handlers) RegisterPluginRoutes(api huma.API) {
 		Description: "Accepts multipart/form-data with a file field named 'file'.",
 		Tags:        []string{"Plugin"},
 	}
-	huma.Register(api, op, h.uploadPlugin)
+	huma.RegisterConsumes(api, op, []string{huma.ContentTypeMultipartForm}, h.uploadPlugin)
 }
 
 func (h *Handlers) uploadPlugin(ctx context.Context, form *PluginUploadForm) (*uploadPluginOutput, error) {
@@ -87,14 +87,17 @@ func (h *Handlers) uploadPlugin(ctx context.Context, form *PluginUploadForm) (*u
 		maxMB = 20
 	}
 
-	if form.File == nil || form.File.Size == 0 {
+	if form.File.File == nil || form.File.Size == 0 {
 		return nil, huma.NewError(http.StatusBadRequest, "file is required", nil)
 	}
 	if form.File.Size > int64(maxMB)*1024*1024 {
 		return nil, huma.NewError(http.StatusBadRequest, "file too large", nil)
 	}
 
-	f := form.File.File
+	f, err := form.File.Open()
+	if err != nil {
+		return nil, huma.NewError(http.StatusBadRequest, "cannot open file: "+err.Error(), nil)
+	}
 	defer f.Close()
 
 	w, err := h.PluginUploader.HandleUpload(ctx, f, form.File.Filename, plugins.UploadOptions{
