@@ -217,11 +217,23 @@ func (u *Uploader) saveTemp(f multipart.File) (string, int64, error) {
 
 // ExtractManifest extracts manifest.json or plugin.json from the archive at path.
 func ExtractManifest(path string) (*Manifest, error) {
-	lower := strings.ToLower(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	header := make([]byte, 4)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return nil, err
+	}
+
 	switch {
-	case strings.HasSuffix(lower, ".zip"):
+	// ZIP files start with "PK\x03\x04"
+	case header[0] == 0x50 && header[1] == 0x4b && header[2] == 0x03 && header[3] == 0x04:
 		return extractManifestFromZip(path)
-	case strings.HasSuffix(lower, ".tgz"), strings.HasSuffix(lower, ".tar.gz"):
+	// Gzip-compressed tarballs start with 0x1f,0x8b
+	case header[0] == 0x1f && header[1] == 0x8b:
 		return extractManifestFromTgz(path)
 	default:
 		return nil, fmt.Errorf("unsupported archive")
