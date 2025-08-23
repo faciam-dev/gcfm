@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"mime/multipart"
 	"net/http"
 	"strconv"
 	"time"
@@ -51,13 +50,11 @@ type WidgetDTO struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
-// uploadPluginInput defines expected multipart form fields.
-type uploadPluginInput struct {
-	Body struct {
-		File        *multipart.FileHeader `form:"file" required:"true"`
-		TenantScope string                `form:"tenant_scope"`
-		Tenants     []string              `form:"tenants"`
-	}
+// PluginUploadForm describes the expected multipart form fields.
+type PluginUploadForm struct {
+	File        *huma.File `json:"file" required:"true" doc:"ZIP/TGZ package"`
+	TenantScope string     `json:"tenant_scope,omitempty" doc:"system|tenant"`
+	Tenants     []string   `json:"tenants[]" doc:"限定テナント(繰り返し可)"`
 }
 
 type uploadPluginOutput struct {
@@ -69,16 +66,18 @@ type uploadPluginOutput struct {
 
 // RegisterPluginRoutes registers the upload endpoint.
 func (h *Handlers) RegisterPluginRoutes(api huma.API) {
-	huma.Register(api, huma.Operation{
+	op := huma.Operation{
 		OperationID: "UploadPlugin",
 		Method:      http.MethodPost,
 		Path:        "/v1/plugins",
-		Summary:     "Upload plugin",
+		Summary:     "Upload a plugin package (ZIP/TGZ)",
+		Description: "Accepts multipart/form-data with a file field named 'file'.",
 		Tags:        []string{"Plugin"},
-	}, h.uploadPlugin)
+	}
+	huma.Register(api, op, h.uploadPlugin)
 }
 
-func (h *Handlers) uploadPlugin(ctx context.Context, in *uploadPluginInput) (*uploadPluginOutput, error) {
+func (h *Handlers) uploadPlugin(ctx context.Context, form *PluginUploadForm) (*uploadPluginOutput, error) {
 	if h.Auth != nil && !h.Auth.HasCapability(ctx, "plugins:write") {
 		return nil, huma.NewError(http.StatusForbidden, "missing capability plugins:write", nil)
 	}
@@ -88,22 +87,19 @@ func (h *Handlers) uploadPlugin(ctx context.Context, in *uploadPluginInput) (*up
 		maxMB = 20
 	}
 
-	if in.Body.File == nil {
+	if form.File == nil || form.File.Size == 0 {
 		return nil, huma.NewError(http.StatusBadRequest, "file is required", nil)
 	}
-	if in.Body.File.Size > int64(maxMB)*1024*1024 {
+	if form.File.Size > int64(maxMB)*1024*1024 {
 		return nil, huma.NewError(http.StatusBadRequest, "file too large", nil)
 	}
 
-	f, err := in.Body.File.Open()
-	if err != nil {
-		return nil, err
-	}
+	f := form.File.File
 	defer f.Close()
 
-	w, err := h.PluginUploader.HandleUpload(ctx, f, in.Body.File.Filename, plugins.UploadOptions{
-		TenantScope: in.Body.TenantScope,
-		Tenants:     in.Body.Tenants,
+	w, err := h.PluginUploader.HandleUpload(ctx, f, form.File.Filename, plugins.UploadOptions{
+		TenantScope: form.TenantScope,
+		Tenants:     form.Tenants,
 	})
 	if err != nil {
 		if plugins.IsClientErr(err) {

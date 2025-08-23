@@ -12,12 +12,17 @@ type (
 	Operation   = base.Operation
 	StatusError = base.StatusError
 	ErrorDetail = base.ErrorDetail
+	File        = base.FormFile
 )
 
 var (
 	Error409Conflict   = base.Error409Conflict
 	Error400BadRequest = base.Error400BadRequest
 	NewError           = base.NewError
+)
+
+const (
+	ContentTypeMultipartForm = "multipart/form-data"
 )
 
 // Register wraps huma.Register to expose through this package.
