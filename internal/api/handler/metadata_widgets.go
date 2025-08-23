@@ -59,6 +59,15 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 	}
 	p.Limit = util.SanitizeLimit(p.Limit)
 
+	// Filter out empty scope values to avoid unintended SQL filters like
+	// "tenant_scope IN ('')" when the query parameter is omitted.
+	var scopes []string
+	for _, s := range p.Scope {
+		if s != "" {
+			scopes = append(scopes, s)
+		}
+	}
+
 	checkNotModified := func(etag string, last time.Time) error {
 		lastStr := last.UTC().Format(http.TimeFormat)
 		if p.IfNoneMatch != "" && p.IfNoneMatch == etag {
@@ -85,7 +94,7 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 	)
 
 	if h.Repo != nil {
-		f := widgetsrepo.Filter{Tenant: tenantID, ScopeIn: p.Scope, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
+		f := widgetsrepo.Filter{Tenant: tenantID, ScopeIn: scopes, Q: p.Q, Limit: p.Limit, Offset: p.Offset}
 		etag, last, err = h.Repo.GetETagAndLastMod(ctx, f)
 		if err != nil {
 			return nil, err
@@ -117,7 +126,7 @@ func (h *WidgetHandler) list(ctx context.Context, p *listWidgetParams) (*widgets
 		}
 	} else {
 		items, total, etag, last, err = h.Reg.List(ctx, widgets.Options{
-			Scope:  p.Scope,
+			Scope:  scopes,
 			Tenant: tenantID,
 			Q:      p.Q,
 			Limit:  p.Limit,
