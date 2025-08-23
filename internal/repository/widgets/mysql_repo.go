@@ -5,129 +5,120 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
+
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 )
 
-// MySQLRepo implements Repo for MySQL databases.
+// MySQLRepo implements Repo for MySQL databases using goquent ORM.
 type MySQLRepo struct{ DB *sql.DB }
 
 // NewMySQLRepo creates a new MySQLRepo.
 func NewMySQLRepo(db *sql.DB) Repo { return &MySQLRepo{DB: db} }
 
-func placeholders(n int) string {
-	if n <= 0 {
-		return ""
+func (r *MySQLRepo) table() string { return "gcfm_widgets" }
+
+// applyFilters applies the given filter to the query builder.
+func (r *MySQLRepo) applyFilters(q *query.Query, f Filter) {
+	if len(f.ScopeIn) > 0 {
+		q.WhereIn("tenant_scope", f.ScopeIn)
 	}
-	return strings.TrimRight(strings.Repeat("?,", n), ",")
+	if f.Q != "" {
+		like := "%" + f.Q + "%"
+		q.WhereGroup(func(g *query.Query) {
+			g.WhereRaw("id LIKE :s", map[string]any{"s": like}).
+				OrWhereRaw("name LIKE :s", map[string]any{"s": like}).
+				OrWhereRaw("description LIKE :s", map[string]any{"s": like})
+		})
+	}
+	if f.Tenant != "" {
+		q.WhereGroup(func(g *query.Query) {
+			g.Where("tenant_scope", "system").
+				OrWhereRaw("JSON_CONTAINS(tenants, JSON_ARRAY(:t))", map[string]any{"t": f.Tenant})
+		})
+	}
 }
 
 // List returns widgets matching the filter.
 func (r *MySQLRepo) List(ctx context.Context, f Filter) ([]Row, int, error) {
-	q := "SELECT id,name,version,type,scopes,enabled,description,capabilities,homepage,meta,tenant_scope,tenants,updated_at FROM gcfm_widgets WHERE 1=1"
-	args := []any{}
-	if len(f.ScopeIn) > 0 {
-		q += " AND tenant_scope IN (" + placeholders(len(f.ScopeIn)) + ")"
-		for _, s := range f.ScopeIn {
-			args = append(args, s)
-		}
-	}
-	if f.Q != "" {
-		q += " AND (id LIKE ? OR name LIKE ? OR description LIKE ?)"
-		like := "%" + f.Q + "%"
-		args = append(args, like, like, like)
-	}
-	if f.Tenant != "" {
-		q += " AND (tenant_scope='system' OR JSON_CONTAINS(tenants, JSON_ARRAY(?)))"
-		args = append(args, f.Tenant)
-	}
-	q += " ORDER BY updated_at DESC"
+	q := query.New(r.DB, r.table(), ormdriver.MySQLDialect{}).
+		Select("id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at")
+	r.applyFilters(q, f)
+	q.OrderBy("updated_at", "desc")
 	if f.Limit > 0 {
-		q += " LIMIT ? OFFSET ?"
-		args = append(args, f.Limit, f.Offset)
+		q.Limit(f.Limit).Offset(f.Offset)
 	}
-	rows, err := r.DB.QueryContext(ctx, q, args...)
+	type dbRow struct {
+		ID           string         `db:"id"`
+		Name         string         `db:"name"`
+		Version      string         `db:"version"`
+		Type         string         `db:"type"`
+		Scopes       []byte         `db:"scopes"`
+		Enabled      bool           `db:"enabled"`
+		Description  sql.NullString `db:"description"`
+		Capabilities []byte         `db:"capabilities"`
+		Homepage     sql.NullString `db:"homepage"`
+		Meta         []byte         `db:"meta"`
+		TenantScope  string         `db:"tenant_scope"`
+		Tenants      []byte         `db:"tenants"`
+		UpdatedAt    time.Time      `db:"updated_at"`
+	}
+	var rs []dbRow
+	if err := q.WithContext(ctx).Get(&rs); err != nil {
+		return nil, 0, err
+	}
+	items := make([]Row, 0, len(rs))
+	for _, r0 := range rs {
+		var rr Row
+		rr.ID = r0.ID
+		rr.Name = r0.Name
+		rr.Version = r0.Version
+		rr.Type = r0.Type
+		_ = json.Unmarshal(r0.Scopes, &rr.Scopes)
+		rr.Enabled = r0.Enabled
+		if r0.Description.Valid {
+			rr.Description = &r0.Description.String
+		}
+		_ = json.Unmarshal(r0.Capabilities, &rr.Capabilities)
+		if r0.Homepage.Valid {
+			rr.Homepage = &r0.Homepage.String
+		}
+		if len(r0.Meta) > 0 {
+			_ = json.Unmarshal(r0.Meta, &rr.Meta)
+		}
+		rr.TenantScope = r0.TenantScope
+		_ = json.Unmarshal(r0.Tenants, &rr.Tenants)
+		rr.UpdatedAt = r0.UpdatedAt
+		items = append(items, rr)
+	}
+
+	cq := query.New(r.DB, r.table(), ormdriver.MySQLDialect{})
+	r.applyFilters(cq, f)
+	cnt, err := cq.WithContext(ctx).Count("*")
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	var items []Row
-	for rows.Next() {
-		var rr Row
-		var scopes, caps, tenants, meta []byte
-		var desc, home sql.NullString
-		if err := rows.Scan(&rr.ID, &rr.Name, &rr.Version, &rr.Type, &scopes, &rr.Enabled, &desc, &caps, &home, &meta, &rr.TenantScope, &tenants, &rr.UpdatedAt); err != nil {
-			return nil, 0, err
-		}
-		_ = json.Unmarshal(scopes, &rr.Scopes)
-		_ = json.Unmarshal(caps, &rr.Capabilities)
-		_ = json.Unmarshal(tenants, &rr.Tenants)
-		if desc.Valid {
-			rr.Description = &desc.String
-		}
-		if home.Valid {
-			rr.Homepage = &home.String
-		}
-		if len(meta) > 0 {
-			_ = json.Unmarshal(meta, &rr.Meta)
-		}
-		items = append(items, rr)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, err
-	}
-	cq := "SELECT COUNT(*) FROM gcfm_widgets WHERE 1=1"
-	cargs := []any{}
-	if len(f.ScopeIn) > 0 {
-		cq += " AND tenant_scope IN (" + placeholders(len(f.ScopeIn)) + ")"
-		for _, s := range f.ScopeIn {
-			cargs = append(cargs, s)
-		}
-	}
-	if f.Q != "" {
-		cq += " AND (id LIKE ? OR name LIKE ? OR description LIKE ?)"
-		like := "%" + f.Q + "%"
-		cargs = append(cargs, like, like, like)
-	}
-	if f.Tenant != "" {
-		cq += " AND (tenant_scope='system' OR JSON_CONTAINS(tenants, JSON_ARRAY(?)))"
-		cargs = append(cargs, f.Tenant)
-	}
-	var total int
-	if err := r.DB.QueryRowContext(ctx, cq, cargs...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	return items, total, nil
+	return items, int(cnt), nil
 }
 
 // GetETagAndLastMod returns an ETag and last modified timestamp for the filtered set.
 func (r *MySQLRepo) GetETagAndLastMod(ctx context.Context, f Filter) (string, time.Time, error) {
-	q := "SELECT COALESCE(LOWER(HEX(SHA2(GROUP_CONCAT(id,'@',version,'#',DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%s.%fZ') ORDER BY id SEPARATOR ''),256))), ''), COALESCE(MAX(updated_at), '1970-01-01') FROM gcfm_widgets WHERE 1=1"
-	args := []any{}
-	if len(f.ScopeIn) > 0 {
-		q += " AND tenant_scope IN (" + placeholders(len(f.ScopeIn)) + ")"
-		for _, s := range f.ScopeIn {
-			args = append(args, s)
-		}
+	q := query.New(r.DB, r.table(), ormdriver.MySQLDialect{}).
+		SelectRaw("COALESCE(LOWER(HEX(SHA2(GROUP_CONCAT(id,'@',version,'#',DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%s.%fZ') ORDER BY id SEPARATOR ''),256))), '') AS etag").
+		SelectRaw("COALESCE(MAX(updated_at), '1970-01-01') AS last_mod")
+	r.applyFilters(q, f)
+	var res struct {
+		ETag sql.NullString `db:"etag"`
+		Last time.Time      `db:"last_mod"`
 	}
-	if f.Q != "" {
-		q += " AND (id LIKE ? OR name LIKE ? OR description LIKE ?)"
-		like := "%" + f.Q + "%"
-		args = append(args, like, like, like)
-	}
-	if f.Tenant != "" {
-		q += " AND (tenant_scope='system' OR JSON_CONTAINS(tenants, JSON_ARRAY(?)))"
-		args = append(args, f.Tenant)
-	}
-	var etag sql.NullString
-	var last time.Time
-	if err := r.DB.QueryRowContext(ctx, q, args...).Scan(&etag, &last); err != nil {
+	if err := q.WithContext(ctx).First(&res); err != nil {
 		return "", time.Time{}, err
 	}
-	if etag.Valid && etag.String != "" {
-		return fmt.Sprintf("\"%s\"", etag.String), last, nil
+	if res.ETag.Valid && res.ETag.String != "" {
+		return fmt.Sprintf("\"%s\"", res.ETag.String), res.Last, nil
 	}
-	return "\"\"", last, nil
+	return "\"\"", res.Last, nil
 }
 
 // Upsert inserts or updates a widget.
@@ -136,45 +127,74 @@ func (r *MySQLRepo) Upsert(ctx context.Context, rr Row) error {
 	caps, _ := json.Marshal(rr.Capabilities)
 	tenants, _ := json.Marshal(rr.Tenants)
 	meta, _ := json.Marshal(rr.Meta)
-	_, err := r.DB.ExecContext(ctx, `
-        INSERT INTO gcfm_widgets (id,name,version,type,scopes,enabled,description,capabilities,homepage,meta,tenant_scope,tenants,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(6))
-        ON DUPLICATE KEY UPDATE
-            name=VALUES(name), version=VALUES(version), type=VALUES(type),
-            scopes=VALUES(scopes), enabled=VALUES(enabled), description=VALUES(description),
-            capabilities=VALUES(capabilities), homepage=VALUES(homepage), meta=VALUES(meta),
-            tenant_scope=VALUES(tenant_scope), tenants=VALUES(tenants), updated_at=NOW(6)
-    `, rr.ID, rr.Name, rr.Version, rr.Type, scopes, rr.Enabled, rr.Description, caps, rr.Homepage, meta, rr.TenantScope, tenants)
+	data := map[string]any{
+		"id":           rr.ID,
+		"name":         rr.Name,
+		"version":      rr.Version,
+		"type":         rr.Type,
+		"scopes":       scopes,
+		"enabled":      rr.Enabled,
+		"description":  rr.Description,
+		"capabilities": caps,
+		"homepage":     rr.Homepage,
+		"meta":         meta,
+		"tenant_scope": rr.TenantScope,
+		"tenants":      tenants,
+		"updated_at":   time.Now(),
+	}
+	_, err := query.New(r.DB, r.table(), ormdriver.MySQLDialect{}).WithContext(ctx).
+		Upsert([]map[string]any{data}, []string{"id"}, []string{"name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at"})
 	return err
 }
 
 // Remove deletes a widget.
 func (r *MySQLRepo) Remove(ctx context.Context, id string) error {
-	_, err := r.DB.ExecContext(ctx, `DELETE FROM gcfm_widgets WHERE id=?`, id)
+	_, err := query.New(r.DB, r.table(), ormdriver.MySQLDialect{}).Where("id", id).WithContext(ctx).Delete()
 	return err
 }
 
 // GetByID retrieves a widget by ID.
 func (r *MySQLRepo) GetByID(ctx context.Context, id string) (Row, error) {
-	var rr Row
-	var scopes, caps, tenants, meta []byte
-	var desc, home sql.NullString
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,version,type,scopes,enabled,description,capabilities,homepage,meta,tenant_scope,tenants,updated_at FROM gcfm_widgets WHERE id=?`, id).Scan(
-		&rr.ID, &rr.Name, &rr.Version, &rr.Type, &scopes, &rr.Enabled, &desc, &caps, &home, &meta, &rr.TenantScope, &tenants, &rr.UpdatedAt)
-	if err != nil {
+	q := query.New(r.DB, r.table(), ormdriver.MySQLDialect{}).
+		Select("id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at").
+		Where("id", id)
+	var r0 struct {
+		ID           string         `db:"id"`
+		Name         string         `db:"name"`
+		Version      string         `db:"version"`
+		Type         string         `db:"type"`
+		Scopes       []byte         `db:"scopes"`
+		Enabled      bool           `db:"enabled"`
+		Description  sql.NullString `db:"description"`
+		Capabilities []byte         `db:"capabilities"`
+		Homepage     sql.NullString `db:"homepage"`
+		Meta         []byte         `db:"meta"`
+		TenantScope  string         `db:"tenant_scope"`
+		Tenants      []byte         `db:"tenants"`
+		UpdatedAt    time.Time      `db:"updated_at"`
+	}
+	if err := q.WithContext(ctx).First(&r0); err != nil {
 		return Row{}, err
 	}
-	_ = json.Unmarshal(scopes, &rr.Scopes)
-	_ = json.Unmarshal(caps, &rr.Capabilities)
-	_ = json.Unmarshal(tenants, &rr.Tenants)
-	if desc.Valid {
-		rr.Description = &desc.String
+	var rr Row
+	rr.ID = r0.ID
+	rr.Name = r0.Name
+	rr.Version = r0.Version
+	rr.Type = r0.Type
+	_ = json.Unmarshal(r0.Scopes, &rr.Scopes)
+	rr.Enabled = r0.Enabled
+	if r0.Description.Valid {
+		rr.Description = &r0.Description.String
 	}
-	if home.Valid {
-		rr.Homepage = &home.String
+	_ = json.Unmarshal(r0.Capabilities, &rr.Capabilities)
+	if r0.Homepage.Valid {
+		rr.Homepage = &r0.Homepage.String
 	}
-	if len(meta) > 0 {
-		_ = json.Unmarshal(meta, &rr.Meta)
+	if len(r0.Meta) > 0 {
+		_ = json.Unmarshal(r0.Meta, &rr.Meta)
 	}
+	rr.TenantScope = r0.TenantScope
+	_ = json.Unmarshal(r0.Tenants, &rr.Tenants)
+	rr.UpdatedAt = r0.UpdatedAt
 	return rr, nil
 }

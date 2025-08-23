@@ -7,174 +7,193 @@ import (
 	"fmt"
 	"time"
 
+	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/goquent/orm/query"
 	"github.com/lib/pq"
 )
 
-type Filter struct {
-	Tenant  string
-	ScopeIn []string
-	Q       string
-	Limit   int
-	Offset  int
-}
+// PGRepo implements Repo for PostgreSQL databases using goquent ORM.
+type PGRepo struct{ DB *sql.DB }
 
-type Row struct {
-	ID           string
-	Name         string
-	Version      string
-	Type         string
-	Scopes       []string
-	Enabled      bool
-	Description  *string
-	Capabilities []string
-	Homepage     *string
-	Meta         map[string]any
-	TenantScope  string
-	Tenants      []string
-	UpdatedAt    time.Time
-}
+// NewPGRepo creates a new PGRepo.
+func NewPGRepo(db *sql.DB) Repo { return &PGRepo{DB: db} }
 
-type Repo interface {
-	List(ctx context.Context, f Filter) ([]Row, int, error)
-	GetETagAndLastMod(ctx context.Context, f Filter) (string, time.Time, error)
-	Upsert(ctx context.Context, r Row) error
-	Remove(ctx context.Context, id string) error
-	GetByID(ctx context.Context, id string) (Row, error)
-}
+func (r *PGRepo) table() string { return "gcfm_widgets" }
 
-type PGRepo struct {
-	DB *sql.DB
-}
-
-func NewPGRepo(db *sql.DB) Repo {
-	return &PGRepo{DB: db}
-}
-
-const baseFilter = `
-WITH base AS (
-  SELECT * FROM gcfm_widgets
-  WHERE (cardinality($1::text[]) = 0 OR tenant_scope = ANY($1))
-    AND ($2 = '' OR id ILIKE '%'||$2||'%' OR name ILIKE '%'||$2||'%' OR description ILIKE '%'||$2||'%')
-),
-filtered AS (
-  SELECT * FROM base
-  WHERE CASE
-    WHEN $3 = '' THEN TRUE
-    WHEN EXISTS (SELECT 1 FROM unnest(tenants) t WHERE t = $3) THEN TRUE
-    WHEN tenant_scope = 'system' THEN TRUE
-    ELSE FALSE
-  END
-)
-`
-
-func (r *PGRepo) List(ctx context.Context, f Filter) ([]Row, int, error) {
-	args := []any{pq.Array(f.ScopeIn), f.Q, f.Tenant}
-	query := baseFilter + `
-SELECT id, name, version, type, scopes, enabled, description, capabilities, homepage, meta, tenant_scope, tenants, updated_at
-FROM filtered
-ORDER BY updated_at DESC`
-	if f.Limit > 0 {
-		query += " LIMIT $4 OFFSET $5"
-		args = append(args, f.Limit, f.Offset)
+func (r *PGRepo) applyFilters(q *query.Query, f Filter) {
+	if len(f.ScopeIn) > 0 {
+		q.WhereIn("tenant_scope", pq.Array(f.ScopeIn))
 	}
-	rows, err := r.DB.QueryContext(ctx, query, args...)
-	if err != nil {
+	if f.Q != "" {
+		like := "%" + f.Q + "%"
+		q.WhereGroup(func(g *query.Query) {
+			g.WhereRaw("id ILIKE :s", map[string]any{"s": like}).
+				OrWhereRaw("name ILIKE :s", map[string]any{"s": like}).
+				OrWhereRaw("description ILIKE :s", map[string]any{"s": like})
+		})
+	}
+	if f.Tenant != "" {
+		q.WhereGroup(func(g *query.Query) {
+			g.Where("tenant_scope", "system").
+				OrWhereRaw(":t = ANY(tenants)", map[string]any{"t": f.Tenant})
+		})
+	}
+}
+
+// List returns widgets matching the filter.
+func (r *PGRepo) List(ctx context.Context, f Filter) ([]Row, int, error) {
+	q := query.New(r.DB, r.table(), ormdriver.PostgresDialect{}).
+		Select("id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at")
+	r.applyFilters(q, f)
+	q.OrderBy("updated_at", "desc")
+	if f.Limit > 0 {
+		q.Limit(f.Limit).Offset(f.Offset)
+	}
+	type dbRow struct {
+		ID           string         `db:"id"`
+		Name         string         `db:"name"`
+		Version      string         `db:"version"`
+		Type         string         `db:"type"`
+		Scopes       pq.StringArray `db:"scopes"`
+		Enabled      bool           `db:"enabled"`
+		Description  sql.NullString `db:"description"`
+		Capabilities pq.StringArray `db:"capabilities"`
+		Homepage     sql.NullString `db:"homepage"`
+		Meta         []byte         `db:"meta"`
+		TenantScope  string         `db:"tenant_scope"`
+		Tenants      pq.StringArray `db:"tenants"`
+		UpdatedAt    time.Time      `db:"updated_at"`
+	}
+	var rs []dbRow
+	if err := q.WithContext(ctx).Get(&rs); err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	var items []Row
-	for rows.Next() {
-		var (
-			scopes, caps, tenants pq.StringArray
-			desc, home            sql.NullString
-			metaBytes             []byte
-			rr                    Row
-		)
-		if err := rows.Scan(&rr.ID, &rr.Name, &rr.Version, &rr.Type, &scopes, &rr.Enabled, &desc, &caps, &home, &metaBytes, &rr.TenantScope, &tenants, &rr.UpdatedAt); err != nil {
-			return nil, 0, err
+	items := make([]Row, 0, len(rs))
+	for _, r0 := range rs {
+		rr := Row{
+			ID:           r0.ID,
+			Name:         r0.Name,
+			Version:      r0.Version,
+			Type:         r0.Type,
+			Scopes:       []string(r0.Scopes),
+			Enabled:      r0.Enabled,
+			Capabilities: []string(r0.Capabilities),
+			TenantScope:  r0.TenantScope,
+			Tenants:      []string(r0.Tenants),
+			UpdatedAt:    r0.UpdatedAt,
 		}
-		rr.Scopes = []string(scopes)
-		rr.Capabilities = []string(caps)
-		rr.Tenants = []string(tenants)
-		if desc.Valid {
-			rr.Description = &desc.String
+		if r0.Description.Valid {
+			rr.Description = &r0.Description.String
 		}
-		if home.Valid {
-			rr.Homepage = &home.String
+		if r0.Homepage.Valid {
+			rr.Homepage = &r0.Homepage.String
 		}
-		if len(metaBytes) > 0 {
-			_ = json.Unmarshal(metaBytes, &rr.Meta)
+		if len(r0.Meta) > 0 {
+			_ = json.Unmarshal(r0.Meta, &rr.Meta)
 		}
 		items = append(items, rr)
 	}
-	if err := rows.Err(); err != nil {
+
+	cq := query.New(r.DB, r.table(), ormdriver.PostgresDialect{})
+	r.applyFilters(cq, f)
+	cnt, err := cq.WithContext(ctx).Count("*")
+	if err != nil {
 		return nil, 0, err
 	}
-	// total
-	var total int
-	if err := r.DB.QueryRowContext(ctx, baseFilter+" SELECT count(*) FROM filtered", pq.Array(f.ScopeIn), f.Q, f.Tenant).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	return items, total, nil
+	return items, int(cnt), nil
 }
 
+// GetETagAndLastMod returns an ETag and last modified timestamp for the filtered set.
 func (r *PGRepo) GetETagAndLastMod(ctx context.Context, f Filter) (string, time.Time, error) {
-	var etag sql.NullString
-	var last time.Time
-	err := r.DB.QueryRowContext(ctx, baseFilter+`
-SELECT coalesce(encode(digest(string_agg(id||'@'||version||'#'||to_char(updated_at,'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') ORDER BY id), 'sha256'),'hex'),'') AS etag,
-       coalesce(MAX(updated_at), 'epoch') AS last_mod
-FROM filtered`, pq.Array(f.ScopeIn), f.Q, f.Tenant).Scan(&etag, &last)
-	if err != nil {
+	q := query.New(r.DB, r.table(), ormdriver.PostgresDialect{}).
+		SelectRaw("coalesce(encode(digest(string_agg(id||'@'||version||'#'||to_char(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') ORDER BY id), 'sha256'),'hex'),'') AS etag").
+		SelectRaw("coalesce(MAX(updated_at), 'epoch') AS last_mod")
+	r.applyFilters(q, f)
+	var res struct {
+		ETag sql.NullString `db:"etag"`
+		Last time.Time      `db:"last_mod"`
+	}
+	if err := q.WithContext(ctx).First(&res); err != nil {
 		return "", time.Time{}, err
 	}
-	if etag.Valid {
-		return fmt.Sprintf("\"%s\"", etag.String), last, nil
+	if res.ETag.Valid {
+		return fmt.Sprintf("\"%s\"", res.ETag.String), res.Last, nil
 	}
-	return "\"\"", last, nil
+	return "\"\"", res.Last, nil
 }
 
+// Upsert inserts or updates a widget.
 func (r *PGRepo) Upsert(ctx context.Context, rr Row) error {
 	metaBytes, _ := json.Marshal(rr.Meta)
-	_, err := r.DB.ExecContext(ctx, `
-INSERT INTO gcfm_widgets (id, name, version, type, scopes, enabled, description, capabilities, homepage, meta, tenant_scope, tenants, updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
-ON CONFLICT (id) DO UPDATE SET
-  name=$2, version=$3, type=$4, scopes=$5, enabled=$6, description=$7,
-  capabilities=$8, homepage=$9, meta=$10, tenant_scope=$11, tenants=$12,
-  updated_at=now()`,
-		rr.ID, rr.Name, rr.Version, rr.Type, pq.Array(rr.Scopes), rr.Enabled, rr.Description, pq.Array(rr.Capabilities), rr.Homepage, metaBytes, rr.TenantScope, pq.Array(rr.Tenants))
+	data := map[string]any{
+		"id":           rr.ID,
+		"name":         rr.Name,
+		"version":      rr.Version,
+		"type":         rr.Type,
+		"scopes":       pq.Array(rr.Scopes),
+		"enabled":      rr.Enabled,
+		"description":  rr.Description,
+		"capabilities": pq.Array(rr.Capabilities),
+		"homepage":     rr.Homepage,
+		"meta":         metaBytes,
+		"tenant_scope": rr.TenantScope,
+		"tenants":      pq.Array(rr.Tenants),
+		"updated_at":   time.Now(),
+	}
+	_, err := query.New(r.DB, r.table(), ormdriver.PostgresDialect{}).WithContext(ctx).
+		Upsert([]map[string]any{data}, []string{"id"}, []string{"name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at"})
 	return err
 }
 
+// Remove deletes a widget.
 func (r *PGRepo) Remove(ctx context.Context, id string) error {
-	_, err := r.DB.ExecContext(ctx, `DELETE FROM gcfm_widgets WHERE id=$1`, id)
+	_, err := query.New(r.DB, r.table(), ormdriver.PostgresDialect{}).Where("id", id).WithContext(ctx).Delete()
 	return err
 }
 
+// GetByID retrieves a widget by ID.
 func (r *PGRepo) GetByID(ctx context.Context, id string) (Row, error) {
-	var (
-		scopes, caps, tenants pq.StringArray
-		desc, home            sql.NullString
-		metaBytes             []byte
-		rr                    Row
-	)
-	err := r.DB.QueryRowContext(ctx, `SELECT id, name, version, type, scopes, enabled, description, capabilities, homepage, meta, tenant_scope, tenants, updated_at FROM gcfm_widgets WHERE id=$1`, id).Scan(
-		&rr.ID, &rr.Name, &rr.Version, &rr.Type, &scopes, &rr.Enabled, &desc, &caps, &home, &metaBytes, &rr.TenantScope, &tenants, &rr.UpdatedAt)
-	if err != nil {
+	q := query.New(r.DB, r.table(), ormdriver.PostgresDialect{}).
+		Select("id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at").
+		Where("id", id)
+	var r0 struct {
+		ID           string         `db:"id"`
+		Name         string         `db:"name"`
+		Version      string         `db:"version"`
+		Type         string         `db:"type"`
+		Scopes       pq.StringArray `db:"scopes"`
+		Enabled      bool           `db:"enabled"`
+		Description  sql.NullString `db:"description"`
+		Capabilities pq.StringArray `db:"capabilities"`
+		Homepage     sql.NullString `db:"homepage"`
+		Meta         []byte         `db:"meta"`
+		TenantScope  string         `db:"tenant_scope"`
+		Tenants      pq.StringArray `db:"tenants"`
+		UpdatedAt    time.Time      `db:"updated_at"`
+	}
+	if err := q.WithContext(ctx).First(&r0); err != nil {
 		return Row{}, err
 	}
-	rr.Scopes = []string(scopes)
-	rr.Capabilities = []string(caps)
-	rr.Tenants = []string(tenants)
-	if desc.Valid {
-		rr.Description = &desc.String
+	rr := Row{
+		ID:           r0.ID,
+		Name:         r0.Name,
+		Version:      r0.Version,
+		Type:         r0.Type,
+		Scopes:       []string(r0.Scopes),
+		Enabled:      r0.Enabled,
+		Capabilities: []string(r0.Capabilities),
+		TenantScope:  r0.TenantScope,
+		Tenants:      []string(r0.Tenants),
+		UpdatedAt:    r0.UpdatedAt,
 	}
-	if home.Valid {
-		rr.Homepage = &home.String
+	if r0.Description.Valid {
+		rr.Description = &r0.Description.String
 	}
-	if len(metaBytes) > 0 {
-		_ = json.Unmarshal(metaBytes, &rr.Meta)
+	if r0.Homepage.Valid {
+		rr.Homepage = &r0.Homepage.String
+	}
+	if len(r0.Meta) > 0 {
+		_ = json.Unmarshal(r0.Meta, &rr.Meta)
 	}
 	return rr, nil
 }

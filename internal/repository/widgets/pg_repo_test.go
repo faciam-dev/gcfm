@@ -21,8 +21,8 @@ func TestPGRepoList(t *testing.T) {
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{"id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at"}).
 		AddRow("a", "A", "1", "widget", pq.StringArray{"system"}, true, sql.NullString{}, pq.StringArray{}, sql.NullString{}, []byte(`{}`), "system", pq.StringArray{}, now)
-	mock.ExpectQuery("WITH base").WithArgs(sqlmock.AnyArg(), "", "", 10, 0).WillReturnRows(rows)
-	mock.ExpectQuery("WITH base").WithArgs(sqlmock.AnyArg(), "", "").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`SELECT "id", "name"`).WillReturnRows(rows)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM "gcfm_widgets"`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	items, total, err := repo.List(context.Background(), Filter{Limit: 10})
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -40,7 +40,7 @@ func TestPGRepoGetETagAndLastMod(t *testing.T) {
 	defer db.Close()
 	repo := NewPGRepo(db)
 	now := time.Now()
-	mock.ExpectQuery("WITH base").WithArgs(sqlmock.AnyArg(), "", "").WillReturnRows(sqlmock.NewRows([]string{"etag", "last_mod"}).AddRow("abc", now))
+	mock.ExpectQuery(`SELECT coalesce`).WillReturnRows(sqlmock.NewRows([]string{"etag", "last_mod"}).AddRow("abc", now))
 	etag, last, err := repo.GetETagAndLastMod(context.Background(), Filter{})
 	if err != nil {
 		t.Fatalf("etag: %v", err)
@@ -58,11 +58,11 @@ func TestPGRepoUpsertAndRemove(t *testing.T) {
 	defer db.Close()
 	repo := NewPGRepo(db)
 	r := Row{ID: "a", Name: "A", Version: "1", Type: "widget", Scopes: []string{"system"}, Enabled: true, Meta: map[string]any{"k": "v"}, TenantScope: "system"}
-	mock.ExpectExec("INSERT INTO gcfm_widgets").WithArgs("a", "A", "1", "widget", sqlmock.AnyArg(), true, nil, sqlmock.AnyArg(), nil, sqlmock.AnyArg(), "system", sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(`INSERT INTO "gcfm_widgets"`).WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
 	if err := repo.Upsert(context.Background(), r); err != nil {
 		t.Fatalf("Upsert: %v", err)
 	}
-	mock.ExpectExec("DELETE FROM gcfm_widgets").WithArgs("a").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`DELETE FROM "gcfm_widgets"`).WithArgs("a").WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := repo.Remove(context.Background(), "a"); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestPGRepoGetByID(t *testing.T) {
 	now := time.Now()
 	row := sqlmock.NewRows([]string{"id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at"}).
 		AddRow("a", "A", "1", "widget", pq.StringArray{"system"}, true, sql.NullString{String: "desc", Valid: true}, pq.StringArray{}, sql.NullString{}, []byte(`{"k":"v"}`), "system", pq.StringArray{}, now)
-	mock.ExpectQuery("SELECT id, name, version").WithArgs("a").WillReturnRows(row)
+	mock.ExpectQuery(`SELECT "id", "name"`).WithArgs("a").WillReturnRows(row)
 	got, err := repo.GetByID(context.Background(), "a")
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
