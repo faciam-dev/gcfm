@@ -11,11 +11,16 @@ import (
 
 // Config holds global configuration values.
 type Config struct {
-	TablePrefix        string   `env:"TABLE_PREFIX,default=gcfm_"`
-	PluginsMaxUploadMB int      `env:"PLUGINS_MAX_UPLOAD_MB,default=20"`
-	PluginsTmpDir      string   `env:"PLUGINS_TMP_DIR"`
-	PluginsAcceptExt   []string `env:"PLUGINS_ACCEPT_EXT,default=.zip,.tgz,.tar.gz" envSeparator:","`
-	PluginsStoreDir    string   `env:"PLUGINS_STORE_DIR"`
+	TablePrefix                string   `env:"TABLE_PREFIX,default=gcfm_"`
+	PluginsMaxUploadMB         int      `env:"PLUGINS_MAX_UPLOAD_MB,default=20"`
+	PluginsTmpDir              string   `env:"PLUGINS_TMP_DIR"`
+	PluginsAcceptExt           []string `env:"PLUGINS_ACCEPT_EXT,default=.zip,.tgz,.tar.gz" envSeparator:","`
+	PluginsStoreDir            string   `env:"PLUGINS_STORE_DIR"`
+	WidgetsNotifyBackend       string   `env:"WIDGETS_NOTIFY_BACKEND,default=redis"`
+	RedisURL                   string   `env:"REDIS_URL"`
+	WidgetsRedisChannel        string   `env:"WIDGETS_REDIS_CHANNEL,default=widgets_changed"`
+	WidgetsRedisReconnectMS    int      `env:"WIDGETS_REDIS_RECONNECT_MS,default=1000"`
+	WidgetsRedisReconnectMaxMS int      `env:"WIDGETS_REDIS_RECONNECT_MAX_MS,default=10000"`
 }
 
 // T prefixes the given table name with the configured prefix.

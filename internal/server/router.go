@@ -41,6 +41,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
@@ -206,7 +207,35 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	if db != nil && driver == "postgres" {
 		wrepo = widgetsrepo.NewPGRepo(db)
 	}
-	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: &widgetsnotify.Notifier{DB: db}, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
+	redisChannel := os.Getenv("WIDGETS_REDIS_CHANNEL")
+	if redisChannel == "" {
+		redisChannel = "widgets_changed"
+	}
+	backoffMS := 1000
+	if v := os.Getenv("WIDGETS_REDIS_RECONNECT_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			backoffMS = n
+		}
+	}
+	backoffMaxMS := 10000
+	if v := os.Getenv("WIDGETS_REDIS_RECONNECT_MAX_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			backoffMaxMS = n
+		}
+	}
+	var (
+		rdb      *redis.Client
+		notifier pluginsvc.WidgetsNotifier
+	)
+	if os.Getenv("WIDGETS_NOTIFY_BACKEND") == "redis" {
+		if opt, err := redis.ParseURL(os.Getenv("REDIS_URL")); err == nil {
+			rdb = redis.NewClient(opt)
+			notifier = widgetsnotify.NewRedisNotifier(rdb, redisChannel)
+		} else {
+			logger.L.Error("parse redis url", "err", err)
+		}
+	}
+	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: notifier, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
 	ph := &pluginhandlers.Handlers{Auth: authz{}, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
 	ph.RegisterPluginRoutes(api)
 	wreg := widgetreg.NewInMemory()
@@ -238,9 +267,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 			}
 			wreg.ApplyDiff(context.Background(), ws, nil)
 		}
-		listener := widgetreg.NewPGListener(dsn, wrepo, wreg, logger.L)
-		if _, err := listener.Start(context.Background()); err != nil {
-			logger.L.Error("start widget listener", "err", err)
+		if rdb != nil {
+			sub := &widgetreg.RedisSubscriber{RDB: rdb, Channel: redisChannel, Repo: wrepo, Reg: wreg, Logger: logger.L, BackoffMS: backoffMS, BackoffMaxMS: backoffMaxMS}
+			_ = sub.Start(context.Background())
 		}
 	}
 	// simple scope middleware placeholder; integrates with JWT claims if available
