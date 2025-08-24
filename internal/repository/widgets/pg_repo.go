@@ -35,7 +35,8 @@ func (r *PGRepo) applyFilters(q *query.Query, f Filter) {
 	if f.Tenant != "" {
 		q.WhereGroup(func(g *query.Query) {
 			g.Where("tenant_scope", "system").
-				OrWhereRaw(":t = ANY(tenants)", map[string]any{"t": f.Tenant})
+				OrWhereRaw(":t = ANY(tenants)", map[string]any{"t": f.Tenant}).
+				OrWhereRaw("(tenant_scope = 'tenant' AND array_length(tenants, 1) = 0)", nil)
 		})
 	}
 }

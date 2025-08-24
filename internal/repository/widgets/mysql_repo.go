@@ -35,7 +35,8 @@ func (r *MySQLRepo) applyFilters(q *query.Query, f Filter) {
 	if f.Tenant != "" {
 		q.WhereGroup(func(g *query.Query) {
 			g.Where("tenant_scope", "system").
-				OrWhereRaw("JSON_CONTAINS(tenants, JSON_ARRAY(:t))", map[string]any{"t": f.Tenant})
+				OrWhereRaw("JSON_CONTAINS(tenants, JSON_ARRAY(:t))", map[string]any{"t": f.Tenant}).
+				OrWhereRaw("(tenant_scope = 'tenant' AND JSON_LENGTH(tenants) = 0)", nil)
 		})
 	}
 }
@@ -105,8 +106,8 @@ func (r *MySQLRepo) List(ctx context.Context, f Filter) ([]Row, int, error) {
 // GetETagAndLastMod returns an ETag and last modified timestamp for the filtered set.
 func (r *MySQLRepo) GetETagAndLastMod(ctx context.Context, f Filter) (string, time.Time, error) {
 	q := query.New(r.DB, r.table(), ormdriver.MySQLDialect{}).
-                SelectRaw("COALESCE(LOWER(HEX(SHA2(GROUP_CONCAT(id,'@',version,'#',DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%s.%fZ') ORDER BY id SEPARATOR ''),256))), '') AS etag").
-                SelectRaw("COALESCE(MAX(updated_at), DATE('1970-01-01')) AS last_mod")
+		SelectRaw("COALESCE(LOWER(HEX(SHA2(GROUP_CONCAT(id,'@',version,'#',DATE_FORMAT(updated_at,'%Y-%m-%dT%H:%i:%s.%fZ') ORDER BY id SEPARATOR ''),256))), '') AS etag").
+		SelectRaw("COALESCE(MAX(updated_at), DATE('1970-01-01')) AS last_mod")
 	r.applyFilters(q, f)
 	var res struct {
 		ETag sql.NullString `db:"etag"`

@@ -340,6 +340,10 @@ func validateManifest(m *Manifest) error {
 
 // ToRow converts UploadedWidget to repository Row.
 func ToRow(w *UploadedWidget) widgetsrepo.Row {
+	tenants := w.Tenants
+	if w.TenantScope == "tenant" && tenants == nil {
+		tenants = []string{}
+	}
 	return widgetsrepo.Row{
 		ID:           w.ID,
 		Name:         w.Name,
@@ -352,6 +356,6 @@ func ToRow(w *UploadedWidget) widgetsrepo.Row {
 		Homepage:     w.Homepage,
 		Meta:         w.Meta,
 		TenantScope:  w.TenantScope,
-		Tenants:      w.Tenants,
+		Tenants:      tenants,
 	}
 }
