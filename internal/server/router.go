@@ -63,7 +63,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   origins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
@@ -87,21 +87,14 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	m.AddDef("p", "p", "sub, obj, act")
 	m.AddDef("g", "g", "_, _")
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
-	m.AddDef("m", "m", "g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && r.act == p.act")
+	m.AddDef("m", "m", "g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && (r.act == p.act || p.act == \"*\")")
 	e, err := casbin.NewEnforcer(m)
 	if err != nil {
 		logger.L.Error("casbin enforcer", "err", err)
 	} else {
-		e.AddPolicy("admin", "/v1/*", "GET")
-		e.AddPolicy("admin", "/v1/*", "POST")
-		e.AddPolicy("admin", "/v1/*", "PUT")
-		e.AddPolicy("admin", "/v1/*", "DELETE")
-		e.AddPolicy("admin", "/v1/audit-logs/*/diff", "GET")
+		e.AddPolicy("admin", "/v1/*", "*")
 		// Allow admin role to manage target configuration
-		e.AddPolicy("admin", "/admin/*", "GET")
-		e.AddPolicy("admin", "/admin/*", "POST")
-		e.AddPolicy("admin", "/admin/*", "PUT")
-		e.AddPolicy("admin", "/admin/*", "DELETE")
+		e.AddPolicy("admin", "/admin/*", "*")
 		if db != nil {
 			if err := rbac.Load(context.Background(), db, dialect, cfg.TablePrefix, e); err != nil {
 				logger.L.Error("load rbac", "err", err)
