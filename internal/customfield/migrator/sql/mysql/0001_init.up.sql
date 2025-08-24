@@ -310,3 +310,5 @@ CREATE TABLE IF NOT EXISTS gcfm_widgets (
 
 CREATE INDEX gcfm_widgets_updated_at_idx ON gcfm_widgets (updated_at);
 CREATE INDEX gcfm_widgets_tenant_scope_idx ON gcfm_widgets (tenant_scope);
+ALTER TABLE gcfm_widgets
+  MODIFY tenants JSON NOT NULL;

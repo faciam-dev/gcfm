@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
+	widgetsnotify "github.com/faciam-dev/gcfm/internal/notify/widgets"
 	"github.com/faciam-dev/gcfm/internal/plugin"
 	"github.com/faciam-dev/gcfm/internal/plugin/fsrepo"
 	"github.com/faciam-dev/gcfm/internal/rbac"
@@ -30,13 +32,16 @@ import (
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/server/roles"
+	pluginsvc "github.com/faciam-dev/gcfm/internal/service/plugins"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	pluginhandlers "github.com/faciam-dev/gcfm/internal/transport/http/handlers"
 	"github.com/faciam-dev/gcfm/internal/util"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
@@ -58,7 +63,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   origins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
@@ -82,21 +87,14 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	m.AddDef("p", "p", "sub, obj, act")
 	m.AddDef("g", "g", "_, _")
 	m.AddDef("e", "e", "some(where (p.eft == allow))")
-	m.AddDef("m", "m", "g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && r.act == p.act")
+	m.AddDef("m", "m", "g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && (r.act == p.act || p.act == \"*\")")
 	e, err := casbin.NewEnforcer(m)
 	if err != nil {
 		logger.L.Error("casbin enforcer", "err", err)
 	} else {
-		e.AddPolicy("admin", "/v1/*", "GET")
-		e.AddPolicy("admin", "/v1/*", "POST")
-		e.AddPolicy("admin", "/v1/*", "PUT")
-		e.AddPolicy("admin", "/v1/*", "DELETE")
-		e.AddPolicy("admin", "/v1/audit-logs/*/diff", "GET")
+		e.AddPolicy("admin", "/v1/*", "*")
 		// Allow admin role to manage target configuration
-		e.AddPolicy("admin", "/admin/*", "GET")
-		e.AddPolicy("admin", "/admin/*", "POST")
-		e.AddPolicy("admin", "/admin/*", "PUT")
-		e.AddPolicy("admin", "/admin/*", "DELETE")
+		e.AddPolicy("admin", "/admin/*", "*")
 		if db != nil {
 			if err := rbac.Load(context.Background(), db, dialect, cfg.TablePrefix, e); err != nil {
 				logger.L.Error("load rbac", "err", err)
@@ -179,12 +177,67 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
-	wreg := widgetreg.NewInMemory()
-	var wrepo widgetsrepo.Repo
-	if db != nil && driver == "postgres" {
-		wrepo = widgetsrepo.NewPGRepo(db)
+
+	// Plugin upload
+	maxMB := 20
+	if v := os.Getenv("PLUGINS_MAX_UPLOAD_MB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			maxMB = n
+		}
 	}
-	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo}
+	tmpDir := os.Getenv("PLUGINS_TMP_DIR")
+	storeDir := os.Getenv("PLUGINS_STORE_DIR")
+	accept := os.Getenv("PLUGINS_ACCEPT_EXT")
+	acceptExt := []string{".zip", ".tgz", ".tar.gz"}
+	if accept != "" {
+		parts := strings.Split(accept, ",")
+		for i := range parts {
+			parts[i] = strings.TrimSpace(parts[i])
+		}
+		acceptExt = parts
+	}
+	var wrepo widgetsrepo.Repo
+	if db != nil {
+		if driver == "postgres" {
+			wrepo = widgetsrepo.NewPGRepo(db)
+		} else if driver == "mysql" {
+			wrepo = widgetsrepo.NewMySQLRepo(db)
+		}
+	}
+	redisChannel := os.Getenv("WIDGETS_REDIS_CHANNEL")
+	if redisChannel == "" {
+		redisChannel = "widgets_changed"
+	}
+	backoffMS := 1000
+	if v := os.Getenv("WIDGETS_REDIS_RECONNECT_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			backoffMS = n
+		}
+	}
+	backoffMaxMS := 10000
+	if v := os.Getenv("WIDGETS_REDIS_RECONNECT_MAX_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			backoffMaxMS = n
+		}
+	}
+	var (
+		rdb      *redis.Client
+		notifier pluginsvc.WidgetsNotifier
+	)
+	if os.Getenv("WIDGETS_NOTIFY_BACKEND") == "redis" {
+		if opt, err := redis.ParseURL(os.Getenv("REDIS_URL")); err == nil {
+			rdb = redis.NewClient(opt)
+			notifier = widgetsnotify.NewRedisNotifier(rdb, redisChannel)
+		} else {
+			logger.L.Error("parse redis url", "err", err)
+		}
+	}
+	az := authz{Enf: e, Resolve: resolver}
+	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: notifier, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
+	ph := &pluginhandlers.Handlers{Auth: az, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
+	ph.RegisterPluginRoutes(api)
+	wreg := widgetreg.NewInMemory()
+	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo, Notifier: notifier, Auth: az}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)
 
@@ -212,9 +265,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 			}
 			wreg.ApplyDiff(context.Background(), ws, nil)
 		}
-		listener := widgetreg.NewPGListener(dsn, wrepo, wreg, logger.L)
-		if _, err := listener.Start(context.Background()); err != nil {
-			logger.L.Error("start widget listener", "err", err)
+		if rdb != nil {
+			sub := &widgetreg.RedisSubscriber{RDB: rdb, Channel: redisChannel, Repo: wrepo, Reg: wreg, Logger: logger.L, BackoffMS: backoffMS, BackoffMaxMS: backoffMaxMS}
+			_ = sub.Start(context.Background())
 		}
 	}
 	// simple scope middleware placeholder; integrates with JWT claims if available
@@ -228,4 +281,32 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		metrics.StartFieldGauge(context.Background(), &registry.Repo{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	}
 	return api
+}
+
+type authz struct {
+	Enf     *casbin.Enforcer
+	Resolve func(context.Context, string) ([]string, error)
+}
+
+func (a authz) HasCapability(ctx context.Context, capKey string) bool {
+	if a.Enf == nil {
+		return false
+	}
+	capDef, ok := handler.CapabilityByKey(capKey)
+	if !ok {
+		return false
+	}
+	user := middleware.UserFromContext(ctx)
+	subjects := []string{user}
+	if a.Resolve != nil {
+		if roles, err := a.Resolve(ctx, user); err == nil {
+			subjects = append(subjects, roles...)
+		}
+	}
+	for _, s := range subjects {
+		if ok, _ := a.Enf.Enforce(s, capDef.Path, capDef.Method); ok {
+			return true
+		}
+	}
+	return false
 }

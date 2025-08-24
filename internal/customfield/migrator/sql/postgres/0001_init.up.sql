@@ -311,6 +311,9 @@ CREATE INDEX IF NOT EXISTS gcfm_widgets_tenant_scope_idx ON gcfm_widgets (tenant
 CREATE INDEX IF NOT EXISTS gcfm_widgets_scopes_gin_idx ON gcfm_widgets USING GIN (scopes);
 CREATE INDEX IF NOT EXISTS gcfm_widgets_capabilities_gin_idx ON gcfm_widgets USING GIN (capabilities);
 
+ALTER TABLE gcfm_widgets
+  ALTER COLUMN tenants SET NOT NULL;
+
 CREATE OR REPLACE FUNCTION notify_widgets_changed() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   PERFORM pg_notify('widgets_changed', COALESCE(NEW.id, OLD.id));
