@@ -34,17 +34,18 @@ func T(name string) string {
 }
 
 type FieldMeta struct {
-	DBID        int64        `yaml:"dbId" json:"dbId"`
-	TableName   string       `yaml:"table"`
-	ColumnName  string       `yaml:"column"`
-	DataType    string       `yaml:"type"`
-	Placeholder string       `yaml:"placeholder,omitempty"` // v0.1 compatibility
-	Display     *DisplayMeta `yaml:"display,omitempty"`
-	Validator   string       `yaml:"validator,omitempty"`
-	Nullable    bool         `yaml:"nullable,omitempty"`
-	Unique      bool         `yaml:"unique,omitempty"`
-	HasDefault  bool         `yaml:"hasDefault,omitempty" json:"hasDefault"`
-	Default     *string      `yaml:"defaultValue,omitempty" json:"defaultValue,omitempty"`
+	DBID            int64          `yaml:"dbId" json:"dbId"`
+	TableName       string         `yaml:"table"`
+	ColumnName      string         `yaml:"column"`
+	DataType        string         `yaml:"type"`
+	Placeholder     string         `yaml:"placeholder,omitempty"` // v0.1 compatibility
+	Display         *DisplayMeta   `yaml:"display,omitempty"`
+	Validator       string         `yaml:"validator,omitempty"`
+	ValidatorParams map[string]any `yaml:"validatorParams,omitempty" json:"validatorParams,omitempty"`
+	Nullable        bool           `yaml:"nullable,omitempty"`
+	Unique          bool           `yaml:"unique,omitempty"`
+	HasDefault      bool           `yaml:"hasDefault,omitempty" json:"hasDefault"`
+	Default         *string        `yaml:"defaultValue,omitempty" json:"defaultValue,omitempty"`
 }
 
 type Scanner interface {

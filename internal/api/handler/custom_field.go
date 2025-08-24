@@ -149,12 +149,13 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, huma.Error422("table", msg)
 	}
 	meta := registry.FieldMeta{
-		DBID:       *in.Body.DBID,
-		TableName:  in.Body.Table,
-		ColumnName: in.Body.Column,
-		DataType:   in.Body.Type,
-		Display:    in.Body.Display,
-		Validator:  in.Body.Validator,
+		DBID:            *in.Body.DBID,
+		TableName:       in.Body.Table,
+		ColumnName:      in.Body.Column,
+		DataType:        in.Body.Type,
+		Display:         in.Body.Display,
+		Validator:       in.Body.Validator,
+		ValidatorParams: in.Body.ValidatorParams,
 	}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
@@ -331,7 +332,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator}
+	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
