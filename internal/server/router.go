@@ -285,5 +285,14 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 type authz struct{}
 
 func (authz) HasCapability(ctx context.Context, cap string) bool {
-	return true
+	caps, ok := ctx.Value("capabilities").([]string)
+	if !ok {
+		return false
+	}
+	for _, c := range caps {
+		if c == cap {
+			return true
+		}
+	}
+	return false
 }

@@ -170,7 +170,9 @@ func (u *Uploader) HandleUpload(ctx context.Context, f multipart.File, filename 
 	}
 
 	if u.StoreDir != "" {
-		_ = u.persist(tmpPath, filename, w.ID)
+		if err := u.persist(tmpPath, filename, w.ID); err != nil && u.Logger != nil {
+			u.Logger.Error("widget file persistence failed", "id", w.ID, "filename", filename, "err", err)
+		}
 	}
 	return w, nil
 }

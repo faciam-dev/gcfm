@@ -76,20 +76,28 @@ func (r *MySQLRepo) List(ctx context.Context, f Filter) ([]Row, int, error) {
 		rr.Name = r0.Name
 		rr.Version = r0.Version
 		rr.Type = r0.Type
-		_ = json.Unmarshal(r0.Scopes, &rr.Scopes)
+		if err := json.Unmarshal(r0.Scopes, &rr.Scopes); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal scopes for id %s: %w", r0.ID, err)
+		}
 		rr.Enabled = r0.Enabled
 		if r0.Description.Valid {
 			rr.Description = &r0.Description.String
 		}
-		_ = json.Unmarshal(r0.Capabilities, &rr.Capabilities)
+		if err := json.Unmarshal(r0.Capabilities, &rr.Capabilities); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal capabilities for id %s: %w", r0.ID, err)
+		}
 		if r0.Homepage.Valid {
 			rr.Homepage = &r0.Homepage.String
 		}
 		if len(r0.Meta) > 0 {
-			_ = json.Unmarshal(r0.Meta, &rr.Meta)
+			if err := json.Unmarshal(r0.Meta, &rr.Meta); err != nil {
+				return nil, 0, fmt.Errorf("failed to unmarshal meta for id %s: %w", r0.ID, err)
+			}
 		}
 		rr.TenantScope = r0.TenantScope
-		_ = json.Unmarshal(r0.Tenants, &rr.Tenants)
+		if err := json.Unmarshal(r0.Tenants, &rr.Tenants); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal tenants for id %s: %w", r0.ID, err)
+		}
 		rr.UpdatedAt = r0.UpdatedAt
 		items = append(items, rr)
 	}
@@ -182,20 +190,28 @@ func (r *MySQLRepo) GetByID(ctx context.Context, id string) (Row, error) {
 	rr.Name = r0.Name
 	rr.Version = r0.Version
 	rr.Type = r0.Type
-	_ = json.Unmarshal(r0.Scopes, &rr.Scopes)
+	if err := json.Unmarshal(r0.Scopes, &rr.Scopes); err != nil {
+		return Row{}, fmt.Errorf("failed to unmarshal scopes: %w", err)
+	}
 	rr.Enabled = r0.Enabled
 	if r0.Description.Valid {
 		rr.Description = &r0.Description.String
 	}
-	_ = json.Unmarshal(r0.Capabilities, &rr.Capabilities)
+	if err := json.Unmarshal(r0.Capabilities, &rr.Capabilities); err != nil {
+		return Row{}, fmt.Errorf("failed to unmarshal capabilities: %w", err)
+	}
 	if r0.Homepage.Valid {
 		rr.Homepage = &r0.Homepage.String
 	}
 	if len(r0.Meta) > 0 {
-		_ = json.Unmarshal(r0.Meta, &rr.Meta)
+		if err := json.Unmarshal(r0.Meta, &rr.Meta); err != nil {
+			return Row{}, fmt.Errorf("failed to unmarshal meta: %w", err)
+		}
 	}
 	rr.TenantScope = r0.TenantScope
-	_ = json.Unmarshal(r0.Tenants, &rr.Tenants)
+	if err := json.Unmarshal(r0.Tenants, &rr.Tenants); err != nil {
+		return Row{}, fmt.Errorf("failed to unmarshal tenants: %w", err)
+	}
 	rr.UpdatedAt = r0.UpdatedAt
 	return rr, nil
 }
