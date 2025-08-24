@@ -1,0 +1,37 @@
+{
+  "patch": {
+    "operationId": "PatchWidget",
+    "summary": "Patch widget",
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {"$ref": "../schemas/WidgetPatch.json"}
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "../schemas/Widget.json"}
+          }
+        }
+      },
+      "403": {"description": "Forbidden"},
+      "404": {"description": "Not Found"},
+      "500": {"description": "Internal Server Error"}
+    }
+  },
+  "delete": {
+    "operationId": "DeleteWidget",
+    "summary": "Delete widget",
+    "responses": {
+      "200": {"description": "OK"},
+      "403": {"description": "Forbidden"},
+      "404": {"description": "Not Found"},
+      "500": {"description": "Internal Server Error"}
+    }
+  }
+}

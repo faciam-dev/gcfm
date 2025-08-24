@@ -64,6 +64,7 @@ type WidgetsRepo interface {
 // WidgetsNotifier notifies other nodes of widget changes.
 type WidgetsNotifier interface {
 	NotifyWidgetChanged(ctx context.Context, id string) error
+	NotifyWidgetRemoved(ctx context.Context, id string) error
 }
 
 // Logger represents the minimal logging interface used by the uploader.

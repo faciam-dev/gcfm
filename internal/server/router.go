@@ -243,7 +243,7 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	ph := &pluginhandlers.Handlers{Auth: authz{}, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
 	ph.RegisterPluginRoutes(api)
 	wreg := widgetreg.NewInMemory()
-	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo}
+	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo, Notifier: notifier, Auth: authz{}}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)
 

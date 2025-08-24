@@ -58,6 +58,7 @@ var capMatrix = map[string]struct{ Path, Method string }{
 	"plugins:list":  {"/v1/plugins", "GET"},
 	"plugins:write": {"/v1/plugins", "POST"},
 	"widgets:list":  {"/v1/metadata/widgets", "GET"},
+	"widgets:write": {"/v1/metadata/widgets/{id}", "PATCH"},
 
 	// Snapshots
 	"snapshots:list":   {"/v1/snapshots", "GET"},
