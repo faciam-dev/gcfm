@@ -21,6 +21,7 @@ func createCFTable(t *testing.T, db *sql.DB) {
        data_type TEXT,
        label_key TEXT,
        widget TEXT,
+       widget_config TEXT,
        placeholder_key TEXT,
        nullable BOOLEAN NOT NULL DEFAULT 0,
        "unique" BOOLEAN NOT NULL DEFAULT 0,

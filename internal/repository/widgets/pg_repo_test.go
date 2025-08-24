@@ -17,7 +17,7 @@ func TestPGRepoList(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	defer db.Close()
-	repo := NewPGRepo(db)
+	repo := NewPGRepo(db, "gcfm_")
 	now := time.Now()
 	rows := sqlmock.NewRows([]string{"id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at"}).
 		AddRow("a", "A", "1", "widget", pq.StringArray{"system"}, true, sql.NullString{}, pq.StringArray{}, sql.NullString{}, []byte(`{}`), "system", pq.StringArray{}, now)
@@ -38,7 +38,7 @@ func TestPGRepoGetETagAndLastMod(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	defer db.Close()
-	repo := NewPGRepo(db)
+	repo := NewPGRepo(db, "gcfm_")
 	now := time.Now()
 	mock.ExpectQuery(`SELECT coalesce`).WillReturnRows(sqlmock.NewRows([]string{"etag", "last_mod"}).AddRow("abc", now))
 	etag, last, err := repo.GetETagAndLastMod(context.Background(), Filter{})
@@ -56,7 +56,7 @@ func TestPGRepoUpsertAndRemove(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	defer db.Close()
-	repo := NewPGRepo(db)
+	repo := NewPGRepo(db, "gcfm_")
 	r := Row{ID: "a", Name: "A", Version: "1", Type: "widget", Scopes: []string{"system"}, Enabled: true, Meta: map[string]any{"k": "v"}, TenantScope: "system"}
 	mock.ExpectExec(`INSERT INTO "gcfm_widgets"`).WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
 	if err := repo.Upsert(context.Background(), r); err != nil {
@@ -74,7 +74,7 @@ func TestPGRepoGetByID(t *testing.T) {
 		t.Fatalf("sqlmock: %v", err)
 	}
 	defer db.Close()
-	repo := NewPGRepo(db)
+	repo := NewPGRepo(db, "gcfm_")
 	now := time.Now()
 	row := sqlmock.NewRows([]string{"id", "name", "version", "type", "scopes", "enabled", "description", "capabilities", "homepage", "meta", "tenant_scope", "tenants", "updated_at"}).
 		AddRow("a", "A", "1", "widget", pq.StringArray{"system"}, true, sql.NullString{String: "desc", Valid: true}, pq.StringArray{}, sql.NullString{}, []byte(`{"k":"v"}`), "system", pq.StringArray{}, now)
