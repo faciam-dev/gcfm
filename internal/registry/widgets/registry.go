@@ -47,6 +47,8 @@ type Registry interface {
 	Remove(ctx context.Context, id string) error
 	ApplyDiff(ctx context.Context, upserts []Widget, removes []string) (string, time.Time, error)
 	Subscribe() (<-chan Event, func())
+	Has(id string) bool
+	DefaultConfig(id string) []byte
 }
 
 type inMemory struct {
@@ -165,6 +167,27 @@ func (r *inMemory) Subscribe() (<-chan Event, func()) {
 		delete(r.subs, ch)
 		r.mu.Unlock()
 	}
+}
+
+func (r *inMemory) Has(id string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.items[id]
+	return ok
+}
+
+func (r *inMemory) DefaultConfig(id string) []byte {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if w, ok := r.items[id]; ok {
+		if cfg, ok := w.Meta["default_config"].([]byte); ok {
+			return cfg
+		}
+		if s, ok := w.Meta["default_config"].(string); ok {
+			return []byte(s)
+		}
+	}
+	return nil
 }
 
 func broadcast(subs map[chan Event]struct{}, ev Event) {

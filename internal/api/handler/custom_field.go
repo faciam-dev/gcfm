@@ -16,9 +16,11 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
+	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/internal/util"
 	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
@@ -27,13 +29,14 @@ import (
 )
 
 type CustomFieldHandler struct {
-	DB          *sql.DB
-	Mongo       *mongo.Client
-	Driver      string
-	Dialect     ormdriver.Dialect
-	Recorder    *audit.Recorder
-	Schema      string
-	TablePrefix string
+	DB             *sql.DB
+	Mongo          *mongo.Client
+	Driver         string
+	Dialect        ormdriver.Dialect
+	Recorder       *audit.Recorder
+	Schema         string
+	TablePrefix    string
+	WidgetRegistry widgetreg.Registry
 }
 
 type createInput struct {
@@ -60,6 +63,36 @@ type updateInput struct {
 
 type deleteInput struct {
 	ID string `path:"id"`
+}
+
+var builtinWidgets = map[string]struct{}{
+	"(default)": {}, "text": {}, "textarea": {},
+	"select": {}, "date": {}, "email": {}, "number": {},
+}
+
+func isPluginWidget(s string) (id string, ok bool) {
+	const p = "plugin://"
+	if strings.HasPrefix(s, p) {
+		id = strings.TrimPrefix(s, p)
+		return id, id != ""
+	}
+	return "", false
+}
+
+func (h *CustomFieldHandler) validateWidget(ctx context.Context, widget string) error {
+	if widget == "" {
+		return nil
+	}
+	if _, ok := builtinWidgets[widget]; ok {
+		return nil
+	}
+	if id, ok := isPluginWidget(widget); ok {
+		if h.WidgetRegistry == nil || !h.WidgetRegistry.Has(id) {
+			return huma.NewError(http.StatusUnprocessableEntity, "unknown plugin widget: "+id)
+		}
+		return nil
+	}
+	return huma.NewError(http.StatusUnprocessableEntity, "unknown widget: "+widget)
 }
 
 func Register(api huma.API, h *CustomFieldHandler) {
@@ -148,12 +181,31 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		msg := fmt.Sprintf("table %q not found in target database", in.Body.Table)
 		return nil, huma.Error422("table", msg)
 	}
+	var display *registry.DisplayMeta
+	if in.Body.Display != nil {
+		if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
+			return nil, err
+		}
+		if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+			if h.WidgetRegistry != nil {
+				if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
+					in.Body.Display.WidgetConfig = def
+				}
+			}
+		}
+		display = &registry.DisplayMeta{
+			LabelKey:       util.Deref(in.Body.Display.LabelKey),
+			Widget:         in.Body.Display.Widget,
+			PlaceholderKey: util.Deref(in.Body.Display.PlaceholderKey),
+			WidgetConfig:   in.Body.Display.WidgetConfig,
+		}
+	}
 	meta := registry.FieldMeta{
 		DBID:            *in.Body.DBID,
 		TableName:       in.Body.Table,
 		ColumnName:      in.Body.Column,
 		DataType:        in.Body.Type,
-		Display:         in.Body.Display,
+		Display:         display,
 		Validator:       in.Body.Validator,
 		ValidatorParams: in.Body.ValidatorParams,
 	}
@@ -332,7 +384,26 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
-	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: in.Body.Display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
+	var display *registry.DisplayMeta
+	if in.Body.Display != nil {
+		if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
+			return nil, err
+		}
+		if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+			if h.WidgetRegistry != nil {
+				if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
+					in.Body.Display.WidgetConfig = def
+				}
+			}
+		}
+		display = &registry.DisplayMeta{
+			LabelKey:       util.Deref(in.Body.Display.LabelKey),
+			Widget:         in.Body.Display.Widget,
+			PlaceholderKey: util.Deref(in.Body.Display.PlaceholderKey),
+			WidgetConfig:   in.Body.Display.WidgetConfig,
+		}
+	}
+	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
