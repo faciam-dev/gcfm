@@ -232,11 +232,12 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 			logger.L.Error("parse redis url", "err", err)
 		}
 	}
+	az := authz{Enf: e, Resolve: resolver}
 	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: notifier, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
-	ph := &pluginhandlers.Handlers{Auth: authz{}, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
+	ph := &pluginhandlers.Handlers{Auth: az, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
 	ph.RegisterPluginRoutes(api)
 	wreg := widgetreg.NewInMemory()
-	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo, Notifier: notifier, Auth: authz{}}
+	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo, Notifier: notifier, Auth: az}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)
 
@@ -282,15 +283,28 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	return api
 }
 
-type authz struct{}
+type authz struct {
+	Enf     *casbin.Enforcer
+	Resolve func(context.Context, string) ([]string, error)
+}
 
-func (authz) HasCapability(ctx context.Context, cap string) bool {
-	caps, ok := ctx.Value("capabilities").([]string)
+func (a authz) HasCapability(ctx context.Context, capKey string) bool {
+	if a.Enf == nil {
+		return false
+	}
+	capDef, ok := handler.CapabilityByKey(capKey)
 	if !ok {
 		return false
 	}
-	for _, c := range caps {
-		if c == cap {
+	user := middleware.UserFromContext(ctx)
+	subjects := []string{user}
+	if a.Resolve != nil {
+		if roles, err := a.Resolve(ctx, user); err == nil {
+			subjects = append(subjects, roles...)
+		}
+	}
+	for _, s := range subjects {
+		if ok, _ := a.Enf.Enforce(s, capDef.Path, capDef.Method); ok {
 			return true
 		}
 	}

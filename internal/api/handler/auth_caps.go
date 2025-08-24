@@ -27,7 +27,11 @@ type capsOut struct {
 	}
 }
 
-var capMatrix = map[string]struct{ Path, Method string }{
+// Capability defines the path and HTTP method associated with a capability key.
+type Capability struct{ Path, Method string }
+
+// CapMatrix maps capability keys to their required path and HTTP method.
+var CapMatrix = map[string]Capability{
 	// Users
 	"users:list":   {"/v1/rbac/users", "GET"},
 	"users:create": {"/v1/rbac/users", "POST"},
@@ -83,6 +87,12 @@ var capMatrix = map[string]struct{ Path, Method string }{
 	"targets:bump-version": {"/admin/targets/version/bump", "POST"},
 }
 
+// CapabilityByKey looks up the capability definition by key.
+func CapabilityByKey(key string) (Capability, bool) {
+	v, ok := CapMatrix[key]
+	return v, ok
+}
+
 func RegisterAuthCaps(api huma.API, h *AuthHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "meCapabilities",
@@ -113,7 +123,7 @@ func (h *AuthHandler) meCaps(ctx context.Context, _ *struct{}) (*capsOut, error)
 	}
 
 	caps := Capabilities{}
-	for key, v := range capMatrix {
+	for key, v := range CapMatrix {
 		allow := false
 		for _, s := range subjects {
 			if ok, _ := h.Enf.Enforce(s, v.Path, v.Method); ok {
