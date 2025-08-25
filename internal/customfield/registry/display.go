@@ -12,6 +12,7 @@ type DisplayOption struct {
 type DisplayMeta struct {
 	LabelKey       string          `json:"labelKey" yaml:"labelKey"`
 	Widget         string          `json:"widget" yaml:"widget"`
+	WidgetResolved string          `json:"widget_resolved,omitempty" yaml:"widget_resolved,omitempty"`
 	PlaceholderKey string          `json:"placeholderKey" yaml:"placeholderKey"`
 	Options        []DisplayOption `json:"options,omitempty" yaml:"options,omitempty"`
 	WidgetConfig   json.RawMessage `json:"widget_config,omitempty" yaml:"widget_config,omitempty"`

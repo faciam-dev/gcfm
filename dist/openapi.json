@@ -310,11 +310,26 @@
           "column": {
             "type": "string"
           },
+          "db_driver": {
+            "description": "Ignored. Server detects driver.",
+            "type": "string"
+          },
           "db_id": {
             "format": "int64",
             "type": "integer"
           },
+          "default": {
+            "$ref": "#/components/schemas/DefaultSpec"
+          },
           "defaultValue": {
+            "type": "string"
+          },
+          "default_mode": {
+            "description": "Ignored. Use default.mode",
+            "type": "string"
+          },
+          "default_raw": {
+            "description": "Ignored. Use default.raw",
             "type": "string"
           },
           "display": {
@@ -324,6 +339,10 @@
             "type": "boolean"
           },
           "nullable": {
+            "type": "boolean"
+          },
+          "on_update_current_timestamp": {
+            "description": "Ignored. Use default.on_update_current_timestamp",
             "type": "boolean"
           },
           "table": {
@@ -394,6 +413,31 @@
         ],
         "type": "object"
       },
+      "DefaultSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "description": "Default value mode",
+            "enum": [
+              "none",
+              "literal",
+              "expression"
+            ],
+            "type": "string"
+          },
+          "on_update_current_timestamp": {
+            "type": "boolean"
+          },
+          "raw": {
+            "description": "Literal or expression text, unquoted",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
       "DisplayMeta": {
         "additionalProperties": false,
         "properties": {
@@ -415,7 +459,10 @@
           "widget": {
             "type": "string"
           },
-          "widget_config": {}
+          "widget_config": {},
+          "widget_resolved": {
+            "type": "string"
+          }
         },
         "required": [
           "labelKey",
@@ -452,7 +499,10 @@
           "widget": {
             "type": "string"
           },
-          "widget_config": {}
+          "widget_config": {},
+          "widget_resolved": {
+            "type": "string"
+          }
         },
         "required": [
           "widget"

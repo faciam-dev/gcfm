@@ -5,6 +5,7 @@ import "encoding/json"
 type DisplaySettings struct {
 	LabelKey       *string         `json:"labelKey,omitempty"`
 	Widget         string          `json:"widget"`
+	WidgetResolved string          `json:"widget_resolved,omitempty"`
 	PlaceholderKey *string         `json:"placeholderKey,omitempty"`
 	WidgetConfig   json.RawMessage `json:"widget_config,omitempty"`
 }

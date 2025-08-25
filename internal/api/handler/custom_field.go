@@ -70,15 +70,30 @@ var builtinWidgets = map[string]struct{}{
 	"select": {}, "date": {}, "email": {}, "number": {},
 }
 
-func canonicalizeWidgetID(s string) (string, map[string]any) {
-	id := strings.TrimSpace(strings.ToLower(s))
-	switch id {
-	case "", "core://default", "core://text-input":
-		return "plugin://text-input", nil
+func canonicalizeWidgetID(raw, colType string) (string, map[string]any, bool) {
+	w := strings.TrimSpace(strings.ToLower(raw))
+	switch w {
+	case "", "core://default", "core://auto":
+		return "core://auto", nil, true
+	case "core://text-input":
+		return "plugin://text-input", nil, false
 	case "core://date-input":
-		return "plugin://date-input", nil
+		return "plugin://date-input", nil, false
 	default:
-		return s, nil
+		return raw, nil, false
+	}
+}
+
+func resolveAutoWidget(colType string) string {
+	switch strings.ToLower(colType) {
+	case "date":
+		return "plugin://date-input"
+	case "time":
+		return "plugin://time-input"
+	case "bool", "boolean":
+		return "plugin://checkbox"
+	default:
+		return "plugin://text-input"
 	}
 }
 
@@ -133,6 +148,9 @@ func unifyDefault(b *schema.CustomField) unifiedDefault {
 
 func (h *CustomFieldHandler) validateWidget(ctx context.Context, widget string) error {
 	if widget == "" {
+		return nil
+	}
+	if widget == "core://auto" {
 		return nil
 	}
 	if _, ok := builtinWidgets[widget]; ok {
@@ -194,19 +212,20 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if strings.TrimSpace(origWidget) == "" {
 		return nil, huma.Error422("display.widget", "required")
 	}
-	in.Body.Display.Widget, _ = canonicalizeWidgetID(origWidget)
+	var isAuto bool
+	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(origWidget, in.Body.Type)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
 	origIsCore := strings.HasPrefix(strings.ToLower(origWidget), "core://")
-	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore {
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore && !isAuto {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
 				in.Body.Display.WidgetConfig = def
 			}
 		}
 	}
-	if origIsCore {
+	if origIsCore || isAuto {
 		in.Body.Display.WidgetConfig = nil
 	}
 	tid := tenant.FromContext(ctx)
@@ -259,6 +278,11 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			Widget:         in.Body.Display.Widget,
 			PlaceholderKey: util.Deref(in.Body.Display.PlaceholderKey),
 			WidgetConfig:   in.Body.Display.WidgetConfig,
+		}
+		if isAuto {
+			display.WidgetResolved = resolveAutoWidget(in.Body.Type)
+		} else {
+			display.WidgetResolved = display.Widget
 		}
 	}
 	meta := registry.FieldMeta{
@@ -344,6 +368,15 @@ func (h *CustomFieldHandler) list(ctx context.Context, in *listParams) (*listOut
 		}
 		metas = filtered
 	}
+	for i := range metas {
+		if metas[i].Display != nil {
+			if metas[i].Display.Widget == "core://auto" {
+				metas[i].Display.WidgetResolved = resolveAutoWidget(metas[i].DataType)
+			} else {
+				metas[i].Display.WidgetResolved = metas[i].Display.Widget
+			}
+		}
+	}
 	return &listOutput{Body: metas}, nil
 }
 
@@ -411,19 +444,20 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if strings.TrimSpace(origWidget) == "" {
 		return nil, huma.Error422("display.widget", "required")
 	}
-	in.Body.Display.Widget, _ = canonicalizeWidgetID(origWidget)
+	var isAuto bool
+	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(origWidget, in.Body.Type)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
 	origIsCore := strings.HasPrefix(strings.ToLower(origWidget), "core://")
-	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore {
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore && !isAuto {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
 				in.Body.Display.WidgetConfig = def
 			}
 		}
 	}
-	if origIsCore {
+	if origIsCore || isAuto {
 		in.Body.Display.WidgetConfig = nil
 	}
 	tid := tenant.FromContext(ctx)
@@ -477,6 +511,11 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			Widget:         in.Body.Display.Widget,
 			PlaceholderKey: util.Deref(in.Body.Display.PlaceholderKey),
 			WidgetConfig:   in.Body.Display.WidgetConfig,
+		}
+		if isAuto {
+			display.WidgetResolved = resolveAutoWidget(in.Body.Type)
+		} else {
+			display.WidgetResolved = display.Widget
 		}
 	}
 	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
