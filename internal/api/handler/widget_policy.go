@@ -5,14 +5,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/widgetpolicy"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
+	"github.com/faciam-dev/gcfm/pkg/widgetpolicy"
 )
 
 type WidgetPolicyHandler struct {
-	Store    *widgetpolicy.Store
-	Registry widgetreg.Registry
+	Store      *widgetpolicy.Store
+	Registry   widgetreg.Registry
+	PolicyPath string
 }
 
 type suggestParams struct {
@@ -38,6 +39,15 @@ type suggestOutput struct {
 	}
 }
 
+type statusOutput struct {
+	Body struct {
+		Path       string                    `json:"path"`
+		Rules      int                       `json:"rules"`
+		SuggestTop int                       `json:"suggest_top"`
+		Sample     []widgetpolicy.PolicyRule `json:"sample"`
+	}
+}
+
 func RegisterWidgetPolicy(api huma.API, h *WidgetPolicyHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "suggestWidgetPolicy",
@@ -46,17 +56,27 @@ func RegisterWidgetPolicy(api huma.API, h *WidgetPolicyHandler) {
 		Summary:     "Suggest widgets",
 		Tags:        []string{"CustomField"},
 	}, h.suggest)
+	huma.Register(api, huma.Operation{
+		OperationID: "widgetPolicyStatus",
+		Method:      http.MethodGet,
+		Path:        "/v1/widget-policies/_status",
+		Summary:     "Widget policy status",
+		Tags:        []string{"CustomField"},
+	}, h.status)
 }
 
 func (h *WidgetPolicyHandler) suggest(ctx context.Context, in *suggestParams) (*suggestOutput, error) {
-	base, length, enums := widgetpolicy.ParseTypeInfo(in.Type)
-	var lptr *int
+	base, lengthParsed, enums := widgetpolicy.ParseTypeInfo(in.Type)
+	var length *int
 	if in.Length > 0 {
-		lptr = &in.Length
+		l := int(in.Length)
+		length = &l
 	} else {
-		lptr = length
+		length = lengthParsed
 	}
-	pctx := widgetpolicy.AutoResolveCtx{Driver: in.Driver, Type: base, Validator: in.Validator, Length: lptr, ColumnName: in.Name, EnumValues: enums}
+	typ, _ := widgetpolicy.NormalizeType(strings.ToLower(in.Driver), base, length)
+	val := widgetpolicy.NormalizeValidator(in.Validator)
+	pctx := widgetpolicy.Ctx{Driver: strings.ToLower(in.Driver), Type: typ, Validator: val, Length: length, Name: in.Name, EnumValues: enums}
 	hasPlugin := func(id string) bool {
 		if strings.HasPrefix(id, "plugin://") {
 			pid := strings.TrimPrefix(id, "plugin://")
@@ -64,22 +84,63 @@ func (h *WidgetPolicyHandler) suggest(ctx context.Context, in *suggestParams) (*
 		}
 		return true
 	}
-	pol := h.Store.Policy()
+	pol := h.Store.Get()
 	id, cfg := pol.Resolve(pctx, hasPlugin)
-	suggIDs := pol.Suggest(pctx, hasPlugin)
+	suggIDs := pol.Suggest(pctx)
 	out := &suggestOutput{}
 	out.Body.Resolved.ID = id
 	if len(cfg) > 0 {
 		out.Body.Resolved.Config = cfg
 	}
 	for _, sid := range suggIDs {
-		label := sid
-		if sid == "core://auto" {
-			label = "System default"
-		} else if strings.HasPrefix(sid, "plugin://") {
-			label = strings.TrimPrefix(sid, "plugin://")
-		}
-		out.Body.Suggested = append(out.Body.Suggested, suggestion{ID: sid, Label: label})
+		out.Body.Suggested = append(out.Body.Suggested, suggestion{ID: sid, Label: labelFromID(sid)})
 	}
 	return out, nil
+}
+
+func (h *WidgetPolicyHandler) status(ctx context.Context, _ *struct{}) (*statusOutput, error) {
+	p := h.Store.Get()
+	sample := p.Rules
+	if len(sample) > 3 {
+		sample = sample[:3]
+	}
+	out := &statusOutput{}
+	out.Body.Path = h.PolicyPath
+	out.Body.Rules = len(p.Rules)
+	out.Body.SuggestTop = p.SuggestTop
+	out.Body.Sample = sample
+	return out, nil
+}
+
+func labelFromID(id string) string {
+	switch id {
+	case "core://auto":
+		return "System default"
+	case "plugin://text-input":
+		return "text-input"
+	case "plugin://email-input":
+		return "Email Input"
+	case "plugin://url-input":
+		return "URL Input"
+	case "plugin://uuid-input":
+		return "UUID Input"
+	case "plugin://password-input":
+		return "Password"
+	case "plugin://number-input":
+		return "Number"
+	case "plugin://date-input":
+		return "Date"
+	case "plugin://time-input":
+		return "Time"
+	case "plugin://datetime-input":
+		return "Datetime"
+	case "plugin://json-editor":
+		return "JSON Editor"
+	case "plugin://select":
+		return "Select"
+	case "plugin://multiselect":
+		return "Multi Select"
+	default:
+		return strings.TrimPrefix(id, "plugin://")
+	}
 }
