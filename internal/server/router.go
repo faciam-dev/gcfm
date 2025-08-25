@@ -169,7 +169,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 		}
 	}
 
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix})
+	wreg := widgetreg.NewInMemory()
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix, WidgetRegistry: wreg})
+	handler.RegisterCustomFieldValidators(api)
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, Dialect: dialect, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
@@ -199,9 +201,9 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	var wrepo widgetsrepo.Repo
 	if db != nil {
 		if driver == "postgres" {
-			wrepo = widgetsrepo.NewPGRepo(db)
+			wrepo = widgetsrepo.NewPGRepo(db, cfg.TablePrefix)
 		} else if driver == "mysql" {
-			wrepo = widgetsrepo.NewMySQLRepo(db)
+			wrepo = widgetsrepo.NewMySQLRepo(db, cfg.TablePrefix)
 		}
 	}
 	redisChannel := os.Getenv("WIDGETS_REDIS_CHANNEL")
@@ -236,7 +238,6 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	uploader := &pluginsvc.Uploader{Repo: wrepo, Notifier: notifier, Logger: logger.L, AcceptExt: acceptExt, TmpDir: tmpDir, StoreDir: storeDir}
 	ph := &pluginhandlers.Handlers{Auth: az, Cfg: pluginhandlers.Config{PluginsMaxUploadMB: maxMB}, PluginUploader: uploader}
 	ph.RegisterPluginRoutes(api)
-	wreg := widgetreg.NewInMemory()
 	wh := &handler.WidgetHandler{Reg: wreg, Repo: wrepo, Notifier: notifier, Auth: az}
 	handler.RegisterWidget(api, wh)
 	r.Get("/v1/metadata/widgets/stream", wh.Stream)

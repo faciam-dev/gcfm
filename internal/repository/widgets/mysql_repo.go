@@ -12,12 +12,15 @@ import (
 )
 
 // MySQLRepo implements Repo for MySQL databases using goquent ORM.
-type MySQLRepo struct{ DB *sql.DB }
+type MySQLRepo struct {
+	DB          *sql.DB
+	TablePrefix string
+}
 
 // NewMySQLRepo creates a new MySQLRepo.
-func NewMySQLRepo(db *sql.DB) Repo { return &MySQLRepo{DB: db} }
+func NewMySQLRepo(db *sql.DB, prefix string) Repo { return &MySQLRepo{DB: db, TablePrefix: prefix} }
 
-func (r *MySQLRepo) table() string { return "gcfm_widgets" }
+func (r *MySQLRepo) table() string { return r.TablePrefix + "widgets" }
 
 // applyFilters applies the given filter to the query builder.
 func (r *MySQLRepo) applyFilters(q *query.Query, f Filter) {

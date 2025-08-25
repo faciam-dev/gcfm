@@ -43,8 +43,8 @@ func TestListReturnsValidator(t *testing.T) {
 
 	h := &CustomFieldHandler{DB: db, Driver: "postgres", Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
 
-	rows := sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
-		AddRow(4, "tenant_confirm_tokens", "new1", "varchar", nil, nil, nil, false, false, false, nil, "email")
+	rows := sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
+		AddRow(4, "tenant_confirm_tokens", "new1", "varchar", nil, nil, nil, nil, false, false, false, nil, "email")
 
 	mock.ExpectQuery(`SELECT .* FROM "gcfm_custom_fields"`).
 		WithArgs("default", int64(4)).

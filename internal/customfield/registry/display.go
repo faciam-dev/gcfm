@@ -1,5 +1,7 @@
 package registry
 
+import "encoding/json"
+
 // DisplayOption represents select options for display widgets.
 type DisplayOption struct {
 	Value    string `json:"value" yaml:"value"`
@@ -12,4 +14,5 @@ type DisplayMeta struct {
 	Widget         string          `json:"widget" yaml:"widget"`
 	PlaceholderKey string          `json:"placeholderKey" yaml:"placeholderKey"`
 	Options        []DisplayOption `json:"options,omitempty" yaml:"options,omitempty"`
+	WidgetConfig   json.RawMessage `json:"widget_config,omitempty" yaml:"widget_config,omitempty"`
 }

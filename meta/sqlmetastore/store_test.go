@@ -24,6 +24,7 @@ func newTestStore(t *testing.T) *SQLMetaStore {
         data_type TEXT,
         label_key TEXT,
         widget TEXT,
+        widget_config TEXT,
         placeholder_key TEXT,
         nullable BOOLEAN,
         "unique" BOOLEAN,

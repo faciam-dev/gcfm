@@ -13,12 +13,15 @@ import (
 )
 
 // PGRepo implements Repo for PostgreSQL databases using goquent ORM.
-type PGRepo struct{ DB *sql.DB }
+type PGRepo struct {
+	DB          *sql.DB
+	TablePrefix string
+}
 
 // NewPGRepo creates a new PGRepo.
-func NewPGRepo(db *sql.DB) Repo { return &PGRepo{DB: db} }
+func NewPGRepo(db *sql.DB, prefix string) Repo { return &PGRepo{DB: db, TablePrefix: prefix} }
 
-func (r *PGRepo) table() string { return "gcfm_widgets" }
+func (r *PGRepo) table() string { return r.TablePrefix + "widgets" }
 
 func (r *PGRepo) applyFilters(q *query.Query, f Filter) {
 	if len(f.ScopeIn) > 0 {

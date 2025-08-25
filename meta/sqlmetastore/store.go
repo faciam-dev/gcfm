@@ -61,12 +61,12 @@ func (s *SQLMetaStore) UpsertFieldDefs(ctx context.Context, tx *sql.Tx, defs []m
 	)
 	switch s.driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`, tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, widget_config=EXCLUDED.widget_config, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`, tbl))
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), widget_config=VALUES(widget_config), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
 	default:
 		// Assume drivers using '?' placeholders and supporting ON CONFLICT.
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=excluded.data_type, label_key=excluded.label_key, widget=excluded.widget, placeholder_key=excluded.placeholder_key, nullable=excluded.nullable, "unique"=excluded."unique", has_default=excluded.has_default, default_value=excluded.default_value, validator=excluded.validator, updated_at=CURRENT_TIMESTAMP`, tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=excluded.data_type, label_key=excluded.label_key, widget=excluded.widget, widget_config=excluded.widget_config, placeholder_key=excluded.placeholder_key, nullable=excluded.nullable, "unique"=excluded."unique", has_default=excluded.has_default, default_value=excluded.default_value, validator=excluded.validator, updated_at=CURRENT_TIMESTAMP`, tbl))
 	}
 	if err != nil {
 		if ownTx {
@@ -78,17 +78,21 @@ func (s *SQLMetaStore) UpsertFieldDefs(ctx context.Context, tx *sql.Tx, defs []m
 
 	for _, m := range defs {
 		var labelKey, widget, placeholderKey string
+		var widgetCfg any
 		if m.Display != nil {
 			labelKey = m.Display.LabelKey
 			widget = m.Display.Widget
 			placeholderKey = m.Display.PlaceholderKey
+			if len(m.Display.WidgetConfig) > 0 {
+				widgetCfg = string(m.Display.WidgetConfig)
+			}
 		}
 		var defVal string
 		if m.Default != nil {
 			defVal = *m.Default
 		}
 		dbid := monitordb.NormalizeDBID(m.DBID)
-		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, defVal, m.Validator); err != nil {
+		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, defVal, m.Validator); err != nil {
 			if ownTx {
 				_ = tx.Rollback()
 			}

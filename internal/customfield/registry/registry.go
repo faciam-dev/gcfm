@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
@@ -34,17 +35,18 @@ func T(name string) string {
 }
 
 type FieldMeta struct {
-	DBID        int64        `yaml:"dbId" json:"dbId"`
-	TableName   string       `yaml:"table"`
-	ColumnName  string       `yaml:"column"`
-	DataType    string       `yaml:"type"`
-	Placeholder string       `yaml:"placeholder,omitempty"` // v0.1 compatibility
-	Display     *DisplayMeta `yaml:"display,omitempty"`
-	Validator   string       `yaml:"validator,omitempty"`
-	Nullable    bool         `yaml:"nullable,omitempty"`
-	Unique      bool         `yaml:"unique,omitempty"`
-	HasDefault  bool         `yaml:"hasDefault,omitempty" json:"hasDefault"`
-	Default     *string      `yaml:"defaultValue,omitempty" json:"defaultValue,omitempty"`
+	DBID            int64          `yaml:"dbId" json:"dbId"`
+	TableName       string         `yaml:"table"`
+	ColumnName      string         `yaml:"column"`
+	DataType        string         `yaml:"type"`
+	Placeholder     string         `yaml:"placeholder,omitempty"` // v0.1 compatibility
+	Display         *DisplayMeta   `yaml:"display,omitempty"`
+	Validator       string         `yaml:"validator,omitempty"`
+	ValidatorParams map[string]any `yaml:"validatorParams,omitempty" json:"validatorParams,omitempty"`
+	Nullable        bool           `yaml:"nullable,omitempty"`
+	Unique          bool           `yaml:"unique,omitempty"`
+	HasDefault      bool           `yaml:"hasDefault,omitempty" json:"hasDefault"`
+	Default         *string        `yaml:"defaultValue,omitempty" json:"defaultValue,omitempty"`
 }
 
 type Scanner interface {
@@ -60,7 +62,7 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 	}
 	tbl := conf.TablePrefix + "custom_fields"
 	q := query.New(db, tbl, dialect).
-		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
+		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
 		OrderByRaw("table_name, column_name").
 		WithContext(ctx)
 
@@ -71,6 +73,7 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 		DataType     string         `db:"data_type"`
 		LabelKey     sql.NullString `db:"label_key"`
 		Widget       sql.NullString `db:"widget"`
+		WidgetConfig sql.NullString `db:"widget_config"`
 		Placeholder  sql.NullString `db:"placeholder_key"`
 		Nullable     bool           `db:"nullable"`
 		Unique       bool           `db:"unique"`
@@ -95,8 +98,12 @@ func LoadSQL(ctx context.Context, db *sql.DB, conf DBConfig) ([]FieldMeta, error
 			Unique:     r.Unique,
 			HasDefault: r.HasDefault,
 		}
-		if r.LabelKey.Valid || r.Widget.Valid || r.Placeholder.Valid {
-			m.Display = &DisplayMeta{LabelKey: r.LabelKey.String, Widget: r.Widget.String, PlaceholderKey: r.Placeholder.String}
+		if r.LabelKey.Valid || r.Widget.Valid || r.Placeholder.Valid || r.WidgetConfig.Valid {
+			dm := DisplayMeta{LabelKey: r.LabelKey.String, Widget: r.Widget.String, PlaceholderKey: r.Placeholder.String}
+			if r.WidgetConfig.Valid {
+				dm.WidgetConfig = json.RawMessage(r.WidgetConfig.String)
+			}
+			m.Display = &dm
 		}
 		if r.DefaultValue.Valid {
 			v := r.DefaultValue.String
@@ -120,7 +127,7 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 	}
 	tbl := conf.TablePrefix + "custom_fields"
 	q := query.New(db, tbl, dialect).
-		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
+		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
 		Where("tenant_id", tenant).
 		OrderByRaw("table_name, column_name").
 		WithContext(ctx)
@@ -132,6 +139,7 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 		DataType     string         `db:"data_type"`
 		LabelKey     sql.NullString `db:"label_key"`
 		Widget       sql.NullString `db:"widget"`
+		WidgetConfig sql.NullString `db:"widget_config"`
 		Placeholder  sql.NullString `db:"placeholder_key"`
 		Nullable     bool           `db:"nullable"`
 		Unique       bool           `db:"unique"`
@@ -155,8 +163,12 @@ func LoadSQLByTenant(ctx context.Context, db *sql.DB, conf DBConfig, tenant stri
 			Unique:     r.Unique,
 			HasDefault: r.HasDefault,
 		}
-		if r.LabelKey.Valid || r.Widget.Valid || r.Placeholder.Valid {
-			m.Display = &DisplayMeta{LabelKey: r.LabelKey.String, Widget: r.Widget.String, PlaceholderKey: r.Placeholder.String}
+		if r.LabelKey.Valid || r.Widget.Valid || r.Placeholder.Valid || r.WidgetConfig.Valid {
+			dm := DisplayMeta{LabelKey: r.LabelKey.String, Widget: r.Widget.String, PlaceholderKey: r.Placeholder.String}
+			if r.WidgetConfig.Valid {
+				dm.WidgetConfig = json.RawMessage(r.WidgetConfig.String)
+			}
+			m.Display = &dm
 		}
 		if r.DefaultValue.Valid {
 			v := r.DefaultValue.String
@@ -180,7 +192,7 @@ func LoadSQLByDB(ctx context.Context, db *sql.DB, conf DBConfig, tenant string, 
 	}
 	tbl := conf.TablePrefix + "custom_fields"
 	q := query.New(db, tbl, dialect).
-		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
+		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
 		Where("tenant_id", tenant).
 		Where("db_id", dbID).
 		OrderByRaw("table_name, column_name").
@@ -193,6 +205,7 @@ func LoadSQLByDB(ctx context.Context, db *sql.DB, conf DBConfig, tenant string, 
 		DataType     string         `db:"data_type"`
 		LabelKey     sql.NullString `db:"label_key"`
 		Widget       sql.NullString `db:"widget"`
+		WidgetConfig sql.NullString `db:"widget_config"`
 		Placeholder  sql.NullString `db:"placeholder_key"`
 		Nullable     bool           `db:"nullable"`
 		Unique       bool           `db:"unique"`
@@ -216,8 +229,12 @@ func LoadSQLByDB(ctx context.Context, db *sql.DB, conf DBConfig, tenant string, 
 			Unique:     r.Unique,
 			HasDefault: r.HasDefault,
 		}
-		if r.LabelKey.Valid || r.Widget.Valid || r.Placeholder.Valid {
-			m.Display = &DisplayMeta{LabelKey: r.LabelKey.String, Widget: r.Widget.String, PlaceholderKey: r.Placeholder.String}
+		if r.LabelKey.Valid || r.Widget.Valid || r.Placeholder.Valid || r.WidgetConfig.Valid {
+			dm := DisplayMeta{LabelKey: r.LabelKey.String, Widget: r.Widget.String, PlaceholderKey: r.Placeholder.String}
+			if r.WidgetConfig.Valid {
+				dm.WidgetConfig = json.RawMessage(r.WidgetConfig.String)
+			}
+			m.Display = &dm
 		}
 		if r.DefaultValue.Valid {
 			v := r.DefaultValue.String
@@ -244,9 +261,9 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`, tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, widget_config=EXCLUDED.widget_config, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW()`, tbl))
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), widget_config=VALUES(widget_config), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
 	default:
 		tx.Rollback()
 		return fmt.Errorf("unsupported driver: %s", driver)
@@ -259,17 +276,21 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 
 	for _, m := range metas {
 		var labelKey, widget, placeholderKey string
+		var widgetCfg any
 		if m.Display != nil {
 			labelKey = m.Display.LabelKey
 			widget = m.Display.Widget
 			placeholderKey = m.Display.PlaceholderKey
+			if len(m.Display.WidgetConfig) > 0 {
+				widgetCfg = string(m.Display.WidgetConfig)
+			}
 		}
 		var def string
 		if m.Default != nil {
 			def = *m.Default
 		}
 		dbid := monitordb.NormalizeDBID(m.DBID)
-		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
+		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("exec: %w", err)
 		}
@@ -294,9 +315,9 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 	var stmt *sql.Stmt
 	switch driver {
 	case "postgres":
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`, tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, "unique", has_default, default_value, validator, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW(), NOW()) ON CONFLICT (db_id, tenant_id, table_name, column_name) DO UPDATE SET data_type=EXCLUDED.data_type, label_key=EXCLUDED.label_key, widget=EXCLUDED.widget, widget_config=EXCLUDED.widget_config, placeholder_key=EXCLUDED.placeholder_key, nullable=EXCLUDED.nullable, "unique"=EXCLUDED."unique", has_default=EXCLUDED.has_default, default_value=EXCLUDED.default_value, validator=EXCLUDED.validator, updated_at=NOW() RETURNING xmax = 0`, tbl))
 	case "mysql":
-		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
+		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), widget_config=VALUES(widget_config), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
 	default:
 		tx.Rollback()
 		return 0, 0, fmt.Errorf("unsupported driver: %s", driver)
@@ -309,10 +330,14 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 
 	for _, m := range metas {
 		var labelKey, widget, placeholderKey string
+		var widgetCfg any
 		if m.Display != nil {
 			labelKey = m.Display.LabelKey
 			widget = m.Display.Widget
 			placeholderKey = m.Display.PlaceholderKey
+			if len(m.Display.WidgetConfig) > 0 {
+				widgetCfg = string(m.Display.WidgetConfig)
+			}
 		}
 		var def string
 		if m.Default != nil {
@@ -322,7 +347,7 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 		switch driver {
 		case "postgres":
 			var isInsert bool
-			if err := stmt.QueryRowContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator).Scan(&isInsert); err != nil {
+			if err := stmt.QueryRowContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator).Scan(&isInsert); err != nil {
 				tx.Rollback()
 				return 0, 0, fmt.Errorf("exec: %w", err)
 			}
@@ -332,7 +357,7 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 				updated++
 			}
 		case "mysql":
-			res, err := stmt.ExecContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator)
+			res, err := stmt.ExecContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator)
 			if err != nil {
 				tx.Rollback()
 				return 0, 0, fmt.Errorf("exec: %w", err)
