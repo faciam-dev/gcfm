@@ -14,5 +14,5 @@ type DisplayMeta struct {
 	Widget         string          `json:"widget" yaml:"widget"`
 	PlaceholderKey string          `json:"placeholderKey" yaml:"placeholderKey"`
 	Options        []DisplayOption `json:"options,omitempty" yaml:"options,omitempty"`
-	WidgetConfig   json.RawMessage `json:"widgetConfig,omitempty" yaml:"widgetConfig,omitempty"`
+	WidgetConfig   json.RawMessage `json:"widget_config,omitempty" yaml:"widget_config,omitempty"`
 }

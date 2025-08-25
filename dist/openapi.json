@@ -318,7 +318,7 @@
             "type": "string"
           },
           "display": {
-            "$ref": "#/components/schemas/DisplayMeta"
+            "$ref": "#/components/schemas/DisplaySettings"
           },
           "hasDefault": {
             "type": "boolean"
@@ -337,12 +337,17 @@
           },
           "validator": {
             "type": "string"
+          },
+          "validator_params": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "required": [
           "table",
           "column",
-          "type"
+          "type",
+          "display"
         ],
         "type": "object"
       },
@@ -409,7 +414,8 @@
           },
           "widget": {
             "type": "string"
-          }
+          },
+          "widget_config": {}
         },
         "required": [
           "labelKey",
@@ -431,6 +437,25 @@
         "required": [
           "value",
           "labelKey"
+        ],
+        "type": "object"
+      },
+      "DisplaySettings": {
+        "additionalProperties": false,
+        "properties": {
+          "labelKey": {
+            "type": "string"
+          },
+          "placeholderKey": {
+            "type": "string"
+          },
+          "widget": {
+            "type": "string"
+          },
+          "widget_config": {}
+        },
+        "required": [
+          "widget"
         ],
         "type": "object"
       },
@@ -560,6 +585,10 @@
           },
           "hasDefault": {
             "type": "boolean"
+          },
+          "validatorParams": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "required": [
@@ -573,6 +602,38 @@
           "Nullable",
           "Unique",
           "hasDefault"
+        ],
+        "type": "object"
+      },
+      "ListValidatorsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListValidatorsOutBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "validators": {
+            "items": {
+              "$ref": "#/components/schemas/Validator"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "validators",
+          "total"
         ],
         "type": "object"
       },
@@ -933,6 +994,215 @@
         ],
         "type": "object"
       },
+      "Target": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/Target.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "connMaxIdleMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "connMaxLifeMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "driver": {
+            "type": "string"
+          },
+          "dsn": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "maxIdleConns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxOpenConns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schema": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "driver",
+          "dsn",
+          "labels"
+        ],
+        "type": "object"
+      },
+      "TargetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TargetInput.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "connMaxIdleMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "connMaxLifeMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "driver": {
+            "type": "string"
+          },
+          "dsn": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "maxIdleConns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxOpenConns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schema": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "driver",
+          "dsn",
+          "labels"
+        ],
+        "type": "object"
+      },
+      "TargetPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TargetPatch.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "connMaxIdleMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "connMaxLifeMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "driver": {
+            "type": "string"
+          },
+          "dsn": {
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "maxIdleConns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxOpenConns": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schema": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TargetsList": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TargetsList.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Target"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "TokenResponse": {
         "additionalProperties": false,
         "properties": {
@@ -985,6 +1255,43 @@
           "name",
           "driver",
           "dsn"
+        ],
+        "type": "object"
+      },
+      "UploadPluginOutputHeaders": {
+        "additionalProperties": false,
+        "properties": {
+          "XUploadedSize": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "XUploadedSize"
+        ],
+        "type": "object"
+      },
+      "UploadPluginResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/UploadPluginResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "widget": {
+            "$ref": "#/components/schemas/WidgetDTO"
+          }
+        },
+        "required": [
+          "ok",
+          "widget"
         ],
         "type": "object"
       },
@@ -1100,6 +1407,379 @@
           "per_page"
         ],
         "type": "object"
+      },
+      "Validator": {
+        "additionalProperties": false,
+        "properties": {
+          "applies_to": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "table_match": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "applies_to",
+          "table_match",
+          "params",
+          "schema"
+        ],
+        "type": "object"
+      },
+      "VersionBodyOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/VersionBodyOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "VersionOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/VersionOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "defaultKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "defaultKey"
+        ],
+        "type": "object"
+      },
+      "Widget": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "type",
+          "scopes",
+          "enabled",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "WidgetDTO": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tenant_scope": {
+            "type": "string"
+          },
+          "tenants": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "type",
+          "scopes",
+          "enabled",
+          "tenant_scope",
+          "tenants",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "WidgetItem": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/WidgetItem.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tenant_scope": {
+            "type": "string"
+          },
+          "tenants": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "type",
+          "scopes",
+          "enabled",
+          "tenant_scope",
+          "tenants",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "WidgetPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/WidgetPatch.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WidgetsOutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/WidgetsOutBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "widgets": {
+            "items": {
+              "$ref": "#/components/schemas/Widget"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "widgets",
+          "total"
+        ],
+        "type": "object"
       }
     }
   },
@@ -1109,6 +1789,437 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/targets/": {
+      "get": {
+        "operationId": "get-admin-targets",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "label",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetsList"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get admin targets"
+      },
+      "post": {
+        "operationId": "post-admin-targets",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Target"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Post admin targets"
+      }
+    },
+    "/admin/targets/version": {
+      "get": {
+        "operationId": "get-admin-targets-version",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOutputBody"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get admin targets version"
+      }
+    },
+    "/admin/targets/version/bump": {
+      "post": {
+        "operationId": "post-admin-targets-version-bump",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionBodyOutputBody"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Post admin targets version bump"
+      }
+    },
+    "/admin/targets/{key}": {
+      "delete": {
+        "operationId": "delete-admin-targets-by-key",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete admin targets by key"
+      },
+      "get": {
+        "operationId": "get-admin-targets-by-key",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Target"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get admin targets by key"
+      },
+      "patch": {
+        "operationId": "patch-admin-targets-by-key",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Target"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Patch admin targets by key"
+      },
+      "put": {
+        "operationId": "put-admin-targets-by-key",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Target"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Put admin targets by key"
+      }
+    },
+    "/admin/targets/{key}/default": {
+      "post": {
+        "operationId": "post-admin-targets-by-key-default",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Post admin targets by key default"
+      }
+    },
     "/v1/apply": {
       "post": {
         "operationId": "applyRegistry",
@@ -1580,6 +2691,71 @@
         ]
       }
     },
+    "/v1/custom-fields/validators": {
+      "get": {
+        "description": "Filter by column type and optionally db/table.",
+        "operationId": "ListFieldValidators",
+        "parameters": [
+          {
+            "description": "Database name",
+            "explode": false,
+            "in": "query",
+            "name": "db",
+            "schema": {
+              "description": "Database name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Table name",
+            "explode": false,
+            "in": "query",
+            "name": "table",
+            "schema": {
+              "description": "Table name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Column type (varchar,int,uuid,...)",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Column type (varchar,int,uuid,...)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListValidatorsOutBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List applicable validators for the given selection",
+        "tags": [
+          "CustomFields"
+        ]
+      }
+    },
     "/v1/custom-fields/{id}": {
       "delete": {
         "operationId": "deleteCustomField",
@@ -2005,6 +3181,189 @@
         ]
       }
     },
+    "/v1/metadata/widgets": {
+      "get": {
+        "operationId": "listWidgets",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Modified-Since",
+            "schema": {
+              "format": "date-time-http",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetsOutBody"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Last-Modified": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List widgets",
+        "tags": [
+          "Metadata"
+        ]
+      }
+    },
+    "/v1/metadata/widgets/{id}": {
+      "delete": {
+        "operationId": "DeleteWidget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete widget",
+        "tags": [
+          "Metadata"
+        ]
+      },
+      "patch": {
+        "operationId": "PatchWidget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WidgetPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetItem"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Patch widget",
+        "tags": [
+          "Metadata"
+        ]
+      }
+    },
     "/v1/plugins": {
       "get": {
         "operationId": "listPlugins",
@@ -2037,6 +3396,49 @@
           }
         },
         "summary": "List plugins",
+        "tags": [
+          "Plugin"
+        ]
+      },
+      "post": {
+        "description": "Accepts multipart/form-data with a file field named 'file'.",
+        "operationId": "UploadPlugin",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {}
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPluginResponse"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Headers": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPluginOutputHeaders"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Upload a plugin package (ZIP/TGZ)",
         "tags": [
           "Plugin"
         ]

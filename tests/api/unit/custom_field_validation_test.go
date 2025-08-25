@@ -22,6 +22,7 @@ func TestCustomFieldValidation(t *testing.T) {
 		Table:        "posts",
 		Column:       "id",
 		Type:         "uuid",
+		Display:      schema.DisplaySettings{Widget: "text"},
 		Nullable:     boolPtr(true),
 		Unique:       boolPtr(false),
 		HasDefault:   true,

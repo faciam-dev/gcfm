@@ -138,6 +138,16 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.DBID == nil {
 		return nil, huma.Error422("db_id", "required")
 	}
+	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
+		return nil, err
+	}
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+		if h.WidgetRegistry != nil {
+			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
+				in.Body.Display.WidgetConfig = def
+			}
+		}
+	}
 	tid := tenant.FromContext(ctx)
 	if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
 		return nil, huma.Error422("db_id", err.Error())
@@ -182,17 +192,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, huma.Error422("table", msg)
 	}
 	var display *registry.DisplayMeta
-	if in.Body.Display != nil {
-		if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
-			return nil, err
-		}
-		if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
-			if h.WidgetRegistry != nil {
-				if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
-					in.Body.Display.WidgetConfig = def
-				}
-			}
-		}
+	if in.Body.Display.Widget != "" || in.Body.Display.LabelKey != nil || in.Body.Display.PlaceholderKey != nil || len(in.Body.Display.WidgetConfig) > 0 {
 		display = &registry.DisplayMeta{
 			LabelKey:       util.Deref(in.Body.Display.LabelKey),
 			Widget:         in.Body.Display.Widget,
@@ -340,6 +340,16 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
+	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
+		return nil, err
+	}
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+		if h.WidgetRegistry != nil {
+			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
+				in.Body.Display.WidgetConfig = def
+			}
+		}
+	}
 	tid := tenant.FromContext(ctx)
 	dbID := pkgmonitordb.DefaultDBID
 	if in.Body.DBID != nil {
@@ -385,17 +395,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
 	}
 	var display *registry.DisplayMeta
-	if in.Body.Display != nil {
-		if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
-			return nil, err
-		}
-		if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
-			if h.WidgetRegistry != nil {
-				if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
-					in.Body.Display.WidgetConfig = def
-				}
-			}
-		}
+	if in.Body.Display.Widget != "" || in.Body.Display.LabelKey != nil || in.Body.Display.PlaceholderKey != nil || len(in.Body.Display.WidgetConfig) > 0 {
 		display = &registry.DisplayMeta{
 			LabelKey:       util.Deref(in.Body.Display.LabelKey),
 			Widget:         in.Body.Display.Widget,
