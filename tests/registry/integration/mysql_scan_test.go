@@ -16,7 +16,7 @@ import (
 	mysqlscanner "github.com/faciam-dev/gcfm/internal/driver/mysql"
 )
 
-func TestScanAndUpsert(t *testing.T) {
+func TestMySQLScanMetadata(t *testing.T) {
 	ctx := context.Background()
 	container, err := func() (c *mysql.MySQLContainer, err error) {
 		defer func() {
@@ -51,22 +51,14 @@ func TestScanAndUpsert(t *testing.T) {
 	}
 	defer db.Close()
 
-	_, err = db.ExecContext(ctx, `CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(16))`)
-	if err != nil {
-		t.Fatalf("create table: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, `CREATE TABLE gcfm_custom_fields (
-        id BIGINT PRIMARY KEY AUTO_INCREMENT,
-        table_name VARCHAR(255) NOT NULL,
-        column_name VARCHAR(255) NOT NULL,
-        data_type VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_table_column (table_name, column_name)
+	_, err = db.ExecContext(ctx, `CREATE TABLE users (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        email VARCHAR(64) NOT NULL UNIQUE,
+        age INT NULL,
+        nickname VARCHAR(64) DEFAULT 'guest'
     )`)
 	if err != nil {
-		t.Fatalf("create meta: %v", err)
+		t.Fatalf("create table: %v", err)
 	}
 
 	sc := mysqlscanner.NewScanner(db)
@@ -74,17 +66,25 @@ func TestScanAndUpsert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-
-	if err := registry.UpsertSQL(ctx, db, "mysql", metas); err != nil {
-		t.Fatalf("upsert: %v", err)
+	find := func(col string) registry.FieldMeta {
+		for _, m := range metas {
+			if m.TableName == "users" && m.ColumnName == col {
+				return m
+			}
+		}
+		t.Fatalf("column %s not found", col)
+		return registry.FieldMeta{}
 	}
-
-	var count int
-	row := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM gcfm_custom_fields`)
-	if err := row.Scan(&count); err != nil {
-		t.Fatalf("count: %v", err)
+	email := find("email")
+	if email.Nullable || !email.Unique || email.HasDefault {
+		t.Fatalf("email meta incorrect: %+v", email)
 	}
-	if want := 2; count != want {
-		t.Fatalf("got %d, want %d", count, want)
+	age := find("age")
+	if !age.Nullable || age.Unique || age.HasDefault {
+		t.Fatalf("age meta incorrect: %+v", age)
+	}
+	nick := find("nickname")
+	if !nick.Nullable || nick.Unique || !nick.HasDefault || nick.Default == nil || *nick.Default != "guest" {
+		t.Fatalf("nickname meta incorrect: %+v", nick)
 	}
 }

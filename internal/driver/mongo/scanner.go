@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -37,18 +38,40 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 		name, _ := spec["name"].(string)
 		coll := db.Collection(name)
 
-		var colMetas []registry.FieldMeta
+		var (
+			colMetas []registry.FieldMeta
+			metaMap  = make(map[string]*registry.FieldMeta)
+		)
 		if opts, ok := spec["options"].(bson.M); ok {
 			if validator, ok := opts["validator"].(bson.M); ok {
 				if schema, ok := validator["$jsonSchema"].(bson.M); ok {
+					required := make(map[string]struct{})
+					if req, ok := schema["required"].(bson.A); ok {
+						for _, v := range req {
+							if s, ok := v.(string); ok {
+								required[s] = struct{}{}
+							}
+						}
+					}
 					if props, ok := schema["properties"].(bson.M); ok {
 						for field, v := range props {
 							if m, ok := v.(bson.M); ok {
-								colMetas = append(colMetas, registry.FieldMeta{
+								fm := registry.FieldMeta{
 									TableName:  name,
 									ColumnName: field,
 									DataType:   mapBSONType(m["bsonType"]),
-								})
+									Nullable:   true,
+								}
+								if _, ok := required[field]; ok {
+									fm.Nullable = false
+								}
+								if def, ok := m["default"]; ok {
+									fm.HasDefault = true
+									v := fmt.Sprint(def)
+									fm.Default = &v
+								}
+								colMetas = append(colMetas, fm)
+								metaMap[field] = &colMetas[len(colMetas)-1]
 							}
 						}
 					}
@@ -62,6 +85,29 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 			}
 			colMetas = samples
 		}
+		// unique indexes
+		idxCur, err := coll.Indexes().List(ctx)
+		if err == nil {
+			for idxCur.Next(ctx) {
+				var idx bson.M
+				if err := idxCur.Decode(&idx); err == nil {
+					if u, ok := idx["unique"].(bool); ok && u {
+						if key, ok := idx["key"].(bson.M); ok && len(key) == 1 {
+							for field := range key {
+								if m, ok := metaMap[field]; ok {
+									m.Unique = true
+								} else {
+									fm := registry.FieldMeta{TableName: name, ColumnName: field, DataType: "string", Unique: true, Nullable: true}
+									colMetas = append(colMetas, fm)
+								}
+							}
+						}
+					}
+				}
+			}
+			idxCur.Close(ctx)
+		}
+
 		metas = append(metas, colMetas...)
 	}
 	if err := cur.Err(); err != nil {

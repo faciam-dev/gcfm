@@ -17,7 +17,7 @@ import (
 	mscanner "github.com/faciam-dev/gcfm/internal/driver/mongo"
 )
 
-func TestMongoScan(t *testing.T) {
+func TestMongoScanMetadata(t *testing.T) {
 	ctx := context.Background()
 	container, err := func() (c *mongodb.MongoDBContainer, err error) {
 		defer func() {
@@ -45,9 +45,22 @@ func TestMongoScan(t *testing.T) {
 	}
 	defer cli.Disconnect(ctx)
 
-	coll := cli.Database("appdb").Collection("users")
-	if _, err := coll.InsertOne(ctx, bson.M{"name": "a"}); err != nil {
-		t.Fatalf("insert: %v", err)
+	db := cli.Database("appdb")
+	cmd := bson.D{{"create", "users"}, {"validator", bson.M{"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": bson.A{"email"},
+		"properties": bson.M{
+			"email":    bson.M{"bsonType": "string"},
+			"age":      bson.M{"bsonType": "int"},
+			"nickname": bson.M{"bsonType": "string", "default": "guest"},
+		},
+	}}}}
+	if err := db.RunCommand(ctx, cmd).Err(); err != nil {
+		t.Fatalf("create collection: %v", err)
+	}
+	coll := db.Collection("users")
+	if _, err := coll.Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{{"email", 1}}, Options: options.Index().SetUnique(true)}); err != nil {
+		t.Fatalf("create index: %v", err)
 	}
 
 	sc := mscanner.NewScanner(cli)
@@ -55,7 +68,25 @@ func TestMongoScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if len(metas) == 0 {
-		t.Fatalf("no metas")
+	find := func(col string) registry.FieldMeta {
+		for _, m := range metas {
+			if m.TableName == "users" && m.ColumnName == col {
+				return m
+			}
+		}
+		t.Fatalf("column %s not found", col)
+		return registry.FieldMeta{}
+	}
+	email := find("email")
+	if email.Nullable || !email.Unique || email.HasDefault {
+		t.Fatalf("email meta incorrect: %+v", email)
+	}
+	age := find("age")
+	if !age.Nullable || age.Unique || age.HasDefault {
+		t.Fatalf("age meta incorrect: %+v", age)
+	}
+	nick := find("nickname")
+	if !nick.Nullable || nick.Unique || !nick.HasDefault || nick.Default == nil || *nick.Default != "guest" {
+		t.Fatalf("nickname meta incorrect: %+v", nick)
 	}
 }
