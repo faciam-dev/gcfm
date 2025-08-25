@@ -79,6 +79,46 @@ func isPluginWidget(s string) (id string, ok bool) {
 	return "", false
 }
 
+type unifiedDefault = registry.UnifiedDefault
+
+func unifyDefault(b *schema.CustomField) unifiedDefault {
+	if b.Default != nil && b.Default.Mode != "" {
+		return unifiedDefault{
+			Mode:     strings.ToLower(b.Default.Mode),
+			Raw:      b.Default.Raw,
+			OnUpdate: b.Default.OnUpdateCurrentTimestamp != nil && *b.Default.OnUpdateCurrentTimestamp,
+		}
+	}
+	if b.DefaultMode != nil || b.DefaultRaw != nil || b.OnUpdateCurrentTimestampFlat != nil {
+		mode := "none"
+		if b.DefaultMode != nil && *b.DefaultMode != "" {
+			mode = strings.ToLower(*b.DefaultMode)
+		}
+		raw := ""
+		if b.DefaultRaw != nil {
+			raw = *b.DefaultRaw
+		}
+		onUpdate := false
+		if b.OnUpdateCurrentTimestampFlat != nil {
+			onUpdate = *b.OnUpdateCurrentTimestampFlat
+		}
+		return unifiedDefault{Mode: mode, Raw: raw, OnUpdate: onUpdate}
+	}
+	if b.HasDefault {
+		raw := ""
+		if b.DefaultValue != nil {
+			raw = *b.DefaultValue
+		}
+		mode := "literal"
+		token := strings.ToUpper(strings.TrimSpace(raw))
+		if token == "CURRENT_TIMESTAMP" || strings.HasPrefix(token, "CURRENT_TIMESTAMP(") || token == "NOW()" || token == "CURRENT_DATE" || token == "CURRENT_TIME" {
+			mode = "expression"
+		}
+		return unifiedDefault{Mode: mode, Raw: raw}
+	}
+	return unifiedDefault{Mode: "none"}
+}
+
 func (h *CustomFieldHandler) validateWidget(ctx context.Context, widget string) error {
 	if widget == "" {
 		return nil
@@ -215,9 +255,17 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.Unique != nil {
 		meta.Unique = *in.Body.Unique
 	}
-	meta.HasDefault = in.Body.HasDefault
-	if in.Body.HasDefault {
-		meta.Default = in.Body.DefaultValue
+	d := unifyDefault(&in.Body)
+	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
+	if err != nil {
+		if errors.Is(err, registry.ErrDefaultNotSupported) {
+			return nil, huma.Error400BadRequest("invalid default for column type")
+		}
+		return nil, huma.Error422("default", err.Error())
+	}
+	meta.HasDefault = hasDef
+	if hasDef {
+		meta.Default = norm
 	}
 	switch h.Driver {
 	case "mongo":
@@ -229,12 +277,8 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		if err != nil {
 			return nil, err
 		}
-		var def *string
-		if in.Body.HasDefault {
-			def = in.Body.DefaultValue
-		}
 		if !exists {
-			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -410,9 +454,17 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if in.Body.Unique != nil {
 		meta.Unique = *in.Body.Unique
 	}
-	meta.HasDefault = in.Body.HasDefault
-	if in.Body.HasDefault {
-		meta.Default = in.Body.DefaultValue
+	d := unifyDefault(&in.Body)
+	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
+	if err != nil {
+		if errors.Is(err, registry.ErrDefaultNotSupported) {
+			return nil, huma.Error400BadRequest("invalid default for column type")
+		}
+		return nil, huma.Error422("default", err.Error())
+	}
+	meta.HasDefault = hasDef
+	if hasDef {
+		meta.Default = norm
 	}
 	switch h.Driver {
 	case "mongo":
@@ -424,12 +476,8 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		if err != nil {
 			return nil, err
 		}
-		var def *string
-		if in.Body.HasDefault {
-			def = in.Body.DefaultValue
-		}
 		if exists {
-			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -437,7 +485,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 				return nil, huma.Error422("db", msg)
 			}
 		} else {
-			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}

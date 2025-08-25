@@ -39,6 +39,108 @@ func quoteIdentifier(driver, ident string) string {
 
 var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
+type UnifiedDefault struct {
+	Mode     string
+	Raw      string
+	OnUpdate bool
+}
+
+func isDateTimeLike(typ string) bool {
+	t := strings.ToLower(strings.TrimSpace(typ))
+	return strings.Contains(t, "timestamp") || strings.Contains(t, "datetime") || strings.Contains(t, "date") || strings.Contains(t, "time")
+}
+
+func isMySQLDefaultForbidden(typ string) bool {
+	t := strings.ToLower(strings.TrimSpace(typ))
+	return strings.Contains(t, "text") || strings.Contains(t, "blob") || strings.Contains(t, "geometry") || strings.Contains(t, "json")
+}
+
+func normalizeMySQLLiteral(typ, raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	return fmt.Sprintf("'%s'", escapeLiteral(s)), nil
+}
+
+func normalizePGLiteral(typ, raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	lit := fmt.Sprintf("'%s'", escapeLiteral(s))
+	if isDateTimeLike(typ) {
+		lit += "::timestamp"
+	}
+	return lit, nil
+}
+
+func isAllowedMySQLExpr(expr, colType string) bool {
+	if !isDateTimeLike(colType) && expr != "CURRENT_DATE" && expr != "CURRENT_TIME" {
+		return false
+	}
+	if expr == "CURRENT_TIMESTAMP" || strings.HasPrefix(expr, "CURRENT_TIMESTAMP(") || expr == "NOW()" || expr == "UTC_TIMESTAMP()" || expr == "CURRENT_DATE" || expr == "CURRENT_TIME" {
+		return true
+	}
+	return false
+}
+
+func isAllowedPGExpr(expr, colType string) bool {
+	up := strings.ToUpper(strings.TrimSpace(expr))
+	switch up {
+	case "CURRENT_TIMESTAMP", "NOW()", "CURRENT_DATE", "CURRENT_TIME":
+		return true
+	}
+	return false
+}
+
+func BuildDefaultClauses(driver, colType string, d UnifiedDefault) (string, string, *string, bool, error) {
+	if d.Mode == "none" || (strings.TrimSpace(d.Raw) == "" && d.Mode != "none") {
+		return "", "", nil, false, nil
+	}
+	switch driver {
+	case "mysql":
+		if isMySQLDefaultForbidden(colType) {
+			return "", "", nil, false, ErrDefaultNotSupported
+		}
+		if d.Mode == "expression" {
+			up := strings.ToUpper(strings.TrimSpace(d.Raw))
+			if !isAllowedMySQLExpr(up, colType) {
+				return "", "", nil, false, fmt.Errorf("unsupported expression for %s: %s", colType, up)
+			}
+			onup := ""
+			if d.OnUpdate && isDateTimeLike(colType) {
+				onup = " ON UPDATE CURRENT_TIMESTAMP"
+			}
+			norm := up
+			return " DEFAULT " + up, onup, &norm, true, nil
+		}
+		lit, err := normalizeMySQLLiteral(colType, d.Raw)
+		if err != nil {
+			return "", "", nil, false, err
+		}
+		norm := lit
+		return " DEFAULT " + lit, "", &norm, true, nil
+	case "postgres":
+		if d.Mode == "expression" {
+			up := strings.TrimSpace(d.Raw)
+			if !isAllowedPGExpr(up, colType) {
+				return "", "", nil, false, fmt.Errorf("unsupported expression for %s: %s", colType, up)
+			}
+			norm := up
+			return " DEFAULT " + up, "", &norm, true, nil
+		}
+		lit, err := normalizePGLiteral(colType, d.Raw)
+		if err != nil {
+			return "", "", nil, false, err
+		}
+		norm := lit
+		return " DEFAULT " + lit, "", &norm, true, nil
+	case "mongo", "mongodb":
+		if d.Mode == "expression" {
+			return "", "", nil, false, fmt.Errorf("expression default is not supported for MongoDB")
+		}
+		norm := strings.TrimSpace(d.Raw)
+		return "", "", &norm, true, nil
+	default:
+		return "", "", nil, false, fmt.Errorf("unknown driver")
+	}
+}
+
 func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table, column string) (bool, error) {
 	q := query.New(db, "information_schema.columns", dialect).
 		Where("table_name", table).
@@ -64,52 +166,21 @@ func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, sc
 	return cnt > 0, nil
 }
 
-func supportsDefault(driver, typ string) bool {
-	if driver != "mysql" {
-		return true
-	}
-	t := strings.ToLower(strings.TrimSpace(typ))
-	if strings.Contains(t, "text") || strings.Contains(t, "blob") || strings.Contains(t, "geometry") || strings.Contains(t, "json") {
-		return false
-	}
-	return true
-}
-
-func isTemporalType(typ string) bool {
-	t := strings.ToLower(strings.TrimSpace(typ))
-	return strings.Contains(t, "timestamp") || strings.Contains(t, "datetime") || strings.Contains(t, "date") || strings.Contains(t, "time")
-}
-
-func defaultValueSQL(driver, typ string, def *string) (string, error) {
-	if def == nil {
-		return "", nil
-	}
-	s := strings.TrimSpace(*def)
-	if s == "" {
-		return "", nil
-	}
-	upper := strings.ToUpper(s)
-	if isTemporalType(typ) {
-		if strings.HasPrefix(upper, "CURRENT_TIMESTAMP") || upper == "NOW()" || (driver == "mysql" && upper == "UTC_TIMESTAMP()") || upper == "CURRENT_DATE" || upper == "CURRENT_TIME" {
-			return s, nil
-		}
-	}
-	return fmt.Sprintf("'%s'", escapeLiteral(s)), nil
-}
-
-func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
+func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, d UnifiedDefault) error {
 	typ = normalizeType(driver, typ)
-	if def != nil && !supportsDefault(driver, typ) {
-		def = nil
+	defClause, onUpdateClause, _, _, err := BuildDefaultClauses(driver, typ, d)
+	if err != nil {
+		return err
 	}
 	opts := []string{typ}
 	if nullable != nil && !*nullable {
 		opts = append(opts, "NOT NULL")
 	}
-	if clause, err := defaultValueSQL(driver, typ, def); err != nil {
-		return err
-	} else if clause != "" {
-		opts = append(opts, "DEFAULT "+clause)
+	if defClause != "" {
+		opts = append(opts, defClause)
+	}
+	if onUpdateClause != "" {
+		opts = append(opts, onUpdateClause)
 	}
 	var stmt string
 	switch driver {
@@ -140,10 +211,11 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 	return nil
 }
 
-func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
+func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, d UnifiedDefault) error {
 	typ = normalizeType(driver, typ)
-	if def != nil && !supportsDefault(driver, typ) {
-		def = nil
+	defClause, onUpdateClause, _, _, err := BuildDefaultClauses(driver, typ, d)
+	if err != nil {
+		return err
 	}
 	var stmt string
 	switch driver {
@@ -156,10 +228,9 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET NOT NULL`, column))
 			}
 		}
-		if clause, err := defaultValueSQL(driver, typ, def); err != nil {
-			return err
-		} else if clause != "" {
-			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT %s`, column, clause))
+		if defClause != "" {
+			expr := strings.TrimPrefix(defClause, " DEFAULT ")
+			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT %s`, column, expr))
 		}
 		if unique != nil {
 			if *unique {
@@ -175,10 +246,11 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		if nullable != nil && !*nullable {
 			opts = append(opts, "NOT NULL")
 		}
-		if clause, err := defaultValueSQL(driver, typ, def); err != nil {
-			return err
-		} else if clause != "" {
-			opts = append(opts, "DEFAULT "+clause)
+		if defClause != "" {
+			opts = append(opts, defClause)
+		}
+		if onUpdateClause != "" {
+			opts = append(opts, onUpdateClause)
 		}
 		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, strings.Join(opts, " "))
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
@@ -192,7 +264,6 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 					return fmt.Errorf("add unique: %w", err)
 				}
 			} else {
-				// MySQL stores the UNIQUE constraint as an index so it must be dropped separately.
 				var cnt int
 				err := db.QueryRowContext(ctx,
 					`SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
