@@ -1,6 +1,8 @@
 version: 1
 suggest_top: 6
+
 rules:
+  # --- validator 優先 ---
   - id: email
     when: { validator: ["email"] }
     widget: plugin://email-input
@@ -19,8 +21,15 @@ rules:
     config: { casing: "lower" }
     stop: true
 
+  - id: regex
+    when: { validator: ["regex"] }
+    widget: plugin://text-input
+    config: { pattern: ".*" }
+    stop: true
+
+  # --- boolean / enum / set ---
   - id: boolean
-    when: { types: ["bool", "boolean", "tinyint(1)"] }
+    when: { types: ["bool","boolean","tinyint(1)"] }
     widget: plugin://checkbox
     config: { trueLabel: "Yes", falseLabel: "No" }
     stop: true
@@ -28,17 +37,16 @@ rules:
   - id: enum
     when: { types: ["enum"] }
     widget: plugin://select
-    config:
-      options: '{{ join .EnumValues "," }}'
+    config: { options: "{{ join .EnumValues \",\" }}" }
     stop: true
 
   - id: set
     when: { types: ["set"] }
     widget: plugin://multiselect
-    config:
-      options: '{{ join .EnumValues "," }}'
+    config: { options: "{{ join .EnumValues \",\" }}" }
     stop: true
 
+  # --- date/time/datetime ---
   - id: date
     when: { types: ["date"] }
     widget: plugin://date-input
@@ -52,42 +60,46 @@ rules:
     stop: true
 
   - id: datetime
-    when: { types: ["datetime", "timestamp", "timestamptz"] }
+    when: { types: ["datetime","timestamp","timestamptz"] }
     widget: plugin://datetime-input
     config:
       format: "YYYY-MM-DD HH:mm:ss"
-      withTimezone: '{{ eq .Type "timestamptz" }}'
+      withTimezone: "{{ eq .Type \"timestamptz\" }}"
     stop: true
 
+  # --- json ---
   - id: json
-    when: { types: ["json", "jsonb"] }
+    when: { types: ["json","jsonb"] }
     widget: plugin://json-editor
     config: { mode: "code" }
     stop: true
 
+  # --- number ---
   - id: int-like
-    when: { types: ["int", "integer", "bigint", "smallint"] }
+    when: { types: ["int","integer","bigint","smallint"] }
     widget: plugin://number-input
     config: { step: 1 }
     stop: true
 
   - id: decimal-like
-    when: { types: ["decimal", "numeric", "float", "double", "real"] }
+    when: { types: ["decimal","numeric","float","double","real"] }
     widget: plugin://number-input
     config: { step: "0.01" }
     stop: true
 
+  # --- password 名称ヒューリスティック ---
   - id: password
     when:
       name_regex: "(?i)(password|passwd|secret)"
-      types: ["varchar", "char", "text", "mediumtext", "longtext"]
+      types: ["varchar","char","text","mediumtext","longtext"]
     widget: plugin://password-input
     config: { reveal: false }
     stop: true
 
+  # --- string（長さで出し分け） ---
   - id: string-short
     when:
-      types: ["varchar", "char"]
+      types: ["varchar","char"]
       length_max: 255
     widget: plugin://text-input
     config: { maxLength: "{{ or .Length 255 }}" }
@@ -95,7 +107,7 @@ rules:
 
   - id: string-long
     when:
-      types: ["varchar", "char", "text", "mediumtext", "longtext"]
+      types: ["varchar","char","text","mediumtext","longtext"]
       length_min: 256
     widget: plugin://textarea
     config:
@@ -104,6 +116,7 @@ rules:
       softWrap: true
     stop: true
 
+  # --- 最後の砦 ---
   - id: fallback
     widget: plugin://text-input
     config: {}
