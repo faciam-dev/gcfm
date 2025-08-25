@@ -15,11 +15,11 @@ type Validator struct {
 
 func builtin() []Validator {
 	return []Validator{
-		{ID: "none", Name: "none", Description: "制約なし", AppliesTo: []string{"*"}},
-		{ID: "email", Name: "email", Description: "メール形式", AppliesTo: []string{"varchar", "text"}},
-		{ID: "number", Name: "number", Description: "数値", AppliesTo: []string{"int", "bigint", "decimal", "float", "double"}},
-		{ID: "uuid", Name: "uuid", Description: "UUID形式", AppliesTo: []string{"uuid", "varchar"}},
-		{ID: "regex", Name: "regex", Description: "正規表現", AppliesTo: []string{"varchar", "text"},
+		{ID: "none", Name: "none", Description: "No constraints", AppliesTo: []string{"*"}},
+		{ID: "email", Name: "email", Description: "Email format", AppliesTo: []string{"varchar", "text"}},
+		{ID: "number", Name: "number", Description: "Numeric value", AppliesTo: []string{"int", "bigint", "decimal", "float", "double"}},
+		{ID: "uuid", Name: "uuid", Description: "UUID format", AppliesTo: []string{"uuid", "varchar"}},
+		{ID: "regex", Name: "regex", Description: "Regular expression", AppliesTo: []string{"varchar", "text"},
 			Params: map[string]any{"pattern": "^.*$"},
 			Schema: map[string]any{
 				"type":       "object",
