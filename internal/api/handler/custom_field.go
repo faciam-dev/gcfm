@@ -14,6 +14,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/customfield/widgetpolicy"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
@@ -37,6 +38,7 @@ type CustomFieldHandler struct {
 	Schema         string
 	TablePrefix    string
 	WidgetRegistry widgetreg.Registry
+	PolicyStore    *widgetpolicy.Store
 }
 
 type createInput struct {
@@ -84,17 +86,18 @@ func canonicalizeWidgetID(raw, colType string) (string, map[string]any, bool) {
 	}
 }
 
-func resolveAutoWidget(colType string) string {
-	switch strings.ToLower(colType) {
-	case "date":
-		return "plugin://date-input"
-	case "time":
-		return "plugin://time-input"
-	case "bool", "boolean":
-		return "plugin://checkbox"
-	default:
+func (h *CustomFieldHandler) resolveAuto(ctx widgetpolicy.AutoResolveCtx) string {
+	if h.PolicyStore == nil {
 		return "plugin://text-input"
 	}
+	id, _ := h.PolicyStore.Policy().Resolve(ctx, func(id string) bool {
+		if strings.HasPrefix(id, "plugin://") {
+			pid := strings.TrimPrefix(id, "plugin://")
+			return h.WidgetRegistry == nil || h.WidgetRegistry.Has(pid)
+		}
+		return true
+	})
+	return id
 }
 
 func isPluginWidget(s string) (id string, ok bool) {
@@ -280,7 +283,9 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			WidgetConfig:   in.Body.Display.WidgetConfig,
 		}
 		if isAuto {
-			display.WidgetResolved = resolveAutoWidget(in.Body.Type)
+			base, length, enums := widgetpolicy.ParseTypeInfo(in.Body.Type)
+			ctx := widgetpolicy.AutoResolveCtx{Driver: mdb.Driver, Type: base, Validator: in.Body.Validator, Length: length, ColumnName: in.Body.Column, EnumValues: enums}
+			display.WidgetResolved = h.resolveAuto(ctx)
 		} else {
 			display.WidgetResolved = display.Widget
 		}
@@ -371,7 +376,9 @@ func (h *CustomFieldHandler) list(ctx context.Context, in *listParams) (*listOut
 	for i := range metas {
 		if metas[i].Display != nil {
 			if metas[i].Display.Widget == "core://auto" {
-				metas[i].Display.WidgetResolved = resolveAutoWidget(metas[i].DataType)
+				base, length, enums := widgetpolicy.ParseTypeInfo(metas[i].DataType)
+				ctx := widgetpolicy.AutoResolveCtx{Driver: h.Driver, Type: base, Validator: metas[i].Validator, Length: length, ColumnName: metas[i].ColumnName, EnumValues: enums}
+				metas[i].Display.WidgetResolved = h.resolveAuto(ctx)
 			} else {
 				metas[i].Display.WidgetResolved = metas[i].Display.Widget
 			}
@@ -513,7 +520,9 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			WidgetConfig:   in.Body.Display.WidgetConfig,
 		}
 		if isAuto {
-			display.WidgetResolved = resolveAutoWidget(in.Body.Type)
+			base, length, enums := widgetpolicy.ParseTypeInfo(in.Body.Type)
+			ctx := widgetpolicy.AutoResolveCtx{Driver: mdb.Driver, Type: base, Validator: in.Body.Validator, Length: length, ColumnName: column, EnumValues: enums}
+			display.WidgetResolved = h.resolveAuto(ctx)
 		} else {
 			display.WidgetResolved = display.Widget
 		}

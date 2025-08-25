@@ -753,6 +753,22 @@
         ],
         "type": "object"
       },
+      "ResolvedStruct": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "Role": {
         "additionalProperties": false,
         "properties": {
@@ -996,6 +1012,53 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "SuggestOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SuggestOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "resolved": {
+            "$ref": "#/components/schemas/ResolvedStruct"
+          },
+          "suggested": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "resolved",
+          "suggested"
+        ],
+        "type": "object"
+      },
+      "Suggestion": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
         "type": "object"
       },
       "TableInfo": {
@@ -4244,6 +4307,80 @@
         "summary": "Apply registry snapshot",
         "tags": [
           "Snapshot"
+        ]
+      }
+    },
+    "/v1/widget-policies/suggest": {
+      "get": {
+        "operationId": "suggestWidgetPolicy",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "driver",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "validator",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "length",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Suggest widgets",
+        "tags": [
+          "CustomField"
         ]
       }
     }

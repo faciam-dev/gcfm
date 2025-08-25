@@ -24,18 +24,3 @@ func TestCanonicalizeWidgetID(t *testing.T) {
 		}
 	}
 }
-
-func TestResolveAutoWidget(t *testing.T) {
-	if resolveAutoWidget("date") != "plugin://date-input" {
-		t.Fatalf("date")
-	}
-	if resolveAutoWidget("time") != "plugin://time-input" {
-		t.Fatalf("time")
-	}
-	if resolveAutoWidget("bool") != "plugin://checkbox" {
-		t.Fatalf("bool")
-	}
-	if resolveAutoWidget("int") != "plugin://text-input" {
-		t.Fatalf("int")
-	}
-}

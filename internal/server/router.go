@@ -19,6 +19,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/auth"
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/customfield/widgetpolicy"
 	"github.com/faciam-dev/gcfm/internal/events"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/metrics"
@@ -170,7 +171,20 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 
 	wreg := widgetreg.NewInMemory()
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix, WidgetRegistry: wreg})
+	policyPath := os.Getenv("WIDGET_POLICY_PATH")
+	if policyPath == "" {
+		policyPath = filepath.Join("configs", "widget_policies.yml")
+	}
+	wpStore, err := widgetpolicy.NewStore(policyPath, logger.L)
+	if err != nil {
+		logger.L.Warn("load widget policy", "err", err)
+	} else {
+		if err := wpStore.Start(context.Background()); err != nil {
+			logger.L.Warn("watch widget policy", "err", err)
+		}
+	}
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix, WidgetRegistry: wreg, PolicyStore: wpStore})
+	handler.RegisterWidgetPolicy(api, &handler.WidgetPolicyHandler{Store: wpStore, Registry: wreg})
 	handler.RegisterCustomFieldValidators(api)
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, Dialect: dialect, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
