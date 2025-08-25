@@ -59,7 +59,7 @@ func TestAPI_Create_CF_Integration(t *testing.T) {
 	srv := httptest.NewServer(api.Adapter())
 	defer srv.Close()
 
-	body := `{"table":"posts","column":"title","type":"text"}`
+	body := `{"table":"posts","column":"title","type":"text","display":{"widget":"text"}}`
 	resp, err := http.Post(srv.URL+"/v1/custom-fields", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)

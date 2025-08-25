@@ -70,6 +70,18 @@ var builtinWidgets = map[string]struct{}{
 	"select": {}, "date": {}, "email": {}, "number": {},
 }
 
+func canonicalizeWidgetID(s string) (string, map[string]any) {
+	id := strings.TrimSpace(strings.ToLower(s))
+	switch id {
+	case "", "core://default", "core://text-input":
+		return "plugin://text-input", nil
+	case "core://date-input":
+		return "plugin://date-input", nil
+	default:
+		return s, nil
+	}
+}
+
 func isPluginWidget(s string) (id string, ok bool) {
 	const p = "plugin://"
 	if strings.HasPrefix(s, p) {
@@ -178,18 +190,24 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.DBID == nil {
 		return nil, huma.Error422("db_id", "required")
 	}
-	if in.Body.Display.Widget == "" {
+	origWidget := in.Body.Display.Widget
+	if strings.TrimSpace(origWidget) == "" {
 		return nil, huma.Error422("display.widget", "required")
 	}
+	in.Body.Display.Widget, _ = canonicalizeWidgetID(origWidget)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
-	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+	origIsCore := strings.HasPrefix(strings.ToLower(origWidget), "core://")
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
 				in.Body.Display.WidgetConfig = def
 			}
 		}
+	}
+	if origIsCore {
+		in.Body.Display.WidgetConfig = nil
 	}
 	tid := tenant.FromContext(ctx)
 	if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
@@ -389,18 +407,24 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	if in.Body.Display.Widget == "" {
+	origWidget := in.Body.Display.Widget
+	if strings.TrimSpace(origWidget) == "" {
 		return nil, huma.Error422("display.widget", "required")
 	}
+	in.Body.Display.Widget, _ = canonicalizeWidgetID(origWidget)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
-	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+	origIsCore := strings.HasPrefix(strings.ToLower(origWidget), "core://")
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
 				in.Body.Display.WidgetConfig = def
 			}
 		}
+	}
+	if origIsCore {
+		in.Body.Display.WidgetConfig = nil
 	}
 	tid := tenant.FromContext(ctx)
 	dbID := pkgmonitordb.DefaultDBID
