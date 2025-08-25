@@ -178,6 +178,9 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.DBID == nil {
 		return nil, huma.Error422("db_id", "required")
 	}
+	if in.Body.Display.Widget == "" {
+		return nil, huma.Error422("display.widget", "required")
+	}
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
@@ -256,6 +259,8 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		meta.Unique = *in.Body.Unique
 	}
 	d := unifyDefault(&in.Body)
+	nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
+	d = nd.Default
 	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
 	if err != nil {
 		if errors.Is(err, registry.ErrDefaultNotSupported) {
@@ -384,6 +389,9 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
+	if in.Body.Display.Widget == "" {
+		return nil, huma.Error422("display.widget", "required")
+	}
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
@@ -455,6 +463,8 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		meta.Unique = *in.Body.Unique
 	}
 	d := unifyDefault(&in.Body)
+	nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
+	d = nd.Default
 	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
 	if err != nil {
 		if errors.Is(err, registry.ErrDefaultNotSupported) {

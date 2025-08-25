@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
@@ -43,6 +44,12 @@ type UnifiedDefault struct {
 	Mode     string
 	Raw      string
 	OnUpdate bool
+}
+
+type NormalizeResult struct {
+	Default  UnifiedDefault
+	Warnings []string
+	Action   string
 }
 
 func isDateTimeLike(typ string) bool {
@@ -86,6 +93,100 @@ func isAllowedPGExpr(expr, colType string) bool {
 		return true
 	}
 	return false
+}
+
+func NormalizeDefaultForType(driver, colType string, d UnifiedDefault) NormalizeResult {
+	res := NormalizeResult{Default: d, Action: "as-is"}
+
+	if d.Mode == "expression" {
+		up := strings.ToUpper(strings.TrimSpace(d.Raw))
+		switch strings.ToLower(colType) {
+		case "datetime", "timestamp":
+			if driver == "mysql" && !isAllowedMySQLExpr(up, colType) {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+			}
+		case "date":
+			if up == "CURRENT_TIMESTAMP" || strings.HasPrefix(up, "CURRENT_TIMESTAMP(") || up == "NOW()" {
+				res.Default.Raw = mapExprToDate(driver)
+				res.Default.OnUpdate = false
+				res.Action = "mapped"
+			} else if up != "CURRENT_DATE" {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+			} else {
+				res.Default.OnUpdate = false
+			}
+		case "time":
+			if up == "CURRENT_TIMESTAMP" || strings.HasPrefix(up, "CURRENT_TIMESTAMP(") || up == "NOW()" {
+				res.Default.Raw = "CURRENT_TIME"
+				res.Default.OnUpdate = false
+				res.Action = "mapped"
+			} else if up != "CURRENT_TIME" {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+			} else {
+				res.Default.OnUpdate = false
+			}
+		default:
+			if driver == "mysql" {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+				res.Default.OnUpdate = false
+			}
+		}
+	}
+
+	if res.Default.Mode == "literal" && strings.TrimSpace(res.Default.Raw) != "" {
+		switch strings.ToLower(colType) {
+		case "date":
+			if ts, ok := parseAsDateTime(res.Default.Raw); ok {
+				res.Default.Raw = ts.Format("2006-01-02")
+				res.Default.OnUpdate = false
+				if res.Action == "as-is" {
+					res.Action = "mapped"
+				}
+			}
+		case "time":
+			if ts, ok := parseAsDateTime(res.Default.Raw); ok {
+				res.Default.Raw = ts.Format("15:04:05")
+				res.Default.OnUpdate = false
+				if res.Action == "as-is" {
+					res.Action = "mapped"
+				}
+			}
+		}
+	}
+
+	if driver == "mysql" && !isDateTimeLike(colType) && res.Default.OnUpdate {
+		res.Default.OnUpdate = false
+		if res.Action == "as-is" {
+			res.Action = "mapped"
+		}
+		res.Warnings = append(res.Warnings, "ON UPDATE is not allowed for this type; removed.")
+	}
+
+	return res
+}
+
+func mapExprToDate(driver string) string {
+	return "CURRENT_DATE"
+}
+
+func parseAsDateTime(s string) (time.Time, bool) {
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		"15:04:05",
+	}
+	s = strings.TrimSpace(s)
+	for _, l := range layouts {
+		if t, err := time.Parse(l, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func BuildDefaultClauses(driver, colType string, d UnifiedDefault) (string, string, *string, bool, error) {
@@ -168,6 +269,7 @@ func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, sc
 
 func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, d UnifiedDefault) error {
 	typ = normalizeType(driver, typ)
+	d = NormalizeDefaultForType(driver, typ, d).Default
 	defClause, onUpdateClause, _, _, err := BuildDefaultClauses(driver, typ, d)
 	if err != nil {
 		return err
@@ -213,6 +315,7 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 
 func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, d UnifiedDefault) error {
 	typ = normalizeType(driver, typ)
+	d = NormalizeDefaultForType(driver, typ, d).Default
 	defClause, onUpdateClause, _, _, err := BuildDefaultClauses(driver, typ, d)
 	if err != nil {
 		return err
