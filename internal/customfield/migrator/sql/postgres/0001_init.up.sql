@@ -325,3 +325,10 @@ DROP TRIGGER IF EXISTS gcfm_widgets_notify_iud ON gcfm_widgets;
 CREATE TRIGGER gcfm_widgets_notify_iud
 AFTER INSERT OR UPDATE OR DELETE ON gcfm_widgets
 FOR EACH ROW EXECUTE FUNCTION notify_widgets_changed();
+
+ALTER TABLE gcfm_custom_fields
+  ADD COLUMN widget_config JSONB;
+
+UPDATE gcfm_custom_fields
+  SET widget_config = '{}'::jsonb
+  WHERE widget_config IS NULL;

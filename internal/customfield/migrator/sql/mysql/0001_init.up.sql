@@ -312,3 +312,10 @@ CREATE INDEX gcfm_widgets_updated_at_idx ON gcfm_widgets (updated_at);
 CREATE INDEX gcfm_widgets_tenant_scope_idx ON gcfm_widgets (tenant_scope);
 ALTER TABLE gcfm_widgets
   MODIFY tenants JSON NOT NULL;
+
+ALTER TABLE gcfm_custom_fields
+  ADD COLUMN widget_config JSON NULL;
+
+UPDATE gcfm_custom_fields
+  SET widget_config = JSON_OBJECT()
+  WHERE widget_config IS NULL;

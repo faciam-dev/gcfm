@@ -77,7 +77,8 @@ func (s *SQLMetaStore) UpsertFieldDefs(ctx context.Context, tx *sql.Tx, defs []m
 	defer func() { _ = stmt.Close() }()
 
 	for _, m := range defs {
-		var labelKey, widget, widgetCfg, placeholderKey string
+		var labelKey, widget, placeholderKey string
+		var widgetCfg any
 		if m.Display != nil {
 			labelKey = m.Display.LabelKey
 			widget = m.Display.Widget

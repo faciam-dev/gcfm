@@ -34,7 +34,7 @@ func TestAuditDiffAndCounts(t *testing.T) {
 
 	since := time.Now().UTC().Format(time.RFC3339)
 
-	body := fmt.Sprintf(`{"db_id":%d,"table":"posts","column":"diff_test_col","type":"text"}`, dbID)
+	body := fmt.Sprintf(`{"db_id":%d,"table":"posts","column":"diff_test_col","type":"text","display":{"widget":"text"}}`, dbID)
 	reqCreate, err := http.NewRequest("POST", e.URL+"/v1/custom-fields", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

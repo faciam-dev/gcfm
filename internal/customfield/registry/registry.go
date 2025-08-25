@@ -275,7 +275,8 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver string, metas []FieldMeta
 	defer stmt.Close()
 
 	for _, m := range metas {
-		var labelKey, widget, widgetCfg, placeholderKey string
+		var labelKey, widget, placeholderKey string
+		var widgetCfg any
 		if m.Display != nil {
 			labelKey = m.Display.LabelKey
 			widget = m.Display.Widget
@@ -328,7 +329,8 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tenant string, m
 	defer stmt.Close()
 
 	for _, m := range metas {
-		var labelKey, widget, widgetCfg, placeholderKey string
+		var labelKey, widget, placeholderKey string
+		var widgetCfg any
 		if m.Display != nil {
 			labelKey = m.Display.LabelKey
 			widget = m.Display.Widget

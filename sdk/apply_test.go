@@ -43,7 +43,7 @@ func TestApplyEnsuresMonitoredDB(t *testing.T) {
 	mock.ExpectBegin()
 	prep := mock.ExpectPrepare(regexp.QuoteMeta("INSERT INTO gcfm_custom_fields"))
 	prep.ExpectExec().
-		WithArgs(int64(1), "posts", "cf1", "text", "", "text", "", "", false, false, false, "", "").
+		WithArgs(int64(1), "posts", "cf1", "text", "", "text", nil, "", false, false, false, "", "").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
