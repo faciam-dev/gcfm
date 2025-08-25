@@ -24,6 +24,14 @@ func TestNormalizeDefaultForType(t *testing.T) {
 			action:  "mapped",
 		},
 		{
+			name:    "canonicalize curdate",
+			driver:  "mysql",
+			colType: "date",
+			in:      registry.UnifiedDefault{Mode: "expression", Raw: "curdate()", OnUpdate: true},
+			exp:     registry.UnifiedDefault{Mode: "expression", Raw: "CURRENT_DATE", OnUpdate: false},
+			action:  "as-is",
+		},
+		{
 			name:    "clear expression for varchar",
 			driver:  "mysql",
 			colType: "varchar",
@@ -38,6 +46,14 @@ func TestNormalizeDefaultForType(t *testing.T) {
 			in:      registry.UnifiedDefault{Mode: "literal", Raw: "2024-01-02 03:04:05", OnUpdate: true},
 			exp:     registry.UnifiedDefault{Mode: "literal", Raw: "03:04:05", OnUpdate: false},
 			action:  "mapped",
+		},
+		{
+			name:    "canonicalize curtime",
+			driver:  "mysql",
+			colType: "time",
+			in:      registry.UnifiedDefault{Mode: "expression", Raw: "CURTIME()", OnUpdate: true},
+			exp:     registry.UnifiedDefault{Mode: "expression", Raw: "CURRENT_TIME", OnUpdate: false},
+			action:  "as-is",
 		},
 	}
 

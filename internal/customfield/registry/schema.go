@@ -100,6 +100,12 @@ func NormalizeDefaultForType(driver, colType string, d UnifiedDefault) Normalize
 
 	if d.Mode == "expression" {
 		up := strings.ToUpper(strings.TrimSpace(d.Raw))
+		switch up {
+		case "CURDATE()":
+			up = "CURRENT_DATE"
+		case "CURTIME()":
+			up = "CURRENT_TIME"
+		}
 		switch strings.ToLower(colType) {
 		case "datetime", "timestamp":
 			if driver == "mysql" && !isAllowedMySQLExpr(up, colType) {
@@ -115,6 +121,7 @@ func NormalizeDefaultForType(driver, colType string, d UnifiedDefault) Normalize
 				res.Default = UnifiedDefault{Mode: "none"}
 				res.Action = "cleared"
 			} else {
+				res.Default.Raw = "CURRENT_DATE"
 				res.Default.OnUpdate = false
 			}
 		case "time":
@@ -126,6 +133,7 @@ func NormalizeDefaultForType(driver, colType string, d UnifiedDefault) Normalize
 				res.Default = UnifiedDefault{Mode: "none"}
 				res.Action = "cleared"
 			} else {
+				res.Default.Raw = "CURRENT_TIME"
 				res.Default.OnUpdate = false
 			}
 		default:
@@ -158,7 +166,8 @@ func NormalizeDefaultForType(driver, colType string, d UnifiedDefault) Normalize
 		}
 	}
 
-	if driver == "mysql" && !isDateTimeLike(colType) && res.Default.OnUpdate {
+	lc := strings.ToLower(colType)
+	if driver == "mysql" && (lc == "date" || lc == "time" || !isDateTimeLike(colType)) && res.Default.OnUpdate {
 		res.Default.OnUpdate = false
 		if res.Action == "as-is" {
 			res.Action = "mapped"
@@ -200,14 +209,27 @@ func BuildDefaultClauses(driver, colType string, d UnifiedDefault) (string, stri
 		}
 		if d.Mode == "expression" {
 			up := strings.ToUpper(strings.TrimSpace(d.Raw))
+			switch up {
+			case "CURDATE()":
+				up = "CURRENT_DATE"
+			case "CURTIME()":
+				up = "CURRENT_TIME"
+			}
 			if !isAllowedMySQLExpr(up, colType) {
 				return "", "", nil, false, fmt.Errorf("unsupported expression for %s: %s", colType, up)
 			}
+			lc := strings.ToLower(colType)
 			onup := ""
-			if d.OnUpdate && isDateTimeLike(colType) {
+			if d.OnUpdate && (lc == "datetime" || lc == "timestamp") {
 				onup = " ON UPDATE CURRENT_TIMESTAMP"
 			}
 			norm := up
+			if lc == "date" && up == "CURRENT_DATE" {
+				return " DEFAULT (" + up + ")", "", &norm, true, nil
+			}
+			if lc == "time" && up == "CURRENT_TIME" {
+				return " DEFAULT (" + up + ")", "", &norm, true, nil
+			}
 			return " DEFAULT " + up, onup, &norm, true, nil
 		}
 		lit, err := normalizeMySQLLiteral(colType, d.Raw)
