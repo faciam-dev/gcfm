@@ -75,6 +75,28 @@ func supportsDefault(driver, typ string) bool {
 	return true
 }
 
+func isTemporalType(typ string) bool {
+	t := strings.ToLower(strings.TrimSpace(typ))
+	return strings.Contains(t, "timestamp") || strings.Contains(t, "datetime") || strings.Contains(t, "date") || strings.Contains(t, "time")
+}
+
+func defaultValueSQL(driver, typ string, def *string) (string, error) {
+	if def == nil {
+		return "", nil
+	}
+	s := strings.TrimSpace(*def)
+	if s == "" {
+		return "", nil
+	}
+	upper := strings.ToUpper(s)
+	if isTemporalType(typ) {
+		if strings.HasPrefix(upper, "CURRENT_TIMESTAMP") || upper == "NOW()" || (driver == "mysql" && upper == "UTC_TIMESTAMP()") || upper == "CURRENT_DATE" || upper == "CURRENT_TIME" {
+			return s, nil
+		}
+	}
+	return fmt.Sprintf("'%s'", escapeLiteral(s)), nil
+}
+
 func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
 	typ = normalizeType(driver, typ)
 	if def != nil && !supportsDefault(driver, typ) {
@@ -84,8 +106,10 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 	if nullable != nil && !*nullable {
 		opts = append(opts, "NOT NULL")
 	}
-	if def != nil {
-		opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+	if clause, err := defaultValueSQL(driver, typ, def); err != nil {
+		return err
+	} else if clause != "" {
+		opts = append(opts, "DEFAULT "+clause)
 	}
 	var stmt string
 	switch driver {
@@ -132,8 +156,10 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET NOT NULL`, column))
 			}
 		}
-		if def != nil {
-			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT '%s'`, column, escapeLiteral(*def)))
+		if clause, err := defaultValueSQL(driver, typ, def); err != nil {
+			return err
+		} else if clause != "" {
+			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT %s`, column, clause))
 		}
 		if unique != nil {
 			if *unique {
@@ -149,8 +175,10 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		if nullable != nil && !*nullable {
 			opts = append(opts, "NOT NULL")
 		}
-		if def != nil {
-			opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+		if clause, err := defaultValueSQL(driver, typ, def); err != nil {
+			return err
+		} else if clause != "" {
+			opts = append(opts, "DEFAULT "+clause)
 		}
 		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, strings.Join(opts, " "))
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
