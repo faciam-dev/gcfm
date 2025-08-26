@@ -15,7 +15,6 @@ func TestCanonicalizeWidgetID(t *testing.T) {
 		{"core://text-input", "text", "plugin://text-input", false},
 		{"core://date-input", "date", "plugin://date-input", false},
 		{"plugin://text-input", "text", "plugin://text-input", false},
-		{"text", "text", "text", false},
 	}
 	for _, tt := range tests {
 		got, _, isAuto := canonicalizeWidgetID(tt.in, tt.colType)

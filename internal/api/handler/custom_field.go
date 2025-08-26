@@ -14,6 +14,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/display"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
@@ -65,11 +66,6 @@ type updateInput struct {
 
 type deleteInput struct {
 	ID string `path:"id"`
-}
-
-var builtinWidgets = map[string]struct{}{
-	"(default)": {}, "text": {}, "textarea": {},
-	"select": {}, "date": {}, "email": {}, "number": {},
 }
 
 func canonicalizeWidgetID(raw, colType string) (string, map[string]any, bool) {
@@ -156,9 +152,6 @@ func (h *CustomFieldHandler) validateWidget(ctx context.Context, widget string) 
 	if widget == "core://auto" {
 		return nil
 	}
-	if _, ok := builtinWidgets[widget]; ok {
-		return nil
-	}
 	if id, ok := isPluginWidget(widget); ok {
 		if h.WidgetRegistry == nil || !h.WidgetRegistry.Has(id) {
 			return huma.NewError(http.StatusUnprocessableEntity, "unknown plugin widget: "+id)
@@ -211,16 +204,17 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.DBID == nil {
 		return nil, huma.Error422("db_id", "required")
 	}
-	origWidget := in.Body.Display.Widget
-	if strings.TrimSpace(origWidget) == "" {
+	rawWidget := in.Body.Display.Widget
+	if strings.TrimSpace(rawWidget) == "" {
 		return nil, huma.Error422("display.widget", "required")
 	}
+	in.Body.Display.Widget = display.CanonicalizeWidgetID(rawWidget)
 	var isAuto bool
-	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(origWidget, in.Body.Type)
+	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(in.Body.Display.Widget, in.Body.Type)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
-	origIsCore := strings.HasPrefix(strings.ToLower(origWidget), "core://")
+	origIsCore := strings.HasPrefix(strings.ToLower(in.Body.Display.Widget), "core://")
 	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore && !isAuto {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
@@ -451,16 +445,17 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
-	origWidget := in.Body.Display.Widget
-	if strings.TrimSpace(origWidget) == "" {
+	rawWidget := in.Body.Display.Widget
+	if strings.TrimSpace(rawWidget) == "" {
 		return nil, huma.Error422("display.widget", "required")
 	}
+	in.Body.Display.Widget = display.CanonicalizeWidgetID(rawWidget)
 	var isAuto bool
-	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(origWidget, in.Body.Type)
+	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(in.Body.Display.Widget, in.Body.Type)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
-	origIsCore := strings.HasPrefix(strings.ToLower(origWidget), "core://")
+	origIsCore := strings.HasPrefix(strings.ToLower(in.Body.Display.Widget), "core://")
 	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore && !isAuto {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {

@@ -12,6 +12,23 @@ import (
 	"github.com/faciam-dev/gcfm/internal/util"
 )
 
+var builtinWidgets = map[string]struct{}{
+	"text-input":     {},
+	"textarea":       {},
+	"number-input":   {},
+	"checkbox":       {},
+	"date-input":     {},
+	"time-input":     {},
+	"datetime-input": {},
+	"json-editor":    {},
+	"select":         {},
+	"multiselect":    {},
+	"password-input": {},
+	"email-input":    {},
+	"url-input":      {},
+	"uuid-input":     {},
+}
+
 type Widget struct {
 	ID           string         `json:"id"`
 	Name         string         `json:"name"`
@@ -170,6 +187,10 @@ func (r *inMemory) Subscribe() (<-chan Event, func()) {
 }
 
 func (r *inMemory) Has(id string) bool {
+	id = strings.ToLower(id)
+	if _, ok := builtinWidgets[id]; ok {
+		return true
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	_, ok := r.items[id]
