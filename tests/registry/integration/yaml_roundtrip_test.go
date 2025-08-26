@@ -12,9 +12,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
 
+	mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
 	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/gcfm/pkg/registry/codec"
-	mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
 )
 
 func TestExportApplyRoundTrip(t *testing.T) {

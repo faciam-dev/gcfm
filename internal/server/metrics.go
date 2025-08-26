@@ -5,9 +5,9 @@ import (
 	"database/sql"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/pkg/registry"
-	"github.com/faciam-dev/gcfm/pkg/metrics"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/pkg/metrics"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

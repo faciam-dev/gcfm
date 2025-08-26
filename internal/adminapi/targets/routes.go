@@ -17,10 +17,10 @@ import (
 	"github.com/lib/pq"
 
 	huma "github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/pkg/schema"
-	"github.com/faciam-dev/gcfm/pkg/audit"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	metapkg "github.com/faciam-dev/gcfm/meta"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	"github.com/faciam-dev/gcfm/pkg/schema"
 )
 
 // Deps defines external dependencies for handlers.

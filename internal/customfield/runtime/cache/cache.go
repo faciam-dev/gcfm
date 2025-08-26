@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/gcfm/pkg/metrics"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 // scannerFunc wraps a registry.Scanner with its DBConfig

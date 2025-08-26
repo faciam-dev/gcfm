@@ -10,12 +10,12 @@ import (
 
 	"go.uber.org/zap"
 
+	metapkg "github.com/faciam-dev/gcfm/meta"
+	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	"github.com/faciam-dev/gcfm/pkg/audit"
 	"github.com/faciam-dev/gcfm/pkg/notifier"
 	"github.com/faciam-dev/gcfm/pkg/pluginloader"
 	"github.com/faciam-dev/gcfm/pkg/registry"
-	metapkg "github.com/faciam-dev/gcfm/meta"
-	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	"github.com/faciam-dev/gcfm/pkg/util"
 )
 

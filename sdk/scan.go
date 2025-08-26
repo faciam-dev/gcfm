@@ -9,10 +9,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/faciam-dev/gcfm/pkg/registry"
 	mongoscanner "github.com/faciam-dev/gcfm/pkg/driver/mongo"
 	mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
 	pscanner "github.com/faciam-dev/gcfm/pkg/driver/postgres"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/gcfm/pkg/util"
 )
 

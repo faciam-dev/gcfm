@@ -3,9 +3,9 @@ package sdk
 import (
 	"context"
 
-	"github.com/faciam-dev/gcfm/pkg/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 //

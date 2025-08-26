@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/faciam-dev/gcfm/pkg/registry"
 	runtimecache "github.com/faciam-dev/gcfm/internal/customfield/runtime/cache"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	"go.uber.org/zap"
 )
 

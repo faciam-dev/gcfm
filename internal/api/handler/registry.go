@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/pkg/schema"
-	"github.com/faciam-dev/gcfm/pkg/audit"
-	"github.com/faciam-dev/gcfm/pkg/snapshot"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	"github.com/faciam-dev/gcfm/pkg/schema"
+	"github.com/faciam-dev/gcfm/pkg/snapshot"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 

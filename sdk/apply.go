@@ -13,13 +13,13 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/faciam-dev/gcfm/pkg/metrics"
 	"github.com/faciam-dev/gcfm/pkg/migrator"
 	monitordbrepo "github.com/faciam-dev/gcfm/pkg/monitordb"
+	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
 	"github.com/faciam-dev/gcfm/pkg/notifier"
 	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/gcfm/pkg/registry/codec"
-	"github.com/faciam-dev/gcfm/pkg/metrics"
-	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
 	"github.com/faciam-dev/gcfm/pkg/util"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )

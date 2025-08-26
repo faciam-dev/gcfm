@@ -16,11 +16,11 @@ import (
 	"github.com/faciam-dev/goquent/orm/query"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/pkg/schema"
 	"github.com/faciam-dev/gcfm/internal/auditlog"
 	"github.com/faciam-dev/gcfm/internal/logger"
-	"github.com/faciam-dev/gcfm/pkg/tenant"
 	auditutil "github.com/faciam-dev/gcfm/pkg/audit"
+	"github.com/faciam-dev/gcfm/pkg/schema"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 )
 
 type AuditHandler struct {
