@@ -10,7 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/faciam-dev/gcfm/internal/metrics"
+	"github.com/faciam-dev/gcfm/pkg/metrics"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
@@ -87,7 +88,7 @@ func (r *HotReloadRegistry) buildConn(ctx context.Context, cfg TargetConfig, mk 
 		}
 		tune(db, cfg)
 	}
-	c := TargetConn{DB: db, Driver: cfg.Driver, Schema: cfg.Schema, Dialect: driverDialect(cfg.Driver), Labels: toSet(cfg.Labels)}
+	c := TargetConn{DB: db, Driver: cfg.Driver, Schema: cfg.Schema, Dialect: util.DialectFromDriver(cfg.Driver), Labels: toSet(cfg.Labels)}
 	closer := func() error {
 		if cfg.DB != nil {
 			return nil
@@ -577,25 +578,6 @@ func removeFromIndex(idx map[string]map[string]struct{}, key string, labels map[
 				delete(idx, l)
 			}
 		}
-	}
-}
-
-// UnsupportedDialect is returned when a driver has no corresponding goquent dialect.
-// It satisfies the ormdriver.Dialect interface with no-op implementations.
-type UnsupportedDialect struct{ driver string }
-
-func (UnsupportedDialect) Placeholder(int) string { return "?" }
-
-func (UnsupportedDialect) QuoteIdent(ident string) string { return ident }
-
-func driverDialect(d string) ormdriver.Dialect {
-	switch d {
-	case "postgres":
-		return ormdriver.PostgresDialect{}
-	case "mysql":
-		return ormdriver.MySQLDialect{}
-	default:
-		return UnsupportedDialect{driver: d}
 	}
 }
 

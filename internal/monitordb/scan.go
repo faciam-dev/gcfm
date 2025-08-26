@@ -7,9 +7,9 @@ import (
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 
-	"github.com/faciam-dev/gcfm/internal/customfield"
-	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/customfield"
+	monitordbrepo "github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
 	"github.com/faciam-dev/gcfm/sdk"
@@ -72,7 +72,7 @@ func ScanDatabase(ctx context.Context, repo *Repo, id int64, tenant string) (tab
 		filtered = append(filtered, m)
 	}
 	tables = len(tblSet)
-	inserted, updated, err = registry.UpsertSQLByTenant(ctx, repo.DB, repo.Driver, d.TenantID, filtered)
+	inserted, updated, err = registry.UpsertSQLByTenant(ctx, repo.DB, repo.Driver, repo.TablePrefix, d.TenantID, filtered)
 	return tables, inserted, updated, skipped, err
 }
 

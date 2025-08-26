@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 // FieldDef represents a custom field definition.

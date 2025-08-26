@@ -4,7 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
+	"github.com/faciam-dev/gcfm/pkg/snapshot"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
@@ -22,12 +23,7 @@ func NewLocalSnapshot(dsn, driver, schema, prefix string) sdk.SnapshotClient {
 	if prefix == "" {
 		prefix = "gcfm_"
 	}
-	var dialect ormdriver.Dialect
-	if driver == "postgres" {
-		dialect = ormdriver.PostgresDialect{}
-	} else {
-		dialect = ormdriver.MySQLDialect{}
-	}
+	dialect := util.DialectFromDriver(driver)
 	return &snapshotLocal{dsn: dsn, driver: driver, schema: schema, prefix: prefix, dialect: dialect}
 }
 

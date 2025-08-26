@@ -105,8 +105,8 @@ Use the runtime cache to load custom field metadata at startup and reload it per
 ```go
 import (
     runtimecache "github.com/faciam-dev/gcfm/internal/customfield/runtime/cache"
-    "github.com/faciam-dev/gcfm/internal/customfield/registry"
-    mysqlscanner "github.com/faciam-dev/gcfm/internal/driver/mysql"
+    "github.com/faciam-dev/gcfm/pkg/registry"
+    mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
     "go.uber.org/zap"
     "time"
 )
@@ -169,7 +169,7 @@ Labels and queries are normalized to lowercase, so lookups are case-insensitive.
 package main
 
 import (
-    "github.com/faciam-dev/gcfm/internal/customfield"
+    "github.com/faciam-dev/gcfm/pkg/customfield"
 )
 
 type myPlugin struct{}

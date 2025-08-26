@@ -14,20 +14,19 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/faciam-dev/gcfm/internal/config"
-	cfregistry "github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
 	md "github.com/faciam-dev/gcfm/pkg/metadata"
-	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	"github.com/go-co-op/gocron"
 )
 
 func main() {
 	dsn := flag.String("dsn", "", "database DSN")
 	driver := flag.String("driver", "postgres", "database driver")
-	tblPrefix := flag.String("table-prefix", getenv("TABLE_PREFIX", "gcfm_"), "registry table prefix (default gcfm_)")
+	tblPrefix := flag.String("table-prefix", util.GetEnv("TABLE_PREFIX", "gcfm_"), "registry table prefix (default gcfm_)")
 	addr := flag.String("addr", ":8080", "listen address")
 	openapi := flag.String("openapi", "", "write OpenAPI JSON and exit")
 	flag.Parse()
@@ -41,12 +40,7 @@ func main() {
 
 	var db *sql.DB
 	var err error
-	var dialect ormdriver.Dialect
-	if *driver == "postgres" {
-		dialect = ormdriver.PostgresDialect{}
-	} else {
-		dialect = ormdriver.MySQLDialect{}
-	}
+	dialect := util.DialectFromDriver(*driver)
 	if *dsn != "" {
 		db, err = sql.Open(*driver, *dsn)
 		if err != nil {
@@ -62,7 +56,6 @@ func main() {
 
 	cfg := config.Config{TablePrefix: *tblPrefix}
 	md.SetTablePrefix(cfg.TablePrefix)
-	cfregistry.SetTablePrefix(cfg.TablePrefix)
 
 	dbCfg := server.DBConfig{Driver: *driver, DSN: *dsn, TablePrefix: cfg.TablePrefix}
 	log.Printf("table prefix: %q", dbCfg.TablePrefix)
@@ -100,11 +93,4 @@ func main() {
 		logger.L.Error("server error", "err", err)
 		os.Exit(1)
 	}
-}
-
-func getenv(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
 }

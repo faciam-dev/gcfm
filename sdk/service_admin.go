@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 // ReconcileReport summarizes differences between MetaDB and target custom field definitions.
@@ -162,7 +162,7 @@ func (s *service) repairMissingInTarget(ctx context.Context, dbID int64, table s
 	}
 	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
 		for _, f := range fields {
-			if err := registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", f); err != nil {
+			if err := registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, registry.DefaultTablePrefix, "default", f); err != nil {
 				return err
 			}
 		}

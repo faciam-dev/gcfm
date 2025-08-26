@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/faciam-dev/gcfm/internal/metrics"
+	"github.com/faciam-dev/gcfm/pkg/metrics"
 )
 
 // FailoverPolicy controls retry and circuit breaker behavior.

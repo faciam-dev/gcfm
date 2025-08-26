@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/faciam-dev/gcfm/internal/customfield"
+	"github.com/faciam-dev/gcfm/pkg/customfield"
 )
 
 type pluginImpl struct{}

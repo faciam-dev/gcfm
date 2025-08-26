@@ -8,7 +8,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
+	"github.com/faciam-dev/gcfm/pkg/notifier"
 )
 
 func TestRedisBrokerEmit(t *testing.T) {

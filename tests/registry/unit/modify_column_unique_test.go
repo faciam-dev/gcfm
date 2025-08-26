@@ -7,7 +7,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 func TestModifyColumnSQL_DropUnique_Postgres(t *testing.T) {

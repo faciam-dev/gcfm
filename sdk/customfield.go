@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
 )
@@ -24,7 +24,7 @@ func (s *service) listFromTarget(ctx context.Context, dbID int64, table string) 
 	}
 	var metas []registry.FieldMeta
 	err := s.RunWithTarget(ctx, dec, false, func(t TargetConn) error {
-		cfg := registry.DBConfig{Driver: t.Driver, Schema: t.Schema, TablePrefix: registry.T("")}
+		cfg := registry.DBConfig{Driver: t.Driver, Schema: t.Schema, TablePrefix: registry.DefaultTablePrefix}
 		m, e := registry.LoadSQLByDB(ctx, t.DB, cfg, "default", dbID)
 		if e == nil {
 			metas = m
@@ -122,7 +122,7 @@ func (s *service) persistMeta(ctx context.Context, dec TargetDecision, fm regist
 		return err
 	}
 	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, "default", fm)
+		return registry.UpsertFieldDefByDB(ctx, t.DB, t.Driver, registry.DefaultTablePrefix, "default", fm)
 	})
 }
 
@@ -131,7 +131,7 @@ func (s *service) removeMeta(ctx context.Context, dec TargetDecision, fm registr
 		return err
 	}
 	return s.RunWithTarget(ctx, dec, true, func(t TargetConn) error {
-		return registry.DeleteFieldDefByDB(ctx, t.DB, t.Driver, fm)
+		return registry.DeleteFieldDefByDB(ctx, t.DB, t.Driver, registry.DefaultTablePrefix, fm)
 	})
 }
 

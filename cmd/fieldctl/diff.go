@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
 	"github.com/faciam-dev/gcfm/sdk"
 	"github.com/spf13/cobra"

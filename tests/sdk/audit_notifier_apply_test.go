@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/faciam-dev/gcfm/internal/customfield/audit"
-	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	"github.com/faciam-dev/gcfm/pkg/notifier"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"

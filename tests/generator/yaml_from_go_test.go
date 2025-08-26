@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 	"github.com/faciam-dev/gcfm/internal/generator"
 )
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	pluginloader "github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
+	pluginloader "github.com/faciam-dev/gcfm/pkg/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/plugin"
 )
 

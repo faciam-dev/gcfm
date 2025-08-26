@@ -13,7 +13,7 @@ import (
 	cfhuma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	"golang.org/x/crypto/bcrypt"
 )
 

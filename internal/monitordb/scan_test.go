@@ -3,7 +3,7 @@ package monitordb
 import (
 	"testing"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 func TestMergeValidators(t *testing.T) {

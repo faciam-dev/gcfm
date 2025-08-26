@@ -12,7 +12,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
 )
 
 func TestMySQLMigrationIdempotent(t *testing.T) {

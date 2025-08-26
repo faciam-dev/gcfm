@@ -10,15 +10,16 @@ import (
 	"time"
 
 	"github.com/casbin/casbin/v2"
-	"github.com/faciam-dev/gcfm/internal/api/schema"
-	"github.com/faciam-dev/gcfm/internal/customfield/audit"
-	cfmdb "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/schema"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	cfmdb "github.com/faciam-dev/gcfm/pkg/monitordb"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
+	pkgutil "github.com/faciam-dev/gcfm/pkg/util"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 )
@@ -81,13 +82,8 @@ func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*d
 	}
 	defer target.Close()
 
-	var dialect ormdriver.Dialect
-	switch mdb.Driver {
-	case "postgres":
-		dialect = ormdriver.PostgresDialect{}
-	case "mysql":
-		dialect = ormdriver.MySQLDialect{}
-	default:
+	dialect := pkgutil.DialectFromDriver(mdb.Driver)
+	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
 		return nil, huma.Error422("driver", "unsupported driver")
 	}
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
 )

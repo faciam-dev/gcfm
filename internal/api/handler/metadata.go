@@ -7,10 +7,11 @@ import (
 	"net/http"
 
 	humago "github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/internal/customfield/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/monitordb"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	md "github.com/faciam-dev/gcfm/pkg/metadata"
+	pkgutil "github.com/faciam-dev/gcfm/pkg/util"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 )
@@ -67,13 +68,8 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 	}
 	defer conn.Close()
 
-	var dialect ormdriver.Dialect
-	switch mdb.Driver {
-	case "postgres":
-		dialect = ormdriver.PostgresDialect{}
-	case "mysql":
-		dialect = ormdriver.MySQLDialect{}
-	default:
+	dialect := pkgutil.DialectFromDriver(mdb.Driver)
+	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
 		return nil, huma.Error422("db_id", "unsupported driver")
 	}
 	raw, err := listPhysicalTables(ctx, conn, dialect)

@@ -12,8 +12,8 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 )
 
 type YAMLFromGoOptions struct {

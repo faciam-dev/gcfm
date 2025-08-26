@@ -10,19 +10,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/faciam-dev/gcfm/internal/api/schema"
-	"github.com/faciam-dev/gcfm/internal/customfield/audit"
-	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/schema"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	monitordbrepo "github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/faciam-dev/gcfm/internal/display"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	"github.com/faciam-dev/gcfm/internal/util"
 	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
+	pkgutil "github.com/faciam-dev/gcfm/pkg/util"
 	"github.com/faciam-dev/gcfm/pkg/widgetpolicy"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
@@ -250,13 +251,8 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-	var dialect ormdriver.Dialect
-	switch mdb.Driver {
-	case "postgres":
-		dialect = ormdriver.PostgresDialect{}
-	case "mysql":
-		dialect = ormdriver.MySQLDialect{}
-	default:
+	dialect := pkgutil.DialectFromDriver(mdb.Driver)
+	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
 		return nil, huma.Error422("db_id", "unsupported driver")
 	}
 	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, in.Body.Table)
@@ -333,7 +329,7 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 				return nil, huma.Error422("db", msg)
 			}
 		}
-		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
+		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	}
@@ -488,13 +484,8 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		return nil, err
 	}
 	defer target.Close()
-	var dialect ormdriver.Dialect
-	switch mdb.Driver {
-	case "postgres":
-		dialect = ormdriver.PostgresDialect{}
-	case "mysql":
-		dialect = ormdriver.MySQLDialect{}
-	default:
+	dialect := pkgutil.DialectFromDriver(mdb.Driver)
+	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
 		return nil, huma.Error422("db_id", "unsupported driver")
 	}
 	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
@@ -575,7 +566,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 				return nil, huma.Error422("db", msg)
 			}
 		}
-		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
+		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	}
@@ -619,13 +610,8 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 		return nil, err
 	}
 	defer target.Close()
-	var dialect ormdriver.Dialect
-	switch mdb.Driver {
-	case "postgres":
-		dialect = ormdriver.PostgresDialect{}
-	case "mysql":
-		dialect = ormdriver.MySQLDialect{}
-	default:
+	dialect := pkgutil.DialectFromDriver(mdb.Driver)
+	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
 		return nil, huma.Error422("db_id", "unsupported driver")
 	}
 	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
@@ -647,7 +633,7 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 			msg := fmt.Sprintf("drop column failed: %v", err)
 			return nil, huma.Error422("db", msg)
 		}
-		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, []registry.FieldMeta{meta}); err != nil {
+		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
 		}
 	}

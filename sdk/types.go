@@ -3,8 +3,8 @@ package sdk
 import (
 	"time"
 
-	"github.com/faciam-dev/gcfm/internal/api/schema"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/schema"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 type FieldMeta = registry.FieldMeta

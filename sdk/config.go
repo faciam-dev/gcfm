@@ -6,8 +6,8 @@ import (
 	"go.uber.org/zap"
 	"time"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/audit"
-	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	"github.com/faciam-dev/gcfm/pkg/notifier"
 )
 
 // DBConfig specifies database connection parameters.

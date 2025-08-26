@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	dbcmd "github.com/faciam-dev/gcfm/cmd/fieldctl/db"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ func newListFieldsCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		metas, err := registry.LoadSQLByDB(cmd.Context(), db, registry.DBConfig{Driver: f.Driver, Schema: f.Schema}, tenant, dbID)
+		metas, err := registry.LoadSQLByDB(cmd.Context(), db, registry.DBConfig{Driver: f.Driver, Schema: f.Schema, TablePrefix: f.TablePrefix}, tenant, dbID)
 		if err != nil {
 			return err
 		}

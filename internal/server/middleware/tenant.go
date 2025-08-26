@@ -4,7 +4,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 )
 
 // claimsKey is the context key used by the auth middleware to store JWT claims.

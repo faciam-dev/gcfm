@@ -11,8 +11,8 @@ import (
 
 	"go.uber.org/zap/zaptest"
 
-	"github.com/faciam-dev/gcfm/internal/customfield"
-	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
+	"github.com/faciam-dev/gcfm/pkg/customfield"
+	"github.com/faciam-dev/gcfm/pkg/pluginloader"
 )
 
 var repoRoot string

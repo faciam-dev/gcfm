@@ -3,7 +3,7 @@ package unit_test
 import (
 	"testing"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 func TestNormalizeDefaultForType(t *testing.T) {

@@ -13,8 +13,8 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	pscanner "github.com/faciam-dev/gcfm/internal/driver/postgres"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	pscanner "github.com/faciam-dev/gcfm/pkg/driver/postgres"
 )
 
 func TestPostgresScanMetadata(t *testing.T) {

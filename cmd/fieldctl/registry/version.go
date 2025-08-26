@@ -3,11 +3,11 @@ package registrycmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	"github.com/faciam-dev/gcfm/sdk"
 )
 
@@ -42,14 +42,7 @@ func NewVersionCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	cmd.Flags().StringVar(&driver, "driver", "", "database driver")
-	cmd.Flags().StringVar(&tablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "registry table prefix")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", util.GetEnv("CF_TABLE_PREFIX", "gcfm_"), "registry table prefix")
 	cmd.MarkFlagRequired("db")
 	return cmd
-}
-
-func getenv(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
 }

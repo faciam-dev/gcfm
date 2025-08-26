@@ -14,12 +14,12 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/faciam-dev/gcfm/internal/api/schema"
-	audit "github.com/faciam-dev/gcfm/internal/customfield/audit"
+	"github.com/faciam-dev/gcfm/pkg/schema"
+	audit "github.com/faciam-dev/gcfm/pkg/audit"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/rbac"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 )

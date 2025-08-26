@@ -13,8 +13,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	mscanner "github.com/faciam-dev/gcfm/internal/driver/mongo"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	mscanner "github.com/faciam-dev/gcfm/pkg/driver/mongo"
 )
 
 func TestMongoScanMetadata(t *testing.T) {

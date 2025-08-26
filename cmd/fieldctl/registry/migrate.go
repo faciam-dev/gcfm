@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
 	"github.com/faciam-dev/gcfm/sdk"
 )
 

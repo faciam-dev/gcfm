@@ -10,12 +10,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/audit"
-	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
-	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/audit"
+	"github.com/faciam-dev/gcfm/pkg/notifier"
+	"github.com/faciam-dev/gcfm/pkg/pluginloader"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
+	"github.com/faciam-dev/gcfm/pkg/util"
 )
 
 // ReadSource specifies the origin for reading custom field definitions.
@@ -89,7 +90,7 @@ func New(cfg ServiceConfig) Service {
 
 	var def *TargetConn
 	if cfg.DB != nil {
-		def = &TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema, Dialect: driverDialect(cfg.Driver)}
+		def = &TargetConn{DB: cfg.DB, Driver: cfg.Driver, Schema: cfg.Schema, Dialect: util.DialectFromDriver(cfg.Driver)}
 	}
 	reg := NewHotReloadRegistry(def)
 	mk := cfg.Connector

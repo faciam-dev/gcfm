@@ -10,12 +10,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	"github.com/faciam-dev/gcfm/sdk"
-	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 var (
@@ -45,12 +45,7 @@ func newScanCmd() *cobra.Command {
 					return err
 				}
 				defer db.Close()
-				var dialect ormdriver.Dialect
-				if driverFlag == "postgres" {
-					dialect = ormdriver.PostgresDialect{}
-				} else {
-					dialect = ormdriver.MySQLDialect{}
-				}
+				dialect := util.DialectFromDriver(driverFlag)
 				repo := &monitordb.Repo{DB: db, Driver: driverFlag, Dialect: dialect, TablePrefix: "gcfm_"}
 				d, err := repo.Get(ctx, "default", scanDBID)
 				if err != nil {

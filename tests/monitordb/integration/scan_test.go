@@ -15,7 +15,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
 	"github.com/faciam-dev/gcfm/pkg/crypto"

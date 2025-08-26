@@ -11,7 +11,7 @@ import (
 	"github.com/faciam-dev/goquent/orm/query"
 
 	"github.com/faciam-dev/gcfm/internal/monitordb"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 )
 
 func TestListHandlesPlainDSN(t *testing.T) {

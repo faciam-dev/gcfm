@@ -15,7 +15,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/auth"
 	sm "github.com/faciam-dev/gcfm/internal/server/middleware"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 )
 
 type tenantResp struct {

@@ -13,13 +13,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
-	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
-	"github.com/faciam-dev/gcfm/internal/customfield/notifier"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
-	"github.com/faciam-dev/gcfm/internal/metrics"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
+	monitordbrepo "github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/notifier"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/metrics"
 	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
@@ -49,7 +50,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 		drv := cfg.Driver
 		if drv == "" {
 			var derr error
-			drv, derr = detectDriver(cfg.DSN)
+			drv, derr = util.DetectDriver(cfg.DSN)
 			if derr != nil {
 				return DiffReport{}, derr
 			}
@@ -106,7 +107,7 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 	drv := cfg.Driver
 	if drv == "" {
 		var derr error
-		drv, derr = detectDriver(cfg.DSN)
+		drv, derr = util.DetectDriver(cfg.DSN)
 		if derr != nil {
 			return rep, derr
 		}
@@ -118,17 +119,17 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			return rep, err
 		}
 		defer func() { _ = db.Close() }()
-		dialect := driverDialect(drv)
+		dialect := util.DialectFromDriver(drv)
 		if err := ensureMonitoredDBsExist(ctx, db, dialect, cfg.TablePrefix, upserts, dels); err != nil {
 			return rep, err
 		}
-		if err := registry.DeleteSQL(ctx, db, drv, dels); err != nil {
+		if err := registry.DeleteSQL(ctx, db, drv, cfg.TablePrefix, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
 			}
 			return rep, err
 		}
-		if err := registry.UpsertSQL(ctx, db, drv, upserts); err != nil {
+		if err := registry.UpsertSQL(ctx, db, drv, cfg.TablePrefix, upserts); err != nil {
 			if len(upserts) > 0 {
 				recordApplyError(upserts[0].TableName)
 			}
@@ -140,17 +141,17 @@ func (s *service) Apply(ctx context.Context, cfg DBConfig, data []byte, opts App
 			return rep, err
 		}
 		defer func() { _ = db.Close() }()
-		dialect := driverDialect("mysql")
+		dialect := util.DialectFromDriver("mysql")
 		if err := ensureMonitoredDBsExist(ctx, db, dialect, cfg.TablePrefix, upserts, dels); err != nil {
 			return rep, err
 		}
-		if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
+		if err := registry.DeleteSQL(ctx, db, "mysql", cfg.TablePrefix, dels); err != nil {
 			if len(dels) > 0 {
 				recordApplyError(dels[0].TableName)
 			}
 			return rep, err
 		}
-		if err := registry.UpsertSQL(ctx, db, "mysql", upserts); err != nil {
+		if err := registry.UpsertSQL(ctx, db, "mysql", cfg.TablePrefix, upserts); err != nil {
 			if len(upserts) > 0 {
 				recordApplyError(upserts[0].TableName)
 			}

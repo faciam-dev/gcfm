@@ -6,7 +6,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
 )
 
 func TestMigratorUpDownTx(t *testing.T) {

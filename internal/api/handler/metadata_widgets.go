@@ -12,7 +12,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/registry/widgets"
 	widgetsrepo "github.com/faciam-dev/gcfm/internal/repository/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	"github.com/faciam-dev/gcfm/internal/util"
 )
 
