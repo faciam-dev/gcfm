@@ -59,7 +59,7 @@ FROM information_schema.statistics
 WHERE table_schema = ? AND NON_UNIQUE = 0`
 	urows, err := s.db.QueryContext(ctx, uniqQuery, conf.Schema)
 	if err != nil {
-		return metas, nil
+		return nil, fmt.Errorf("unique index query: %w", err)
 	}
 	defer urows.Close()
 

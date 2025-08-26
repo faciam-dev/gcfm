@@ -77,10 +77,24 @@ func normalizePGLiteral(typ, raw string) (string, error) {
 }
 
 func isAllowedMySQLExpr(expr, colType string) bool {
+	allowedExprs := []string{
+		"CURRENT_TIMESTAMP",
+		"NOW()",
+		"UTC_TIMESTAMP()",
+		"CURRENT_DATE",
+		"CURRENT_TIME",
+	}
+	allowedPrefix := "CURRENT_TIMESTAMP("
+
 	if !isDateTimeLike(colType) && expr != "CURRENT_DATE" && expr != "CURRENT_TIME" {
 		return false
 	}
-	if expr == "CURRENT_TIMESTAMP" || strings.HasPrefix(expr, "CURRENT_TIMESTAMP(") || expr == "NOW()" || expr == "UTC_TIMESTAMP()" || expr == "CURRENT_DATE" || expr == "CURRENT_TIME" {
+	for _, allowed := range allowedExprs {
+		if expr == allowed {
+			return true
+		}
+	}
+	if strings.HasPrefix(expr, allowedPrefix) {
 		return true
 	}
 	return false

@@ -62,7 +62,7 @@ JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
 WHERE n.nspname = $1 AND ix.indisunique`
 	urows, err := s.db.QueryContext(ctx, uniqQuery, conf.Schema)
 	if err != nil {
-		return metas, nil
+		return nil, fmt.Errorf("query unique indexes: %w", err)
 	}
 	defer urows.Close()
 

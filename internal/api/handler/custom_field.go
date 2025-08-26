@@ -136,8 +136,7 @@ func unifyDefault(b *schema.CustomField) unifiedDefault {
 			raw = *b.DefaultValue
 		}
 		mode := "literal"
-		token := strings.ToUpper(strings.TrimSpace(raw))
-		if token == "CURRENT_TIMESTAMP" || strings.HasPrefix(token, "CURRENT_TIMESTAMP(") || token == "NOW()" || token == "CURRENT_DATE" || token == "CURRENT_TIME" {
+		if util.IsSQLExpression(raw) {
 			mode = "expression"
 		}
 		return unifiedDefault{Mode: mode, Raw: raw}

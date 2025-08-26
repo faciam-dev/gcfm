@@ -15,13 +15,14 @@ import (
 )
 
 type Store struct {
-	path   string
-	cur    atomic.Value // *WidgetPolicy
-	logger *slog.Logger
+	path        string
+	cur         atomic.Value // *WidgetPolicy
+	logger      *slog.Logger
+	reloadDelay time.Duration
 }
 
 func NewStore(path string, logger *slog.Logger) *Store {
-	s := &Store{path: path, logger: logger}
+	s := &Store{path: path, logger: logger, reloadDelay: 200 * time.Millisecond}
 	s.cur.Store(&WidgetPolicy{})
 	return s
 }
@@ -64,7 +65,7 @@ func (s *Store) Watch(ctx context.Context) {
 			return
 		case ev := <-w.Events:
 			if ev.Has(fsnotify.Write) || ev.Has(fsnotify.Create) || ev.Has(fsnotify.Rename) {
-				time.Sleep(200 * time.Millisecond)
+				time.Sleep(s.reloadDelay)
 				if err := s.Load(); err != nil {
 					s.logger.Error("reload failed", "err", err)
 				}
