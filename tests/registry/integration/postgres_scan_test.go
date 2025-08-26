@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -16,7 +17,7 @@ import (
 	pscanner "github.com/faciam-dev/gcfm/internal/driver/postgres"
 )
 
-func TestPostgresScan(t *testing.T) {
+func TestPostgresScanMetadata(t *testing.T) {
 	ctx := context.Background()
 	container, err := func() (c *postgres.PostgresContainer, err error) {
 		defer func() {
@@ -44,7 +45,12 @@ func TestPostgresScan(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.ExecContext(ctx, `CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT)`); err != nil {
+	if _, err := db.ExecContext(ctx, `CREATE TABLE users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        age INT,
+        nickname TEXT DEFAULT 'guest'
+    )`); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
@@ -53,7 +59,25 @@ func TestPostgresScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if len(metas) == 0 {
-		t.Fatalf("no metas")
+	find := func(col string) registry.FieldMeta {
+		for _, m := range metas {
+			if m.TableName == "users" && m.ColumnName == col {
+				return m
+			}
+		}
+		t.Fatalf("column %s not found", col)
+		return registry.FieldMeta{}
+	}
+	email := find("email")
+	if email.Nullable || !email.Unique || email.HasDefault {
+		t.Fatalf("email meta incorrect: %+v", email)
+	}
+	age := find("age")
+	if !age.Nullable || age.Unique || age.HasDefault {
+		t.Fatalf("age meta incorrect: %+v", age)
+	}
+	nick := find("nickname")
+	if !nick.Nullable || nick.Unique || !nick.HasDefault || nick.Default == nil || !strings.Contains(*nick.Default, "guest") {
+		t.Fatalf("nickname meta incorrect: %+v", nick)
 	}
 }

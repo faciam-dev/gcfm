@@ -37,6 +37,7 @@ import (
 	pluginhandlers "github.com/faciam-dev/gcfm/internal/transport/http/handlers"
 	"github.com/faciam-dev/gcfm/internal/util"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
+	"github.com/faciam-dev/gcfm/pkg/widgetpolicy"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -170,7 +171,17 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	}
 
 	wreg := widgetreg.NewInMemory()
-	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix, WidgetRegistry: wreg})
+	policyPath := os.Getenv("WIDGET_POLICY_PATH")
+	if policyPath == "" {
+		policyPath = filepath.Join("configs", "widget_policies.yml")
+	}
+	wpStore := widgetpolicy.NewStore(policyPath, logger.L)
+	if err := wpStore.Load(); err != nil {
+		logger.L.Warn("load widget policy", "err", err)
+	}
+	go wpStore.Watch(context.Background())
+	handler.Register(api, &handler.CustomFieldHandler{DB: db, Mongo: mongoCli, Driver: driver, Dialect: dialect, Recorder: rec, Schema: schema, TablePrefix: cfg.TablePrefix, WidgetRegistry: wreg, PolicyStore: wpStore})
+	handler.RegisterWidgetPolicy(api, &handler.WidgetPolicyHandler{Store: wpStore, Registry: wreg, PolicyPath: policyPath})
 	handler.RegisterCustomFieldValidators(api)
 	handler.RegisterRegistry(api, &handler.RegistryHandler{DB: db, Driver: driver, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})
 	handler.RegisterSnapshot(api, &handler.SnapshotHandler{DB: db, Driver: driver, Dialect: dialect, DSN: dsn, Recorder: rec, TablePrefix: cfg.TablePrefix})

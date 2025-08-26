@@ -49,3 +49,10 @@ func TestSubscribe(t *testing.T) {
 		t.Fatalf("no event received")
 	}
 }
+
+func TestHasBuiltin(t *testing.T) {
+	r := NewInMemory()
+	if !r.Has("text-input") {
+		t.Fatalf("expected builtin widget to be known")
+	}
+}

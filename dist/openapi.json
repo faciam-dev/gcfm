@@ -310,11 +310,26 @@
           "column": {
             "type": "string"
           },
+          "db_driver": {
+            "description": "Ignored. Server detects driver.",
+            "type": "string"
+          },
           "db_id": {
             "format": "int64",
             "type": "integer"
           },
+          "default": {
+            "$ref": "#/components/schemas/DefaultSpec"
+          },
           "defaultValue": {
+            "type": "string"
+          },
+          "default_mode": {
+            "description": "Ignored. Use default.mode",
+            "type": "string"
+          },
+          "default_raw": {
+            "description": "Ignored. Use default.raw",
             "type": "string"
           },
           "display": {
@@ -324,6 +339,10 @@
             "type": "boolean"
           },
           "nullable": {
+            "type": "boolean"
+          },
+          "on_update_current_timestamp": {
+            "description": "Ignored. Use default.on_update_current_timestamp",
             "type": "boolean"
           },
           "table": {
@@ -394,6 +413,31 @@
         ],
         "type": "object"
       },
+      "DefaultSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "description": "Default value mode",
+            "enum": [
+              "none",
+              "literal",
+              "expression"
+            ],
+            "type": "string"
+          },
+          "on_update_current_timestamp": {
+            "type": "boolean"
+          },
+          "raw": {
+            "description": "Literal or expression text, unquoted",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
       "DisplayMeta": {
         "additionalProperties": false,
         "properties": {
@@ -415,7 +459,10 @@
           "widget": {
             "type": "string"
           },
-          "widget_config": {}
+          "widget_config": {},
+          "widget_resolved": {
+            "type": "string"
+          }
         },
         "required": [
           "labelKey",
@@ -452,7 +499,10 @@
           "widget": {
             "type": "string"
           },
-          "widget_config": {}
+          "widget_config": {},
+          "widget_resolved": {
+            "type": "string"
+          }
         },
         "required": [
           "widget"
@@ -703,6 +753,51 @@
         ],
         "type": "object"
       },
+      "PolicyRule": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "stop": {
+            "type": "boolean"
+          },
+          "when": {
+            "$ref": "#/components/schemas/RuleWhen"
+          },
+          "widget": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "when",
+          "widget",
+          "config",
+          "stop"
+        ],
+        "type": "object"
+      },
+      "ResolvedStruct": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "Role": {
         "additionalProperties": false,
         "properties": {
@@ -803,6 +898,64 @@
         "required": [
           "roleId",
           "users"
+        ],
+        "type": "object"
+      },
+      "RuleWhen": {
+        "additionalProperties": false,
+        "properties": {
+          "driver": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "length_max": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "length_min": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name_regex": {
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "validator": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "types",
+          "validator",
+          "driver",
+          "length_min",
+          "length_max",
+          "name_regex"
         ],
         "type": "object"
       },
@@ -946,6 +1099,94 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "StatusOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/StatusOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rules": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sample": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyRule"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "suggest_top": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "rules",
+          "suggest_top",
+          "sample"
+        ],
+        "type": "object"
+      },
+      "SuggestOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SuggestOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "resolved": {
+            "$ref": "#/components/schemas/ResolvedStruct"
+          },
+          "suggested": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "resolved",
+          "suggested"
+        ],
+        "type": "object"
+      },
+      "Suggestion": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
         "type": "object"
       },
       "TableInfo": {
@@ -4194,6 +4435,111 @@
         "summary": "Apply registry snapshot",
         "tags": [
           "Snapshot"
+        ]
+      }
+    },
+    "/v1/widget-policies/_status": {
+      "get": {
+        "operationId": "widgetPolicyStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Widget policy status",
+        "tags": [
+          "CustomField"
+        ]
+      }
+    },
+    "/v1/widget-policies/suggest": {
+      "get": {
+        "operationId": "suggestWidgetPolicy",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "query",
+            "name": "driver",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "validator",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "length",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Suggest widgets",
+        "tags": [
+          "CustomField"
         ]
       }
     }

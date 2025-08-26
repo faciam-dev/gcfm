@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
@@ -39,6 +40,244 @@ func quoteIdentifier(driver, ident string) string {
 
 var ErrDefaultNotSupported = errors.New("default not supported for column type")
 
+type UnifiedDefault struct {
+	Mode     string
+	Raw      string
+	OnUpdate bool
+}
+
+type NormalizeResult struct {
+	Default  UnifiedDefault
+	Warnings []string
+	Action   string
+}
+
+func isDateTimeLike(typ string) bool {
+	t := strings.ToLower(strings.TrimSpace(typ))
+	return strings.Contains(t, "timestamp") || strings.Contains(t, "datetime") || strings.Contains(t, "date") || strings.Contains(t, "time")
+}
+
+func isMySQLDefaultForbidden(typ string) bool {
+	t := strings.ToLower(strings.TrimSpace(typ))
+	return strings.Contains(t, "text") || strings.Contains(t, "blob") || strings.Contains(t, "geometry") || strings.Contains(t, "json")
+}
+
+func normalizeMySQLLiteral(typ, raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	return fmt.Sprintf("'%s'", escapeLiteral(s)), nil
+}
+
+func normalizePGLiteral(typ, raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	lit := fmt.Sprintf("'%s'", escapeLiteral(s))
+	if isDateTimeLike(typ) {
+		lit += "::timestamp"
+	}
+	return lit, nil
+}
+
+func isAllowedMySQLExpr(expr, colType string) bool {
+	allowedExprs := []string{
+		"CURRENT_TIMESTAMP",
+		"NOW()",
+		"UTC_TIMESTAMP()",
+		"CURRENT_DATE",
+		"CURRENT_TIME",
+	}
+	allowedPrefix := "CURRENT_TIMESTAMP("
+
+	if !isDateTimeLike(colType) && expr != "CURRENT_DATE" && expr != "CURRENT_TIME" {
+		return false
+	}
+	for _, allowed := range allowedExprs {
+		if expr == allowed {
+			return true
+		}
+	}
+	if strings.HasPrefix(expr, allowedPrefix) {
+		return true
+	}
+	return false
+}
+
+func isAllowedPGExpr(expr, colType string) bool {
+	up := strings.ToUpper(strings.TrimSpace(expr))
+	switch up {
+	case "CURRENT_TIMESTAMP", "NOW()", "CURRENT_DATE", "CURRENT_TIME":
+		return true
+	}
+	return false
+}
+
+func NormalizeDefaultForType(driver, colType string, d UnifiedDefault) NormalizeResult {
+	res := NormalizeResult{Default: d, Action: "as-is"}
+
+	if d.Mode == "expression" {
+		up := strings.ToUpper(strings.TrimSpace(d.Raw))
+		switch up {
+		case "CURDATE()":
+			up = "CURRENT_DATE"
+		case "CURTIME()":
+			up = "CURRENT_TIME"
+		}
+		switch strings.ToLower(colType) {
+		case "datetime", "timestamp":
+			if driver == "mysql" && !isAllowedMySQLExpr(up, colType) {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+			}
+		case "date":
+			if up == "CURRENT_TIMESTAMP" || strings.HasPrefix(up, "CURRENT_TIMESTAMP(") || up == "NOW()" {
+				res.Default.Raw = mapExprToDate(driver)
+				res.Default.OnUpdate = false
+				res.Action = "mapped"
+			} else if up != "CURRENT_DATE" {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+			} else {
+				res.Default.Raw = "CURRENT_DATE"
+				res.Default.OnUpdate = false
+			}
+		case "time":
+			if up == "CURRENT_TIMESTAMP" || strings.HasPrefix(up, "CURRENT_TIMESTAMP(") || up == "NOW()" {
+				res.Default.Raw = "CURRENT_TIME"
+				res.Default.OnUpdate = false
+				res.Action = "mapped"
+			} else if up != "CURRENT_TIME" {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+			} else {
+				res.Default.Raw = "CURRENT_TIME"
+				res.Default.OnUpdate = false
+			}
+		default:
+			if driver == "mysql" {
+				res.Default = UnifiedDefault{Mode: "none"}
+				res.Action = "cleared"
+				res.Default.OnUpdate = false
+			}
+		}
+	}
+
+	if res.Default.Mode == "literal" && strings.TrimSpace(res.Default.Raw) != "" {
+		switch strings.ToLower(colType) {
+		case "date":
+			if ts, ok := parseAsDateTime(res.Default.Raw); ok {
+				res.Default.Raw = ts.Format("2006-01-02")
+				res.Default.OnUpdate = false
+				if res.Action == "as-is" {
+					res.Action = "mapped"
+				}
+			}
+		case "time":
+			if ts, ok := parseAsDateTime(res.Default.Raw); ok {
+				res.Default.Raw = ts.Format("15:04:05")
+				res.Default.OnUpdate = false
+				if res.Action == "as-is" {
+					res.Action = "mapped"
+				}
+			}
+		}
+	}
+
+	lc := strings.ToLower(colType)
+	if driver == "mysql" && (lc == "date" || lc == "time" || !isDateTimeLike(colType)) && res.Default.OnUpdate {
+		res.Default.OnUpdate = false
+		if res.Action == "as-is" {
+			res.Action = "mapped"
+		}
+		res.Warnings = append(res.Warnings, "ON UPDATE is not allowed for this type; removed.")
+	}
+
+	return res
+}
+
+func mapExprToDate(driver string) string {
+	return "CURRENT_DATE"
+}
+
+func parseAsDateTime(s string) (time.Time, bool) {
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+		"15:04:05",
+	}
+	s = strings.TrimSpace(s)
+	for _, l := range layouts {
+		if t, err := time.Parse(l, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func BuildDefaultClauses(driver, colType string, d UnifiedDefault) (string, string, *string, bool, error) {
+	if d.Mode == "none" || (strings.TrimSpace(d.Raw) == "" && d.Mode != "none") {
+		return "", "", nil, false, nil
+	}
+	switch driver {
+	case "mysql":
+		if isMySQLDefaultForbidden(colType) {
+			return "", "", nil, false, ErrDefaultNotSupported
+		}
+		if d.Mode == "expression" {
+			up := strings.ToUpper(strings.TrimSpace(d.Raw))
+			switch up {
+			case "CURDATE()":
+				up = "CURRENT_DATE"
+			case "CURTIME()":
+				up = "CURRENT_TIME"
+			}
+			if !isAllowedMySQLExpr(up, colType) {
+				return "", "", nil, false, fmt.Errorf("unsupported expression for %s: %s", colType, up)
+			}
+			lc := strings.ToLower(colType)
+			onup := ""
+			if d.OnUpdate && (lc == "datetime" || lc == "timestamp") {
+				onup = " ON UPDATE CURRENT_TIMESTAMP"
+			}
+			norm := up
+			if lc == "date" && up == "CURRENT_DATE" {
+				return " DEFAULT (" + up + ")", "", &norm, true, nil
+			}
+			if lc == "time" && up == "CURRENT_TIME" {
+				return " DEFAULT (" + up + ")", "", &norm, true, nil
+			}
+			return " DEFAULT " + up, onup, &norm, true, nil
+		}
+		lit, err := normalizeMySQLLiteral(colType, d.Raw)
+		if err != nil {
+			return "", "", nil, false, err
+		}
+		norm := lit
+		return " DEFAULT " + lit, "", &norm, true, nil
+	case "postgres":
+		if d.Mode == "expression" {
+			up := strings.TrimSpace(d.Raw)
+			if !isAllowedPGExpr(up, colType) {
+				return "", "", nil, false, fmt.Errorf("unsupported expression for %s: %s", colType, up)
+			}
+			norm := up
+			return " DEFAULT " + up, "", &norm, true, nil
+		}
+		lit, err := normalizePGLiteral(colType, d.Raw)
+		if err != nil {
+			return "", "", nil, false, err
+		}
+		norm := lit
+		return " DEFAULT " + lit, "", &norm, true, nil
+	case "mongo", "mongodb":
+		if d.Mode == "expression" {
+			return "", "", nil, false, fmt.Errorf("expression default is not supported for MongoDB")
+		}
+		norm := strings.TrimSpace(d.Raw)
+		return "", "", &norm, true, nil
+	default:
+		return "", "", nil, false, fmt.Errorf("unknown driver")
+	}
+}
+
 func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, schema, table, column string) (bool, error) {
 	q := query.New(db, "information_schema.columns", dialect).
 		Where("table_name", table).
@@ -64,28 +303,22 @@ func ColumnExists(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, sc
 	return cnt > 0, nil
 }
 
-func supportsDefault(driver, typ string) bool {
-	if driver != "mysql" {
-		return true
-	}
-	t := strings.ToLower(strings.TrimSpace(typ))
-	if strings.Contains(t, "text") || strings.Contains(t, "blob") || strings.Contains(t, "geometry") || strings.Contains(t, "json") {
-		return false
-	}
-	return true
-}
-
-func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
+func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, d UnifiedDefault) error {
 	typ = normalizeType(driver, typ)
-	if def != nil && !supportsDefault(driver, typ) {
-		def = nil
+	d = NormalizeDefaultForType(driver, typ, d).Default
+	defClause, onUpdateClause, _, _, err := BuildDefaultClauses(driver, typ, d)
+	if err != nil {
+		return err
 	}
 	opts := []string{typ}
 	if nullable != nil && !*nullable {
 		opts = append(opts, "NOT NULL")
 	}
-	if def != nil {
-		opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+	if defClause != "" {
+		opts = append(opts, defClause)
+	}
+	if onUpdateClause != "" {
+		opts = append(opts, onUpdateClause)
 	}
 	var stmt string
 	switch driver {
@@ -116,10 +349,12 @@ func AddColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ st
 	return nil
 }
 
-func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, def *string) error {
+func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ string, nullable, unique *bool, d UnifiedDefault) error {
 	typ = normalizeType(driver, typ)
-	if def != nil && !supportsDefault(driver, typ) {
-		def = nil
+	d = NormalizeDefaultForType(driver, typ, d).Default
+	defClause, onUpdateClause, _, _, err := BuildDefaultClauses(driver, typ, d)
+	if err != nil {
+		return err
 	}
 	var stmt string
 	switch driver {
@@ -132,8 +367,9 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 				clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET NOT NULL`, column))
 			}
 		}
-		if def != nil {
-			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT '%s'`, column, escapeLiteral(*def)))
+		if defClause != "" {
+			expr := strings.TrimPrefix(defClause, " DEFAULT ")
+			clauses = append(clauses, fmt.Sprintf(`ALTER COLUMN "%s" SET DEFAULT %s`, column, expr))
 		}
 		if unique != nil {
 			if *unique {
@@ -149,8 +385,11 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 		if nullable != nil && !*nullable {
 			opts = append(opts, "NOT NULL")
 		}
-		if def != nil {
-			opts = append(opts, fmt.Sprintf("DEFAULT '%s'", escapeLiteral(*def)))
+		if defClause != "" {
+			opts = append(opts, defClause)
+		}
+		if onUpdateClause != "" {
+			opts = append(opts, onUpdateClause)
 		}
 		stmt = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s", table, column, strings.Join(opts, " "))
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
@@ -164,7 +403,6 @@ func ModifyColumnSQL(ctx context.Context, db *sql.DB, driver, table, column, typ
 					return fmt.Errorf("add unique: %w", err)
 				}
 			} else {
-				// MySQL stores the UNIQUE constraint as an index so it must be dropped separately.
 				var cnt int
 				err := db.QueryRowContext(ctx,
 					`SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,

@@ -91,7 +91,7 @@ func (s *service) addColumn(ctx context.Context, dec TargetDecision, fm registry
 			return err
 		}
 		if !exists {
-			return registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil)
+			return registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, registry.UnifiedDefault{})
 		}
 		return nil
 	})
@@ -104,9 +104,9 @@ func (s *service) upsertColumn(ctx context.Context, dec TargetDecision, fm regis
 			return err
 		}
 		if exists {
-			return registry.ModifyColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil)
+			return registry.ModifyColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, registry.UnifiedDefault{})
 		}
-		return registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, nil)
+		return registry.AddColumnSQL(ctx, t.DB, t.Driver, fm.TableName, fm.ColumnName, fm.DataType, nil, nil, registry.UnifiedDefault{})
 	})
 }
 

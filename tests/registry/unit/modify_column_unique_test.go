@@ -17,7 +17,7 @@ func TestModifyColumnSQL_DropUnique_Postgres(t *testing.T) {
 	}
 	stmt := `ALTER TABLE "posts" ALTER COLUMN "email" TYPE varchar(255), DROP CONSTRAINT IF EXISTS "posts_email_key"`
 	mock.ExpectExec(regexp.QuoteMeta(stmt)).WillReturnResult(sqlmock.NewResult(0, 1))
-	if err := registry.ModifyColumnSQL(context.Background(), db, "postgres", "posts", "email", "varchar(255)", nil, boolPtr(false), nil); err != nil {
+	if err := registry.ModifyColumnSQL(context.Background(), db, "postgres", "posts", "email", "varchar(255)", nil, boolPtr(false), registry.UnifiedDefault{}); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -37,7 +37,7 @@ func TestModifyColumnSQL_DropUnique_MySQL(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"cnt"}).AddRow(1))
 	drop := "ALTER TABLE `posts` DROP INDEX `posts_email_key`"
 	mock.ExpectExec(regexp.QuoteMeta(drop)).WillReturnResult(sqlmock.NewResult(0, 1))
-	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(false), nil); err != nil {
+	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(false), registry.UnifiedDefault{}); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -55,7 +55,7 @@ func TestModifyColumnSQL_DropUnique_MySQL_NoIndex(t *testing.T) {
 	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM INFORMATION_SCHEMA.STATISTICS").
 		WithArgs("posts", "posts_email_key").
 		WillReturnRows(sqlmock.NewRows([]string{"cnt"}).AddRow(0))
-	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(false), nil); err != nil {
+	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(false), registry.UnifiedDefault{}); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -72,7 +72,7 @@ func TestModifyColumnSQL_AddUnique_MySQL(t *testing.T) {
 	add := "ALTER TABLE `posts` ADD CONSTRAINT `posts_email_key` UNIQUE (`email`)"
 	mock.ExpectExec(regexp.QuoteMeta(modify)).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(add)).WillReturnResult(sqlmock.NewResult(0, 1))
-	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(true), nil); err != nil {
+	if err := registry.ModifyColumnSQL(context.Background(), db, "mysql", "posts", "email", "varchar(255)", nil, boolPtr(true), registry.UnifiedDefault{}); err != nil {
 		t.Fatalf("modify: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

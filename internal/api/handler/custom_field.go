@@ -14,6 +14,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/customfield/audit"
 	monitordbrepo "github.com/faciam-dev/gcfm/internal/customfield/monitordb"
 	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/internal/display"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
@@ -22,6 +23,7 @@ import (
 	"github.com/faciam-dev/gcfm/internal/tenant"
 	"github.com/faciam-dev/gcfm/internal/util"
 	pkgmonitordb "github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/widgetpolicy"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 	"go.mongodb.org/mongo-driver/bson"
@@ -37,6 +39,7 @@ type CustomFieldHandler struct {
 	Schema         string
 	TablePrefix    string
 	WidgetRegistry widgetreg.Registry
+	PolicyStore    *widgetpolicy.Store
 }
 
 type createInput struct {
@@ -65,9 +68,32 @@ type deleteInput struct {
 	ID string `path:"id"`
 }
 
-var builtinWidgets = map[string]struct{}{
-	"(default)": {}, "text": {}, "textarea": {},
-	"select": {}, "date": {}, "email": {}, "number": {},
+func canonicalizeWidgetID(raw, colType string) (string, map[string]any, bool) {
+	w := strings.TrimSpace(strings.ToLower(raw))
+	switch w {
+	case "", "core://default", "core://auto":
+		return "core://auto", nil, true
+	case "core://text-input":
+		return "plugin://text-input", nil, false
+	case "core://date-input":
+		return "plugin://date-input", nil, false
+	default:
+		return raw, nil, false
+	}
+}
+
+func (h *CustomFieldHandler) resolveAuto(ctx widgetpolicy.Ctx) string {
+	if h.PolicyStore == nil {
+		return "plugin://text-input"
+	}
+	id, _ := h.PolicyStore.Get().Resolve(ctx, func(id string) bool {
+		if strings.HasPrefix(id, "plugin://") {
+			pid := strings.TrimPrefix(id, "plugin://")
+			return h.WidgetRegistry == nil || h.WidgetRegistry.Has(pid)
+		}
+		return true
+	})
+	return id
 }
 
 func isPluginWidget(s string) (id string, ok bool) {
@@ -79,11 +105,50 @@ func isPluginWidget(s string) (id string, ok bool) {
 	return "", false
 }
 
+type unifiedDefault = registry.UnifiedDefault
+
+func unifyDefault(b *schema.CustomField) unifiedDefault {
+	if b.Default != nil && b.Default.Mode != "" {
+		return unifiedDefault{
+			Mode:     strings.ToLower(b.Default.Mode),
+			Raw:      b.Default.Raw,
+			OnUpdate: b.Default.OnUpdateCurrentTimestamp != nil && *b.Default.OnUpdateCurrentTimestamp,
+		}
+	}
+	if b.DefaultMode != nil || b.DefaultRaw != nil || b.OnUpdateCurrentTimestampFlat != nil {
+		mode := "none"
+		if b.DefaultMode != nil && *b.DefaultMode != "" {
+			mode = strings.ToLower(*b.DefaultMode)
+		}
+		raw := ""
+		if b.DefaultRaw != nil {
+			raw = *b.DefaultRaw
+		}
+		onUpdate := false
+		if b.OnUpdateCurrentTimestampFlat != nil {
+			onUpdate = *b.OnUpdateCurrentTimestampFlat
+		}
+		return unifiedDefault{Mode: mode, Raw: raw, OnUpdate: onUpdate}
+	}
+	if b.HasDefault {
+		raw := ""
+		if b.DefaultValue != nil {
+			raw = *b.DefaultValue
+		}
+		mode := "literal"
+		if util.IsSQLExpression(raw) {
+			mode = "expression"
+		}
+		return unifiedDefault{Mode: mode, Raw: raw}
+	}
+	return unifiedDefault{Mode: "none"}
+}
+
 func (h *CustomFieldHandler) validateWidget(ctx context.Context, widget string) error {
 	if widget == "" {
 		return nil
 	}
-	if _, ok := builtinWidgets[widget]; ok {
+	if widget == "core://auto" {
 		return nil
 	}
 	if id, ok := isPluginWidget(widget); ok {
@@ -138,15 +203,26 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.DBID == nil {
 		return nil, huma.Error422("db_id", "required")
 	}
+	rawWidget := in.Body.Display.Widget
+	if strings.TrimSpace(rawWidget) == "" {
+		return nil, huma.Error422("display.widget", "required")
+	}
+	in.Body.Display.Widget = display.CanonicalizeWidgetID(rawWidget)
+	var isAuto bool
+	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(in.Body.Display.Widget, in.Body.Type)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
-	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+	origIsCore := strings.HasPrefix(strings.ToLower(in.Body.Display.Widget), "core://")
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore && !isAuto {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
 				in.Body.Display.WidgetConfig = def
 			}
 		}
+	}
+	if origIsCore || isAuto {
+		in.Body.Display.WidgetConfig = nil
 	}
 	tid := tenant.FromContext(ctx)
 	if err := h.validateDB(ctx, tid, *in.Body.DBID); err != nil {
@@ -199,6 +275,15 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			PlaceholderKey: util.Deref(in.Body.Display.PlaceholderKey),
 			WidgetConfig:   in.Body.Display.WidgetConfig,
 		}
+		if isAuto {
+			base, length, enums := widgetpolicy.ParseTypeInfo(in.Body.Type)
+			typ, _ := widgetpolicy.NormalizeType(mdb.Driver, base, length)
+			val := widgetpolicy.NormalizeValidator(in.Body.Validator)
+			ctx := widgetpolicy.Ctx{Driver: mdb.Driver, Type: typ, Validator: val, Length: length, Name: in.Body.Column, EnumValues: enums}
+			display.WidgetResolved = h.resolveAuto(ctx)
+		} else {
+			display.WidgetResolved = display.Widget
+		}
 	}
 	meta := registry.FieldMeta{
 		DBID:            *in.Body.DBID,
@@ -215,9 +300,19 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if in.Body.Unique != nil {
 		meta.Unique = *in.Body.Unique
 	}
-	meta.HasDefault = in.Body.HasDefault
-	if in.Body.HasDefault {
-		meta.Default = in.Body.DefaultValue
+	d := unifyDefault(&in.Body)
+	nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
+	d = nd.Default
+	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
+	if err != nil {
+		if errors.Is(err, registry.ErrDefaultNotSupported) {
+			return nil, huma.Error400BadRequest("invalid default for column type")
+		}
+		return nil, huma.Error422("default", err.Error())
+	}
+	meta.HasDefault = hasDef
+	if hasDef {
+		meta.Default = norm
 	}
 	switch h.Driver {
 	case "mongo":
@@ -229,12 +324,8 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		if err != nil {
 			return nil, err
 		}
-		var def *string
-		if in.Body.HasDefault {
-			def = in.Body.DefaultValue
-		}
 		if !exists {
-			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -276,6 +367,19 @@ func (h *CustomFieldHandler) list(ctx context.Context, in *listParams) (*listOut
 			}
 		}
 		metas = filtered
+	}
+	for i := range metas {
+		if metas[i].Display != nil {
+			if metas[i].Display.Widget == "core://auto" {
+				base, length, enums := widgetpolicy.ParseTypeInfo(metas[i].DataType)
+				typ, _ := widgetpolicy.NormalizeType(h.Driver, base, length)
+				val := widgetpolicy.NormalizeValidator(metas[i].Validator)
+				ctx := widgetpolicy.Ctx{Driver: h.Driver, Type: typ, Validator: val, Length: length, Name: metas[i].ColumnName, EnumValues: enums}
+				metas[i].Display.WidgetResolved = h.resolveAuto(ctx)
+			} else {
+				metas[i].Display.WidgetResolved = metas[i].Display.Widget
+			}
+		}
 	}
 	return &listOutput{Body: metas}, nil
 }
@@ -340,15 +444,26 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if reserved.Is(table) {
 		return nil, huma.Error409Conflict(fmt.Sprintf("table '%s' is reserved", table))
 	}
+	rawWidget := in.Body.Display.Widget
+	if strings.TrimSpace(rawWidget) == "" {
+		return nil, huma.Error422("display.widget", "required")
+	}
+	in.Body.Display.Widget = display.CanonicalizeWidgetID(rawWidget)
+	var isAuto bool
+	in.Body.Display.Widget, _, isAuto = canonicalizeWidgetID(in.Body.Display.Widget, in.Body.Type)
 	if err := h.validateWidget(ctx, in.Body.Display.Widget); err != nil {
 		return nil, err
 	}
-	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 {
+	origIsCore := strings.HasPrefix(strings.ToLower(in.Body.Display.Widget), "core://")
+	if id, ok := isPluginWidget(in.Body.Display.Widget); ok && len(in.Body.Display.WidgetConfig) == 0 && !origIsCore && !isAuto {
 		if h.WidgetRegistry != nil {
 			if def := h.WidgetRegistry.DefaultConfig(id); len(def) > 0 {
 				in.Body.Display.WidgetConfig = def
 			}
 		}
+	}
+	if origIsCore || isAuto {
+		in.Body.Display.WidgetConfig = nil
 	}
 	tid := tenant.FromContext(ctx)
 	dbID := pkgmonitordb.DefaultDBID
@@ -402,6 +517,15 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			PlaceholderKey: util.Deref(in.Body.Display.PlaceholderKey),
 			WidgetConfig:   in.Body.Display.WidgetConfig,
 		}
+		if isAuto {
+			base, length, enums := widgetpolicy.ParseTypeInfo(in.Body.Type)
+			typ, _ := widgetpolicy.NormalizeType(mdb.Driver, base, length)
+			val := widgetpolicy.NormalizeValidator(in.Body.Validator)
+			ctx := widgetpolicy.Ctx{Driver: mdb.Driver, Type: typ, Validator: val, Length: length, Name: column, EnumValues: enums}
+			display.WidgetResolved = h.resolveAuto(ctx)
+		} else {
+			display.WidgetResolved = display.Widget
+		}
 	}
 	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
 	if in.Body.Nullable != nil {
@@ -410,9 +534,19 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if in.Body.Unique != nil {
 		meta.Unique = *in.Body.Unique
 	}
-	meta.HasDefault = in.Body.HasDefault
-	if in.Body.HasDefault {
-		meta.Default = in.Body.DefaultValue
+	d := unifyDefault(&in.Body)
+	nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
+	d = nd.Default
+	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
+	if err != nil {
+		if errors.Is(err, registry.ErrDefaultNotSupported) {
+			return nil, huma.Error400BadRequest("invalid default for column type")
+		}
+		return nil, huma.Error422("default", err.Error())
+	}
+	meta.HasDefault = hasDef
+	if hasDef {
+		meta.Default = norm
 	}
 	switch h.Driver {
 	case "mongo":
@@ -424,12 +558,8 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		if err != nil {
 			return nil, err
 		}
-		var def *string
-		if in.Body.HasDefault {
-			def = in.Body.DefaultValue
-		}
 		if exists {
-			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}
@@ -437,7 +567,7 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 				return nil, huma.Error422("db", msg)
 			}
 		} else {
-			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, def); err != nil {
+			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
 				if errors.Is(err, registry.ErrDefaultNotSupported) {
 					return nil, huma.Error400BadRequest("invalid default for column type")
 				}

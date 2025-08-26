@@ -1,0 +1,124 @@
+---
+version: 1
+suggest_top: 6
+
+rules:
+  # --- validator 優先 ---
+  - id: email
+    when: {validator: ["email"]}
+    widget: plugin://email-input
+    config: {placeholder: "name@example.com"}
+    stop: true
+
+  - id: url
+    when: {validator: ["url"]}
+    widget: plugin://url-input
+    config: {placeholder: "https://"}
+    stop: true
+
+  - id: uuid
+    when: {validator: ["uuid"]}
+    widget: plugin://uuid-input
+    config: {casing: "lower"}
+    stop: true
+
+  - id: regex
+    when: {validator: ["regex"]}
+    widget: plugin://text-input
+    config: {pattern: ".*"}
+    stop: true
+
+  # --- boolean / enum / set ---
+  - id: boolean
+    when: {types: ["bool", "boolean", "tinyint(1)"]}
+    widget: plugin://checkbox
+    config: {trueLabel: "Yes", falseLabel: "No"}
+    stop: true
+
+  - id: enum
+    when: {types: ["enum"]}
+    widget: plugin://select
+    config: {options: "{{ join .EnumValues \",\" }}"}
+    stop: true
+
+  - id: set
+    when: {types: ["set"]}
+    widget: plugin://multiselect
+    config: {options: "{{ join .EnumValues \",\" }}"}
+    stop: true
+
+  # --- date/time/datetime ---
+  - id: date
+    when: {types: ["date"]}
+    widget: plugin://date-input
+    config: {format: "YYYY-MM-DD"}
+    stop: true
+
+  - id: time
+    when: {types: ["time"]}
+    widget: plugin://time-input
+    config: {format: "HH:mm:ss"}
+    stop: true
+
+  - id: datetime
+    when: {types: ["datetime", "timestamp", "timestamptz"]}
+    widget: plugin://datetime-input
+    config:
+      format: "YYYY-MM-DD HH:mm:ss"
+      withTimezone: "{{ eq .Type \"timestamptz\" }}"
+    stop: true
+
+  # --- json ---
+  - id: json
+    when: {types: ["json", "jsonb"]}
+    widget: plugin://json-editor
+    config: {mode: "code"}
+    stop: true
+
+  # --- number ---
+  - id: int-like
+    when: {types: ["int", "integer", "bigint", "smallint"]}
+    widget: plugin://number-input
+    config: {step: 1}
+    stop: true
+
+  - id: decimal-like
+    when: {types: ["decimal", "numeric", "float", "double", "real"]}
+    widget: plugin://number-input
+    config: {step: "0.01"}
+    stop: true
+
+  # --- password 名称ヒューリスティック ---
+  - id: password
+    when:
+      name_regex: "(?i)(password|passwd|secret)"
+      types: ["varchar", "char", "text", "mediumtext", "longtext"]
+    widget: plugin://password-input
+    config: {reveal: false}
+    stop: true
+
+  # --- string（長さで出し分け） ---
+  - id: string-short
+    when:
+      types: ["varchar", "char"]
+      length_max: 255
+    widget: plugin://text-input
+    config: {maxLength: "{{ or .Length 255 }}"}
+    stop: true
+
+  - id: string-long
+    when:
+      types: ["varchar", "char", "text", "mediumtext", "longtext"]
+      length_min: 256
+    widget: plugin://textarea
+    config:
+      rows: 5
+      maxLength: "{{ .Length }}"
+      softWrap: true
+    stop: true
+
+  # --- 最後の砦 ---
+  - id: fallback
+    widget: plugin://text-input
+    config: {}
+    stop: true
