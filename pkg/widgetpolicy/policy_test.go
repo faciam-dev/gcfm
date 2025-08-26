@@ -52,7 +52,10 @@ func TestStoreHotReload(t *testing.T) {
 		t.Fatalf("initial resolve: %s", id)
 	}
 	os.WriteFile(path, []byte("version: 1\nrules:\n- widget: plugin://textarea\n  stop: true\n"), 0644)
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	if err := st.Load(); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
 	id, _ = st.Get().Resolve(Ctx{}, func(string) bool { return true })
 	if id != "plugin://textarea" {
 		t.Fatalf("reload failed: %s", id)
