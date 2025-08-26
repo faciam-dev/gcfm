@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 )
 
 func newValidateCmd() *cobra.Command {

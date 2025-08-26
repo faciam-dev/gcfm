@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
+	"github.com/faciam-dev/gcfm/pkg/pluginloader"
 )
 
 const DefaultTrustedModulePrefix = "github.com/faciam-dev/"

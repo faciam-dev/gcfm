@@ -16,10 +16,10 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )

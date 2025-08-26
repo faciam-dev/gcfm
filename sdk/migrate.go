@@ -7,7 +7,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/migrator"
+	"github.com/faciam-dev/gcfm/pkg/migrator"
+	"github.com/faciam-dev/gcfm/pkg/util"
 )
 
 // MigrateRegistry upgrades or downgrades the registry schema to the target version.
@@ -15,7 +16,7 @@ func (s *service) MigrateRegistry(ctx context.Context, cfg DBConfig, target int)
 	drv := cfg.Driver
 	if drv == "" {
 		var err error
-		drv, err = detectDriver(cfg.DSN)
+		drv, err = util.DetectDriver(cfg.DSN)
 		if err != nil {
 			return err
 		}
@@ -49,7 +50,7 @@ func (s *service) RegistryVersion(ctx context.Context, cfg DBConfig) (int, error
 	drv := cfg.Driver
 	if drv == "" {
 		var err error
-		drv, err = detectDriver(cfg.DSN)
+		drv, err = util.DetectDriver(cfg.DSN)
 		if err != nil {
 			return 0, err
 		}

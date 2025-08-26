@@ -12,8 +12,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	mysqlscanner "github.com/faciam-dev/gcfm/internal/driver/mysql"
+	mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 func TestMySQLScanMetadata(t *testing.T) {

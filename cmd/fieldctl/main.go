@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/url"
 
 	"github.com/spf13/cobra"
 )
@@ -35,27 +34,6 @@ func init() {
 	rootCmd.AddCommand(newListFieldsCmd())
 	rootCmd.AddCommand(newLoginCmd())
 	rootCmd.AddCommand(newConfigCmd())
-}
-
-// detectDriver returns the driver name based on the DSN scheme.
-// Supported schemes: mysql, postgres/postgresql and mongodb/mongodb+srv.
-func detectDriver(dsn string) string {
-	parsedURL, err := url.Parse(dsn)
-	if err != nil {
-		log.Printf("Error parsing DSN: %v", err)
-		return "unknown"
-	}
-
-	switch parsedURL.Scheme {
-	case "postgres", "postgresql":
-		return "postgres"
-	case "mongodb", "mongodb+srv":
-		return "mongo"
-	case "mysql":
-		return "mysql"
-	default:
-		return "unknown"
-	}
 }
 
 func main() {

@@ -8,12 +8,12 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 func createCFTable(t *testing.T, db *sql.DB) {
 	t.Helper()
-	schema := `CREATE TABLE ` + registry.T("custom_fields") + ` (
+	schema := `CREATE TABLE ` + registry.TableName("", "custom_fields") + ` (
        db_id INTEGER,
        tenant_id TEXT,
        table_name TEXT,
@@ -40,8 +40,8 @@ func TestTenantResolver(t *testing.T) {
 	createCFTable(t, aDB)
 	createCFTable(t, bDB)
 	// insert different rows
-	aDB.Exec(`INSERT INTO ` + registry.T("custom_fields") + ` (db_id, tenant_id, table_name, column_name, data_type, nullable, "unique", has_default) VALUES (1, 'default', 'posts', 'a_col', 'text', 1, 0, 0)`)
-	bDB.Exec(`INSERT INTO ` + registry.T("custom_fields") + ` (db_id, tenant_id, table_name, column_name, data_type, nullable, "unique", has_default) VALUES (1, 'default', 'posts', 'b_col', 'text', 1, 0, 0)`)
+	aDB.Exec(`INSERT INTO ` + registry.TableName("", "custom_fields") + ` (db_id, tenant_id, table_name, column_name, data_type, nullable, "unique", has_default) VALUES (1, 'default', 'posts', 'a_col', 'text', 1, 0, 0)`)
+	bDB.Exec(`INSERT INTO ` + registry.TableName("", "custom_fields") + ` (db_id, tenant_id, table_name, column_name, data_type, nullable, "unique", has_default) VALUES (1, 'default', 'posts', 'b_col', 'text', 1, 0, 0)`)
 
 	svc := New(ServiceConfig{
 		Targets: []TargetConfig{

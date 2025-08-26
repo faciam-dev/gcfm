@@ -6,6 +6,7 @@ import (
 	"time"
 
 	metapkg "github.com/faciam-dev/gcfm/meta"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
 )
@@ -87,8 +88,8 @@ func listTables(ctx context.Context, tgt TargetConn) ([]string, error) {
 			tables[i] = r.Name
 		}
 		return tables, nil
-	case UnsupportedDialect:
-		if d.driver == "sqlite3" {
+	case util.UnsupportedDialect:
+		if d.Driver == "sqlite3" {
 			rows, err := tgt.DB.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type='table'`)
 			if err != nil {
 				return nil, err
@@ -107,7 +108,7 @@ func listTables(ctx context.Context, tgt TargetConn) ([]string, error) {
 			}
 			return tables, nil
 		}
-		return nil, fmt.Errorf("unsupported driver: %s", d.driver)
+		return nil, fmt.Errorf("unsupported driver: %s", d.Driver)
 	default:
 		return nil, fmt.Errorf("unsupported dialect %T", tgt.Dialect)
 	}

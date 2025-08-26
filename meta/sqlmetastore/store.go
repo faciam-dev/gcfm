@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	metapkg "github.com/faciam-dev/gcfm/meta"
 	"github.com/faciam-dev/gcfm/pkg/monitordb"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 )
 
 // SQLMetaStore implements MetaStore using an SQL database.

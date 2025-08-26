@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/faciam-dev/gcfm/internal/api/schema"
+	"github.com/faciam-dev/gcfm/pkg/schema"
 )
 
 func boolPtr(b bool) *bool    { return &b }

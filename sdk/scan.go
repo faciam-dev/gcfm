@@ -9,10 +9,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	mongoscanner "github.com/faciam-dev/gcfm/internal/driver/mongo"
-	mysqlscanner "github.com/faciam-dev/gcfm/internal/driver/mysql"
-	pscanner "github.com/faciam-dev/gcfm/internal/driver/postgres"
+	mongoscanner "github.com/faciam-dev/gcfm/pkg/driver/mongo"
+	mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
+	pscanner "github.com/faciam-dev/gcfm/pkg/driver/postgres"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	"github.com/faciam-dev/gcfm/pkg/util"
 )
 
 // Scan reads the database schema and returns registry metadata.
@@ -20,7 +21,7 @@ func (s *service) Scan(ctx context.Context, cfg DBConfig) ([]registry.FieldMeta,
 	drv := cfg.Driver
 	if drv == "" {
 		var err error
-		drv, err = detectDriver(cfg.DSN)
+		drv, err = util.DetectDriver(cfg.DSN)
 		if err != nil {
 			return nil, err
 		}

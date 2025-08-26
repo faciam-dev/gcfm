@@ -9,7 +9,7 @@ import (
 
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
-	ormdriver "github.com/faciam-dev/goquent/orm/driver"
+	"github.com/faciam-dev/gcfm/pkg/util"
 )
 
 // NewAddMonCmd returns command to add monitored database.
@@ -25,12 +25,7 @@ func NewAddMonCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		var dialect ormdriver.Dialect
-		if f.Driver == "postgres" {
-			dialect = ormdriver.PostgresDialect{}
-		} else {
-			dialect = ormdriver.MySQLDialect{}
-		}
+		dialect := util.DialectFromDriver(f.Driver)
 		repo := &monitordb.Repo{DB: db, Driver: f.Driver, Dialect: dialect, TablePrefix: f.TablePrefix}
 		enc, err := crypto.Encrypt([]byte(dsn))
 		if err != nil {
@@ -64,12 +59,7 @@ func NewListMonCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		var dialect ormdriver.Dialect
-		if f.Driver == "postgres" {
-			dialect = ormdriver.PostgresDialect{}
-		} else {
-			dialect = ormdriver.MySQLDialect{}
-		}
+		dialect := util.DialectFromDriver(f.Driver)
 		repo := &monitordb.Repo{DB: db, Driver: f.Driver, Dialect: dialect, TablePrefix: f.TablePrefix}
 		dbs, err := repo.List(cmd.Context(), tenant)
 		if err != nil {
@@ -96,12 +86,7 @@ func NewRemoveMonCmd() *cobra.Command {
 			return err
 		}
 		defer db.Close()
-		var dialect ormdriver.Dialect
-		if f.Driver == "postgres" {
-			dialect = ormdriver.PostgresDialect{}
-		} else {
-			dialect = ormdriver.MySQLDialect{}
-		}
+		dialect := util.DialectFromDriver(f.Driver)
 		repo := &monitordb.Repo{DB: db, Driver: f.Driver, Dialect: dialect, TablePrefix: f.TablePrefix}
 		return repo.Delete(context.Background(), tenant, id)
 	}}

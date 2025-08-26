@@ -9,11 +9,13 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/faciam-dev/gcfm/pkg/util"
 )
 
 func TestTargetRegistry(t *testing.T) {
 	defDB, _ := sql.Open("sqlite3", ":memory:")
-	reg := NewHotReloadRegistry(&TargetConn{DB: defDB, Driver: "sqlite3", Dialect: driverDialect("sqlite3")})
+	reg := NewHotReloadRegistry(&TargetConn{DB: defDB, Driver: "sqlite3", Dialect: util.DialectFromDriver("sqlite3")})
 
 	if _, ok := reg.Default(); !ok {
 		t.Fatalf("default not set")

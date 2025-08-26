@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
+	"github.com/faciam-dev/gcfm/pkg/snapshot"
+	"github.com/faciam-dev/gcfm/pkg/util"
 	"github.com/faciam-dev/gcfm/sdk"
-	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 )
 
 func newRevertCmd() *cobra.Command {
@@ -35,7 +35,11 @@ func newRevertCmd() *cobra.Command {
 				return errors.New("--schema is required")
 			}
 			if driverFlag == "" {
-				driverFlag = detectDriver(dbDSN)
+				if d, err := util.DetectDriver(dbDSN); err == nil {
+					driverFlag = d
+				} else {
+					driverFlag = "unknown"
+				}
 			}
 			db, err := sql.Open(driverFlag, dbDSN)
 			if err != nil {
@@ -43,12 +47,7 @@ func newRevertCmd() *cobra.Command {
 			}
 			defer db.Close()
 			ctx := context.Background()
-			var dialect ormdriver.Dialect
-			if driverFlag == "postgres" {
-				dialect = ormdriver.PostgresDialect{}
-			} else {
-				dialect = ormdriver.MySQLDialect{}
-			}
+			dialect := util.DialectFromDriver(driverFlag)
 			rec, err := snapshot.Get(ctx, db, dialect, tablePrefix, tenant, toVer)
 			if err != nil {
 				return err
@@ -65,9 +64,9 @@ func newRevertCmd() *cobra.Command {
 	cmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	cmd.Flags().StringVar(&schema, "schema", "", "database schema")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
-	cmd.Flags().StringVar(&tenant, "tenant", getenv("CF_TENANT", "default"), "tenant id")
+	cmd.Flags().StringVar(&tenant, "tenant", util.GetEnv("CF_TENANT", "default"), "tenant id")
 	cmd.Flags().StringVar(&toVer, "to", "", "target snapshot version")
-	cmd.Flags().StringVar(&tablePrefix, "table-prefix", getenv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
+	cmd.Flags().StringVar(&tablePrefix, "table-prefix", util.GetEnv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
 	cmd.MarkFlagRequired("db")
 	cmd.MarkFlagRequired("schema")
 	cmd.MarkFlagRequired("to")

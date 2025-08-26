@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	pluginloader "github.com/faciam-dev/gcfm/internal/customfield/pluginloader"
 	"github.com/faciam-dev/gcfm/internal/plugin"
+	pluginloader "github.com/faciam-dev/gcfm/pkg/pluginloader"
 )
 
 // Repository lists plugins from the filesystem.

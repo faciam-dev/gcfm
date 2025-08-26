@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/snapshot"
+	"github.com/faciam-dev/gcfm/pkg/snapshot"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 

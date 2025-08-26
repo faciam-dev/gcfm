@@ -16,8 +16,8 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
 	"github.com/faciam-dev/gcfm/internal/server"
+	"github.com/faciam-dev/gcfm/pkg/registry"
 	sdk "github.com/faciam-dev/gcfm/sdk"
 )
 

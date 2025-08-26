@@ -12,9 +12,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry"
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
-	mysqlscanner "github.com/faciam-dev/gcfm/internal/driver/mysql"
+	mysqlscanner "github.com/faciam-dev/gcfm/pkg/driver/mysql"
+	"github.com/faciam-dev/gcfm/pkg/registry"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 )
 
 func TestExportApplyRoundTrip(t *testing.T) {
@@ -115,10 +115,10 @@ func TestExportApplyRoundTrip(t *testing.T) {
 	if add == 0 || del == 0 || upd == 0 {
 		t.Fatalf("expected all change types")
 	}
-	if err := registry.DeleteSQL(ctx, db, "mysql", dels); err != nil {
+	if err := registry.DeleteSQL(ctx, db, "mysql", registry.DefaultTablePrefix, dels); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if err := registry.UpsertSQL(ctx, db, "mysql", addUpd); err != nil {
+	if err := registry.UpsertSQL(ctx, db, "mysql", registry.DefaultTablePrefix, addUpd); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 

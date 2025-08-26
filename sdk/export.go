@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 
-	"github.com/faciam-dev/gcfm/internal/customfield/registry/codec"
+	"github.com/faciam-dev/gcfm/pkg/registry/codec"
 )
 
 // Export returns registry metadata as YAML.

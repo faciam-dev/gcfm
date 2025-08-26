@@ -10,8 +10,8 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/faciam-dev/gcfm/internal/metrics"
-	"github.com/faciam-dev/gcfm/internal/tenant"
+	"github.com/faciam-dev/gcfm/pkg/metrics"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 )
 
 // MetricsMW records API request metrics.
