@@ -1,8 +1,22 @@
 # go-custom-field-model Documentation
 
-## 目次
-- [SDK](./sdk/README.md)
-- [CLI](./cli/fieldctl.md)
-- [Package Layout](./packages.md)
+## CLI
+Comprehensive command reference for `fieldctl`. See [CLI docs](./cli/fieldctl.md).
 
-See the [QuickStart](../README.md#go-%E3%81%A7%E4%BD%BF%E3%81%86%E4%BE%8B) to get started quickly.
+## YAML Registry
+Guide to managing custom field definitions using YAML.
+
+## SDK
+Examples and usage of the Go SDK. See [SDK reference](./sdk/README.md).
+
+## Multi-Tenant
+How to configure a meta database and manage multiple target databases.
+
+## Snapshots
+Information on capturing and rolling back database schema snapshots.
+
+## Metrics
+Details on Prometheus metrics and CI drift guard integration.
+
+See the [Quick Start](../README.md#-quick-start) to get started quickly.
+
