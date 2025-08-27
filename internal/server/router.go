@@ -25,7 +25,6 @@ import (
 	"github.com/faciam-dev/gcfm/pkg/audit"
 	pkgutil "github.com/faciam-dev/gcfm/pkg/util"
 	"github.com/faciam-dev/gcfm/pkg/widgetpolicy"
-	"github.com/faciam-dev/goquent/orm/query"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -95,14 +94,8 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 
 	schema := "public"
 	if driver == "mysql" {
-		var r struct {
-			Schema string `db:"schema"`
-		}
-		err := query.New(db, "dual", dialect).SelectRaw("DATABASE() AS schema").WithContext(context.Background()).First(&r)
-		if err != nil {
+		if err := db.QueryRowContext(context.Background(), "SELECT DATABASE()").Scan(&schema); err != nil {
 			logger.L.Error("get schema", "err", err)
-		} else {
-			schema = r.Schema
 		}
 	}
 
