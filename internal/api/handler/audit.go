@@ -303,50 +303,55 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 	q.OrderBy("l.applied_at", "desc").OrderBy("l.id", "desc").
 		Limit(limit*auditLogOverfetchMultiplier + 1)
 
-	sqlStr, args, err := q.Build()
-	if err != nil {
-		return nil, err
+	type dbRow struct {
+		ID           int64  `db:"id"`
+		Actor        string `db:"actor"`
+		Action       string `db:"action"`
+		TableName    string `db:"table_name"`
+		ColumnName   string `db:"column_name"`
+		BeforeJSON   []byte `db:"before_json"`
+		AfterJSON    []byte `db:"after_json"`
+		AddedCount   int    `db:"added_count"`
+		RemovedCount int    `db:"removed_count"`
+		ChangeCount  int    `db:"change_count"`
+		AppliedAt    any    `db:"applied_at"`
 	}
-	rows, err := h.DB.QueryContext(ctx, sqlStr, args...)
-	if err != nil {
+	var rs []dbRow
+	if err := q.WithContext(ctx).Get(&rs); err != nil {
 		logger.L.Error("query audit logs", "err", err)
 		return nil, err
 	}
-	defer rows.Close()
-
 	items := make([]AuditDTO, 0, limit)
 	var nextCursor *string
 	var lastReturnedID int64
 	var lastReturnedApplied time.Time
 	more := false
 
-	for rows.Next() {
+	for _, r := range rs {
 		var it AuditDTO
-		var bj, aj sql.RawBytes
-		var addCnt, delCnt, chCnt int
-		var applied any
-		if err := rows.Scan(&it.ID, &it.Actor, &it.Action, &it.TableName, &it.ColumnName, &bj, &aj, &addCnt, &delCnt, &chCnt, &applied); err != nil {
-			logger.L.Error("scan audit row", "err", err)
-			return nil, err
-		}
-		t, err := ParseAuditTime(applied)
+		t, err := ParseAuditTime(r.AppliedAt)
 		if err != nil {
-			logger.L.Error("parse audit time", "err", err, "value", applied)
+			logger.L.Error("parse audit time", "err", err, "value", r.AppliedAt)
 			return nil, err
 		}
+		it.ID = r.ID
+		it.Actor = r.Actor
+		it.Action = r.Action
+		it.TableName = r.TableName
+		it.ColumnName = r.ColumnName
 		it.AppliedAt = t
-		it.BeforeJson = append([]byte(nil), bj...)
-		it.AfterJson = append([]byte(nil), aj...)
-		if chCnt == 0 && it.Action != "snapshot" && it.Action != "rollback" {
+		it.BeforeJson = append([]byte(nil), r.BeforeJSON...)
+		it.AfterJson = append([]byte(nil), r.AfterJSON...)
+		if r.ChangeCount == 0 && it.Action != "snapshot" && it.Action != "rollback" {
 			it.Summary = "diff unavailable"
 		} else if it.Action == "snapshot" || it.Action == "rollback" {
-			it.Summary = string(bj)
+			it.Summary = string(r.BeforeJSON)
 		} else {
-			it.Summary = fmt.Sprintf("+%d -%d", addCnt, delCnt)
+			it.Summary = fmt.Sprintf("+%d -%d", r.AddedCount, r.RemovedCount)
 		}
-		it.ChangeCount = chCnt
+		it.ChangeCount = r.ChangeCount
 
-		if !pass(chCnt) {
+		if !pass(r.ChangeCount) {
 			continue
 		}
 		if len(items) < limit {
@@ -357,10 +362,6 @@ func (h *AuditHandler) list(ctx context.Context, p *auditListParams) (_ *auditLi
 			more = true
 			break
 		}
-	}
-	if err := rows.Err(); err != nil {
-		logger.L.Error("iterate audit rows", "err", err)
-		return nil, err
 	}
 	if more {
 		nc := encodeCursor(lastReturnedApplied, lastReturnedID)
