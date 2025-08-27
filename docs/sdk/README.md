@@ -9,16 +9,97 @@ import "github.com/faciam-dev/gcfm/sdk"
 ## Index
 
 - [Variables](<#variables>)
+- [func DefaultErrorClassifier\(err error\) \(bool, bool\)](<#DefaultErrorClassifier>)
+- [func LabelsFromContext\(ctx context.Context, rules CtxValueRules\) \[\]string](<#LabelsFromContext>)
+- [func LabelsFromGRPC\(ctx context.Context, rules GRPCLabelRules\) \[\]string](<#LabelsFromGRPC>)
+- [func LabelsFromHTTP\(r \*http.Request, rules HTTPLabelRules\) \[\]string](<#LabelsFromHTTP>)
+- [func LabelsFromJWT\(claims map\[string\]any, rules JWTLabelRules\) \[\]string](<#LabelsFromJWT>)
+- [func UnifiedDiff\(a, b string\) string](<#UnifiedDiff>)
+- [func WithHTTPRequest\(ctx context.Context, r \*http.Request\) context.Context](<#WithHTTPRequest>)
+- [func WithJWTClaims\(ctx context.Context, claims map\[string\]any\) context.Context](<#WithJWTClaims>)
+- [func WithTenantID\(ctx context.Context, tenantID string\) context.Context](<#WithTenantID>)
 - [type ApplyOptions](<#ApplyOptions>)
+- [type AutoLabelResolverOptions](<#AutoLabelResolverOptions>)
+- [type Connector](<#Connector>)
+- [type CtxValueRules](<#CtxValueRules>)
 - [type DBConfig](<#DBConfig>)
 - [type DiffReport](<#DiffReport>)
   - [func CalculateDiff\(changes \[\]registry.Change\) DiffReport](<#CalculateDiff>)
+- [type DisplayMeta](<#DisplayMeta>)
+- [type DisplayOptions](<#DisplayOptions>)
+- [type EqExpr](<#EqExpr>)
+  - [func \(e EqExpr\) Eval\(has func\(label string\) bool\) bool](<#EqExpr.Eval>)
+- [type ErrorClassifier](<#ErrorClassifier>)
+- [type FailoverPolicy](<#FailoverPolicy>)
+- [type FieldDef](<#FieldDef>)
+- [type FieldDiff](<#FieldDiff>)
+- [type FieldMeta](<#FieldMeta>)
+- [type FileProvider](<#FileProvider>)
+  - [func NewFileProvider\(path string\) \*FileProvider](<#NewFileProvider>)
+  - [func \(p \*FileProvider\) Fetch\(ctx context.Context\) \(map\[string\]TargetConfig, string, string, error\)](<#FileProvider.Fetch>)
+- [type GRPCLabelRules](<#GRPCLabelRules>)
+- [type HTTPLabelRules](<#HTTPLabelRules>)
+- [type HasExpr](<#HasExpr>)
+  - [func \(e HasExpr\) Eval\(has func\(label string\) bool\) bool](<#HasExpr.Eval>)
+- [type HotReloadRegistry](<#HotReloadRegistry>)
+  - [func NewHotReloadRegistry\(defaultConn \*TargetConn\) \*HotReloadRegistry](<#NewHotReloadRegistry>)
+  - [func \(r \*HotReloadRegistry\) Default\(\) \(TargetConn, bool\)](<#HotReloadRegistry.Default>)
+  - [func \(r \*HotReloadRegistry\) DefaultKey\(\) string](<#HotReloadRegistry.DefaultKey>)
+  - [func \(r \*HotReloadRegistry\) FindAllByLabels\(labels ...string\) \[\]string](<#HotReloadRegistry.FindAllByLabels>)
+  - [func \(r \*HotReloadRegistry\) FindAnyByLabels\(labels ...string\) \[\]string](<#HotReloadRegistry.FindAnyByLabels>)
+  - [func \(r \*HotReloadRegistry\) FindByLabel\(label string\) \[\]string](<#HotReloadRegistry.FindByLabel>)
+  - [func \(r \*HotReloadRegistry\) FindByQuery\(q Query\) \[\]string](<#HotReloadRegistry.FindByQuery>)
+  - [func \(r \*HotReloadRegistry\) ForEachByQuery\(q Query, fn func\(key string, t TargetConn\) error\) error](<#HotReloadRegistry.ForEachByQuery>)
+  - [func \(r \*HotReloadRegistry\) Get\(key string\) \(TargetConn, bool\)](<#HotReloadRegistry.Get>)
+  - [func \(r \*HotReloadRegistry\) Keys\(\) \[\]string](<#HotReloadRegistry.Keys>)
+  - [func \(r \*HotReloadRegistry\) Register\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Register>)
+  - [func \(r \*HotReloadRegistry\) ReplaceAll\(ctx context.Context, cfgs map\[string\]TargetConfig, mk Connector, defaultKey string\) \(err error\)](<#HotReloadRegistry.ReplaceAll>)
+  - [func \(r \*HotReloadRegistry\) SetDefault\(key string\)](<#HotReloadRegistry.SetDefault>)
+  - [func \(r \*HotReloadRegistry\) Snapshot\(\) map\[string\]TargetConn](<#HotReloadRegistry.Snapshot>)
+  - [func \(r \*HotReloadRegistry\) Unregister\(key string\) \(err error\)](<#HotReloadRegistry.Unregister>)
+  - [func \(r \*HotReloadRegistry\) Update\(ctx context.Context, key string, cfg TargetConfig, mk Connector\) \(err error\)](<#HotReloadRegistry.Update>)
+- [type InExpr](<#InExpr>)
+  - [func \(e InExpr\) Eval\(has func\(label string\) bool\) bool](<#InExpr.Eval>)
+- [type JWTLabelRules](<#JWTLabelRules>)
+- [type LabelExpr](<#LabelExpr>)
+- [type MetaDBProvider](<#MetaDBProvider>)
+  - [func NewMetaDBProvider\(meta metapkg.MetaStore\) \*MetaDBProvider](<#NewMetaDBProvider>)
+  - [func \(p \*MetaDBProvider\) Fetch\(ctx context.Context\) \(map\[string\]TargetConfig, string, string, error\)](<#MetaDBProvider.Fetch>)
+- [type NotExpr](<#NotExpr>)
+  - [func \(e NotExpr\) Eval\(has func\(label string\) bool\) bool](<#NotExpr.Eval>)
+- [type Query](<#Query>)
+  - [func ParseQuery\(s string\) \(Query, error\)](<#ParseQuery>)
+  - [func QueryFromLabels\(labels \[\]string\) Query](<#QueryFromLabels>)
+- [type ReadSource](<#ReadSource>)
+- [type ReconcileReport](<#ReconcileReport>)
+- [type ScanResult](<#ScanResult>)
+- [type SelectionHint](<#SelectionHint>)
+- [type SelectionStrategy](<#SelectionStrategy>)
 - [type Service](<#Service>)
   - [func New\(cfg ServiceConfig\) Service](<#New>)
 - [type ServiceConfig](<#ServiceConfig>)
+- [type Snapshot](<#Snapshot>)
+- [type SnapshotClient](<#SnapshotClient>)
+- [type TargetConfig](<#TargetConfig>)
+- [type TargetConn](<#TargetConn>)
+- [type TargetDecision](<#TargetDecision>)
+- [type TargetProvider](<#TargetProvider>)
+- [type TargetRegistry](<#TargetRegistry>)
+- [type TargetResolver](<#TargetResolver>)
+  - [func TenantResolverFromPrefix\(prefix string\) TargetResolver](<#TenantResolverFromPrefix>)
+- [type TargetResolverV2](<#TargetResolverV2>)
+  - [func AutoLabelResolver\(opts AutoLabelResolverOptions\) TargetResolverV2](<#AutoLabelResolver>)
+- [type TargetWatcher](<#TargetWatcher>)
+- [type TenantIDKey](<#TenantIDKey>)
 
 
 ## Variables
+
+<a name="ErrNoTarget"></a>
+
+```go
+var ErrNoTarget = errors.New("no target database resolved")
+```
 
 <a name="ErrValidatorNotFound"></a>ErrValidatorNotFound is returned when a validator plugin cannot be found.
 
@@ -27,6 +108,87 @@ var (
     ErrValidatorNotFound = errors.New("validator not found")
 )
 ```
+
+<a name="DefaultErrorClassifier"></a>
+## func DefaultErrorClassifier
+
+```go
+func DefaultErrorClassifier(err error) (bool, bool)
+```
+
+DefaultErrorClassifier provides baseline classification for common errors.
+
+<a name="LabelsFromContext"></a>
+## func LabelsFromContext
+
+```go
+func LabelsFromContext(ctx context.Context, rules CtxValueRules) []string
+```
+
+LabelsFromContext extracts labels from context values according to rules.
+
+<a name="LabelsFromGRPC"></a>
+## func LabelsFromGRPC
+
+```go
+func LabelsFromGRPC(ctx context.Context, rules GRPCLabelRules) []string
+```
+
+LabelsFromGRPC extracts labels from gRPC metadata within a context.
+
+<a name="LabelsFromHTTP"></a>
+## func LabelsFromHTTP
+
+```go
+func LabelsFromHTTP(r *http.Request, rules HTTPLabelRules) []string
+```
+
+LabelsFromHTTP extracts labels from an \*http.Request based on rules.
+
+<a name="LabelsFromJWT"></a>
+## func LabelsFromJWT
+
+```go
+func LabelsFromJWT(claims map[string]any, rules JWTLabelRules) []string
+```
+
+LabelsFromJWT extracts labels from a claims map based on rules.
+
+<a name="UnifiedDiff"></a>
+## func UnifiedDiff
+
+```go
+func UnifiedDiff(a, b string) string
+```
+
+UnifiedDiff returns a unified diff string of two inputs.
+
+<a name="WithHTTPRequest"></a>
+## func WithHTTPRequest
+
+```go
+func WithHTTPRequest(ctx context.Context, r *http.Request) context.Context
+```
+
+WithHTTPRequest stores \*http.Request in context for AutoLabelResolver.
+
+<a name="WithJWTClaims"></a>
+## func WithJWTClaims
+
+```go
+func WithJWTClaims(ctx context.Context, claims map[string]any) context.Context
+```
+
+WithJWTClaims stores JWT claims in context for AutoLabelResolver.
+
+<a name="WithTenantID"></a>
+## func WithTenantID
+
+```go
+func WithTenantID(ctx context.Context, tenantID string) context.Context
+```
+
+WithTenantID attaches a tenant ID to the context.
 
 <a name="ApplyOptions"></a>
 ## type ApplyOptions
@@ -37,6 +199,43 @@ var (
 type ApplyOptions struct {
     // DryRun skips applying changes and only computes the diff.
     DryRun bool
+    Actor  string
+}
+```
+
+<a name="AutoLabelResolverOptions"></a>
+## type AutoLabelResolverOptions
+
+AutoLabelResolverOptions configures AutoLabelResolver sources.
+
+```go
+type AutoLabelResolverOptions struct {
+    HTTP *HTTPLabelRules
+    GRPC *GRPCLabelRules
+    JWT  *JWTLabelRules
+    Ctx  *CtxValueRules
+    Hint *SelectionHint
+}
+```
+
+<a name="Connector"></a>
+## type Connector
+
+Connector is responsible for establishing physical database connections.
+
+```go
+type Connector func(ctx context.Context, driver, dsnOrURL string) (*sql.DB, error)
+```
+
+<a name="CtxValueRules"></a>
+## type CtxValueRules
+
+CtxValueRules configures label extraction from context values.
+
+```go
+type CtxValueRules struct {
+    KeyMap map[any]string // context key -> label name
+    Fixed  map[string]string
 }
 ```
 
@@ -47,9 +246,10 @@ DBConfig specifies database connection parameters.
 
 ```go
 type DBConfig struct {
-    Driver string // mysql|postgres|mongo
-    DSN    string
-    Schema string
+    Driver      string // mysql|postgres|mongo
+    DSN         string
+    Schema      string
+    TablePrefix string
 }
 ```
 
@@ -78,6 +278,531 @@ func CalculateDiff(changes []registry.Change) DiffReport
 
 CalculateDiff returns counts of added, deleted and updated changes.
 
+<a name="DisplayMeta"></a>
+## type DisplayMeta
+
+
+
+```go
+type DisplayMeta = registry.DisplayMeta
+```
+
+<a name="DisplayOptions"></a>
+## type DisplayOptions
+
+
+
+```go
+type DisplayOptions = registry.DisplayOption
+```
+
+<a name="EqExpr"></a>
+## type EqExpr
+
+
+
+```go
+type EqExpr struct{ Label, Value string }
+```
+
+<a name="EqExpr.Eval"></a>
+### func \(EqExpr\) Eval
+
+```go
+func (e EqExpr) Eval(has func(label string) bool) bool
+```
+
+
+
+<a name="ErrorClassifier"></a>
+## type ErrorClassifier
+
+ErrorClassifier determines whether an error is transient and retryable.
+
+```go
+type ErrorClassifier func(error) (transient bool, retryable bool)
+```
+
+<a name="FailoverPolicy"></a>
+## type FailoverPolicy
+
+FailoverPolicy controls retry and circuit breaker behavior.
+
+```go
+type FailoverPolicy struct {
+    Enabled           bool
+    MaxAttempts       int
+    BaseBackoff       time.Duration
+    MaxBackoff        time.Duration
+    JitterRatio       float64
+    OpenAfterFailures int
+    OpenDuration      time.Duration
+    HalfOpenProbe     int
+    PreferOnFail      *SelectionHint
+    AllowWriteRetry   bool
+    // contains filtered or unexported fields
+}
+```
+
+<a name="FieldDef"></a>
+## type FieldDef
+
+
+
+```go
+type FieldDef = registry.FieldMeta
+```
+
+<a name="FieldDiff"></a>
+## type FieldDiff
+
+FieldDiff describes a discrepancy between MetaDB and target definitions.
+
+```go
+type FieldDiff struct {
+    Name      string
+    MetaDef   FieldDef
+    TargetDef FieldDef
+    Reason    string
+}
+```
+
+<a name="FieldMeta"></a>
+## type FieldMeta
+
+
+
+```go
+type FieldMeta = registry.FieldMeta
+```
+
+<a name="FileProvider"></a>
+## type FileProvider
+
+FileProvider reads target configurations from a JSON file.
+
+```go
+type FileProvider struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewFileProvider"></a>
+### func NewFileProvider
+
+```go
+func NewFileProvider(path string) *FileProvider
+```
+
+NewFileProvider creates a provider for the given file path.
+
+<a name="FileProvider.Fetch"></a>
+### func \(\*FileProvider\) Fetch
+
+```go
+func (p *FileProvider) Fetch(ctx context.Context) (map[string]TargetConfig, string, string, error)
+```
+
+Fetch loads target configs from the file, expanding environment variables in DSNs.
+
+<a name="GRPCLabelRules"></a>
+## type GRPCLabelRules
+
+GRPCLabelRules configures label extraction from gRPC metadata.
+
+```go
+type GRPCLabelRules struct {
+    MetaMap map[string]string // metadata key -> label name
+    Fixed   map[string]string
+}
+```
+
+<a name="HTTPLabelRules"></a>
+## type HTTPLabelRules
+
+HTTPLabelRules configures label extraction from HTTP headers.
+
+```go
+type HTTPLabelRules struct {
+    HeaderMap map[string]string // header name -> label name
+    Fixed     map[string]string
+}
+```
+
+<a name="HasExpr"></a>
+## type HasExpr
+
+
+
+```go
+type HasExpr struct{ Label string }
+```
+
+<a name="HasExpr.Eval"></a>
+### func \(HasExpr\) Eval
+
+```go
+func (e HasExpr) Eval(has func(label string) bool) bool
+```
+
+
+
+<a name="HotReloadRegistry"></a>
+## type HotReloadRegistry
+
+HotReloadRegistry is an RCU\-style implementation of TargetRegistry.
+
+```go
+type HotReloadRegistry struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewHotReloadRegistry"></a>
+### func NewHotReloadRegistry
+
+```go
+func NewHotReloadRegistry(defaultConn *TargetConn) *HotReloadRegistry
+```
+
+NewHotReloadRegistry creates a registry initialized with the default connection.
+
+<a name="HotReloadRegistry.Default"></a>
+### func \(\*HotReloadRegistry\) Default
+
+```go
+func (r *HotReloadRegistry) Default() (TargetConn, bool)
+```
+
+Default returns the default target connection.
+
+<a name="HotReloadRegistry.DefaultKey"></a>
+### func \(\*HotReloadRegistry\) DefaultKey
+
+```go
+func (r *HotReloadRegistry) DefaultKey() string
+```
+
+DefaultKey returns the current default key.
+
+<a name="HotReloadRegistry.FindAllByLabels"></a>
+### func \(\*HotReloadRegistry\) FindAllByLabels
+
+```go
+func (r *HotReloadRegistry) FindAllByLabels(labels ...string) []string
+```
+
+FindAllByLabels returns keys of targets containing all the specified labels.
+
+<a name="HotReloadRegistry.FindAnyByLabels"></a>
+### func \(\*HotReloadRegistry\) FindAnyByLabels
+
+```go
+func (r *HotReloadRegistry) FindAnyByLabels(labels ...string) []string
+```
+
+FindAnyByLabels returns keys of targets containing any of the specified labels.
+
+<a name="HotReloadRegistry.FindByLabel"></a>
+### func \(\*HotReloadRegistry\) FindByLabel
+
+```go
+func (r *HotReloadRegistry) FindByLabel(label string) []string
+```
+
+FindByLabel returns keys of targets having the given label.
+
+<a name="HotReloadRegistry.FindByQuery"></a>
+### func \(\*HotReloadRegistry\) FindByQuery
+
+```go
+func (r *HotReloadRegistry) FindByQuery(q Query) []string
+```
+
+FindByQuery returns keys of targets matching q.
+
+<a name="HotReloadRegistry.ForEachByQuery"></a>
+### func \(\*HotReloadRegistry\) ForEachByQuery
+
+```go
+func (r *HotReloadRegistry) ForEachByQuery(q Query, fn func(key string, t TargetConn) error) error
+```
+
+ForEachByQuery executes fn for each target matching q.
+
+<a name="HotReloadRegistry.Get"></a>
+### func \(\*HotReloadRegistry\) Get
+
+```go
+func (r *HotReloadRegistry) Get(key string) (TargetConn, bool)
+```
+
+Get retrieves a target by key.
+
+<a name="HotReloadRegistry.Keys"></a>
+### func \(\*HotReloadRegistry\) Keys
+
+```go
+func (r *HotReloadRegistry) Keys() []string
+```
+
+Keys returns a copy of available keys.
+
+<a name="HotReloadRegistry.Register"></a>
+### func \(\*HotReloadRegistry\) Register
+
+```go
+func (r *HotReloadRegistry) Register(ctx context.Context, key string, cfg TargetConfig, mk Connector) (err error)
+```
+
+Register adds a new target.
+
+<a name="HotReloadRegistry.ReplaceAll"></a>
+### func \(\*HotReloadRegistry\) ReplaceAll
+
+```go
+func (r *HotReloadRegistry) ReplaceAll(ctx context.Context, cfgs map[string]TargetConfig, mk Connector, defaultKey string) (err error)
+```
+
+ReplaceAll swaps the registry contents atomically.
+
+<a name="HotReloadRegistry.SetDefault"></a>
+### func \(\*HotReloadRegistry\) SetDefault
+
+```go
+func (r *HotReloadRegistry) SetDefault(key string)
+```
+
+SetDefault marks the given key as default if it exists.
+
+<a name="HotReloadRegistry.Snapshot"></a>
+### func \(\*HotReloadRegistry\) Snapshot
+
+```go
+func (r *HotReloadRegistry) Snapshot() map[string]TargetConn
+```
+
+Snapshot returns a copy of the current targets.
+
+<a name="HotReloadRegistry.Unregister"></a>
+### func \(\*HotReloadRegistry\) Unregister
+
+```go
+func (r *HotReloadRegistry) Unregister(key string) (err error)
+```
+
+Unregister removes a target. The connection is closed after publishing the snapshot.
+
+<a name="HotReloadRegistry.Update"></a>
+### func \(\*HotReloadRegistry\) Update
+
+```go
+func (r *HotReloadRegistry) Update(ctx context.Context, key string, cfg TargetConfig, mk Connector) (err error)
+```
+
+Update replaces an existing target's connection.
+
+<a name="InExpr"></a>
+## type InExpr
+
+
+
+```go
+type InExpr struct {
+    Label  string
+    Values []string
+}
+```
+
+<a name="InExpr.Eval"></a>
+### func \(InExpr\) Eval
+
+```go
+func (e InExpr) Eval(has func(label string) bool) bool
+```
+
+
+
+<a name="JWTLabelRules"></a>
+## type JWTLabelRules
+
+JWTLabelRules configures label extraction from JWT claims.
+
+```go
+type JWTLabelRules struct {
+    ClaimMap map[string]string // claim name -> label name
+    Fixed    map[string]string
+}
+```
+
+<a name="LabelExpr"></a>
+## type LabelExpr
+
+
+
+```go
+type LabelExpr interface {
+    Eval(has func(label string) bool) bool
+}
+```
+
+<a name="MetaDBProvider"></a>
+## type MetaDBProvider
+
+MetaDBProvider reads target configuration from a MetaStore.
+
+```go
+type MetaDBProvider struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewMetaDBProvider"></a>
+### func NewMetaDBProvider
+
+```go
+func NewMetaDBProvider(meta metapkg.MetaStore) *MetaDBProvider
+```
+
+NewMetaDBProvider creates a provider backed by MetaStore.
+
+<a name="MetaDBProvider.Fetch"></a>
+### func \(\*MetaDBProvider\) Fetch
+
+```go
+func (p *MetaDBProvider) Fetch(ctx context.Context) (map[string]TargetConfig, string, string, error)
+```
+
+Fetch retrieves target configurations from the meta store.
+
+<a name="NotExpr"></a>
+## type NotExpr
+
+
+
+```go
+type NotExpr struct{ Label string }
+```
+
+<a name="NotExpr.Eval"></a>
+### func \(NotExpr\) Eval
+
+```go
+func (e NotExpr) Eval(has func(label string) bool) bool
+```
+
+
+
+<a name="Query"></a>
+## type Query
+
+
+
+```go
+type Query struct {
+    AND []LabelExpr
+    OR  [][]LabelExpr
+}
+```
+
+<a name="ParseQuery"></a>
+### func ParseQuery
+
+```go
+func ParseQuery(s string) (Query, error)
+```
+
+
+
+<a name="QueryFromLabels"></a>
+### func QueryFromLabels
+
+```go
+func QueryFromLabels(labels []string) Query
+```
+
+QueryFromLabels builds a Query that ANDs all label strings. "k=v" becomes EqExpr and plain "k" becomes HasExpr.
+
+<a name="ReadSource"></a>
+## type ReadSource
+
+ReadSource specifies the origin for reading custom field definitions.
+
+```go
+type ReadSource int
+```
+
+<a name="ReadFromTarget"></a>
+
+```go
+const (
+    // ReadFromTarget reads metadata from the target database (default).
+    ReadFromTarget ReadSource = iota
+    // ReadFromMeta reads metadata from the MetaDB.
+    ReadFromMeta
+    // ReadAuto reads from target first then falls back to MetaDB on failure or empty result.
+    ReadAuto
+)
+```
+
+<a name="ReconcileReport"></a>
+## type ReconcileReport
+
+ReconcileReport summarizes differences between MetaDB and target custom field definitions. MissingInTarget lists fields defined in MetaDB but absent in target. MissingInMeta lists fields present in target but missing in MetaDB. Mismatched captures fields with conflicting attributes.
+
+```go
+type ReconcileReport struct {
+    MissingInTarget []FieldDef
+    MissingInMeta   []FieldDef
+    Mismatched      []FieldDiff
+}
+```
+
+<a name="ScanResult"></a>
+## type ScanResult
+
+
+
+```go
+type ScanResult = schema.ScanResult
+```
+
+<a name="SelectionHint"></a>
+## type SelectionHint
+
+SelectionHint provides optional parameters for selection strategies.
+
+```go
+type SelectionHint struct {
+    Strategy    SelectionStrategy
+    PreferLabel string
+    HashSource  string
+}
+```
+
+<a name="SelectionStrategy"></a>
+## type SelectionStrategy
+
+SelectionStrategy indicates how to choose a key from multiple matches.
+
+```go
+type SelectionStrategy int
+```
+
+<a name="SelectFirst"></a>
+
+```go
+const (
+    // SelectFirst picks the first key in sorted order.
+    SelectFirst SelectionStrategy = iota
+    // SelectPreferLabel prioritizes targets with a given label.
+    SelectPreferLabel
+    // SelectConsistentHash chooses a target based on a consistent hash of
+    // a provided source string.
+    SelectConsistentHash
+)
+```
+
 <a name="Service"></a>
 ## type Service
 
@@ -95,8 +820,62 @@ type Service interface {
     MigrateRegistry(ctx context.Context, cfg DBConfig, target int) error
     // RegistryVersion returns the current registry schema version.
     RegistryVersion(ctx context.Context, cfg DBConfig) (int, error)
+    // ListCustomFields returns custom field metadata.
+    ListCustomFields(ctx context.Context, dbID int64, table string) ([]registry.FieldMeta, error)
+    // CreateCustomField inserts a new field into the registry.
+    CreateCustomField(ctx context.Context, fm registry.FieldMeta) error
+    // UpdateCustomField modifies an existing field.
+    UpdateCustomField(ctx context.Context, fm registry.FieldMeta) error
+    // DeleteCustomField removes a field from the registry.
+    DeleteCustomField(ctx context.Context, table, column string) error
+    // ReconcileCustomFields compares metadata between target and MetaDB and optionally repairs discrepancies.
+    ReconcileCustomFields(ctx context.Context, dbID int64, table string, repair bool) (*ReconcileReport, error)
+    // StartTargetWatcher periodically fetches target configurations from a provider.
+    StartTargetWatcher(ctx context.Context, p TargetProvider, interval time.Duration) (stop func())
 }
 ```
+
+<details><summary>Example (Multi Target)</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"context"
+	"database/sql"
+	"os"
+
+	"github.com/faciam-dev/gcfm/sdk"
+)
+
+func main() {
+	meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+	dbA, _ := sql.Open("mysql", os.Getenv("TENANT_A_DSN"))
+	dbB, _ := sql.Open("mysql", os.Getenv("TENANT_B_DSN"))
+
+	svc := sdk.New(sdk.ServiceConfig{
+		DB:         dbA,
+		Driver:     "mysql",
+		MetaDB:     meta,
+		MetaDriver: "postgres",
+		MetaSchema: "gcfm_meta",
+		Targets: []sdk.TargetConfig{
+			{Key: "tenant:A", DB: dbA, Driver: "mysql", Schema: ""},
+			{Key: "tenant:B", DB: dbB, Driver: "mysql", Schema: ""},
+		},
+		TargetResolver: sdk.TenantResolverFromPrefix("tenant:"),
+	})
+
+	ctx := sdk.WithTenantID(context.Background(), "A")
+	_, _ = svc.ListCustomFields(ctx, 1, "posts")
+}
+```
+
+</p>
+</details>
 
 <details><summary>Example (Quickstart)</summary>
 <p>
@@ -139,6 +918,37 @@ func main() {
 </p>
 </details>
 
+<details><summary>Example (Separate Meta DB)</summary>
+<p>
+
+
+
+```go
+package main
+
+import (
+	"database/sql"
+	"os"
+
+	"github.com/faciam-dev/gcfm/sdk"
+)
+
+func main() {
+	meta, _ := sql.Open("postgres", os.Getenv("META_DSN"))
+	target, _ := sql.Open("mysql", os.Getenv("TARGET_DSN"))
+	_ = sdk.New(sdk.ServiceConfig{
+		DB:         target,
+		Driver:     "mysql",
+		MetaDB:     meta,
+		MetaDriver: "postgres",
+		MetaSchema: "gcfm_meta",
+	})
+}
+```
+
+</p>
+</details>
+
 <a name="New"></a>
 ### func New
 
@@ -153,13 +963,234 @@ New returns a Service initialized with the given configuration. Validator plugin
 
 ServiceConfig holds optional configuration for Service.
 
+DB, Driver and Schema specify the default connection to the monitored database. If the Meta\* fields are left nil or empty, they inherit these default values.
+
 ```go
 type ServiceConfig struct {
-    Logger    *zap.SugaredLogger
-    PluginDir string
+    Logger          *zap.SugaredLogger
+    PluginDir       string
     PluginPublicKey string
     PluginEnabled   *bool
+    Recorder        *audit.Recorder
+    Notifier        notifier.Broker
+
+    // Default connection for monitored databases. Kept for backward
+    // compatibility.
+    DB     *sql.DB
+    Driver string
+    Schema string
+
+    // Optional separate connection for metadata storage. When omitted,
+    // the above DB/Driver/Schema values are used.
+    MetaDB     *sql.DB
+    MetaDriver string
+    MetaSchema string
+
+    // Target databases for monitoring. If empty, the default DB/Driver/
+    // Schema fields represent the only target.
+    Targets []TargetConfig
+
+    // TargetResolver selects a target based on the request context. When
+    // nil, operations fall back to the default target.
+    TargetResolver TargetResolver
+
+    // TargetResolverV2 returns either a direct key or a query. When both
+    // V1 and V2 are provided, V2 takes precedence.
+    TargetResolverV2 TargetResolverV2
+
+    // DefaultStrategy determines how to choose among multiple candidates
+    // returned by a query. The zero value means SelectFirst.
+    DefaultStrategy SelectionStrategy
+
+    // DefaultPreferLabel is used when DefaultStrategy is SelectPreferLabel
+    // and no hint is supplied.
+    DefaultPreferLabel string
+
+    // Connector creates new DB connections. When nil, a default
+    // implementation based on sql.Open and PingContext is used.
+    Connector Connector
+
+    // Failover controls retry and circuit breaker behavior.
+    Failover FailoverPolicy
+
+    // ErrorClassifier distinguishes transient errors for retry decisions.
+    ErrorClassifier ErrorClassifier
+
+    // ReadSource selects where to read custom field metadata from.
+    ReadSource ReadSource
 }
+```
+
+<a name="Snapshot"></a>
+## type Snapshot
+
+Snapshot describes a stored registry snapshot.
+
+```go
+type Snapshot struct {
+    ID      int64
+    Semver  string
+    TakenAt time.Time
+    Author  string
+}
+```
+
+<a name="SnapshotClient"></a>
+## type SnapshotClient
+
+SnapshotClient provides snapshot operations.
+
+```go
+type SnapshotClient interface {
+    List(ctx context.Context, tenant string) ([]Snapshot, error)
+    Create(ctx context.Context, tenant, bump, msg string) (Snapshot, error)
+    Apply(ctx context.Context, tenant, ver string) error
+    Diff(ctx context.Context, tenant, from, to string) (string, error)
+}
+```
+
+<a name="TargetConfig"></a>
+## type TargetConfig
+
+TargetConfig defines an individual monitored database.
+
+```go
+type TargetConfig struct {
+    Key    string // unique identifier like "tenant:foo" or "db:orders"
+    Driver string
+    Schema string
+    Labels []string // optional tags such as "tenant:foo" or "region:tokyo"
+
+    // Physical connection information (hot reload target).
+    DSN          string
+    MaxOpenConns int
+    MaxIdleConns int
+    ConnMaxIdle  time.Duration
+    ConnMaxLife  time.Duration
+
+    // Backward compatibility: pre-established connection. Connections
+    // provided via DB are not subject to hot reload.
+    DB  *sql.DB
+}
+```
+
+<a name="TargetConn"></a>
+## type TargetConn
+
+TargetConn represents a monitored database connection.
+
+```go
+type TargetConn struct {
+    DB      *sql.DB
+    Driver  string
+    Schema  string
+    Dialect ormdriver.Dialect
+    Labels  map[string]struct{}
+}
+```
+
+<a name="TargetDecision"></a>
+## type TargetDecision
+
+TargetDecision represents a proposal for selecting a target. Either Key or Query \(or both\) may be specified.
+
+```go
+type TargetDecision struct {
+    Key   string
+    Query *Query
+    Hint  *SelectionHint
+}
+```
+
+<a name="TargetProvider"></a>
+## type TargetProvider
+
+TargetProvider fetches target configurations from an external source.
+
+```go
+type TargetProvider interface {
+    Fetch(ctx context.Context) (cfgs map[string]TargetConfig, defaultKey string, version string, err error)
+}
+```
+
+<a name="TargetRegistry"></a>
+## type TargetRegistry
+
+TargetRegistry manages monitored database connections.
+
+```go
+type TargetRegistry interface {
+    Register(ctx context.Context, key string, cfg TargetConfig, mk Connector) error
+    Unregister(key string) error
+    Update(ctx context.Context, key string, cfg TargetConfig, mk Connector) error
+    ReplaceAll(ctx context.Context, cfgs map[string]TargetConfig, mk Connector, defaultKey string) error
+    Snapshot() map[string]TargetConn
+    Get(key string) (TargetConn, bool)
+    Default() (TargetConn, bool)
+    SetDefault(key string)
+    Keys() []string
+    FindByLabel(label string) []string
+    FindAllByLabels(labels ...string) []string
+    FindAnyByLabels(labels ...string) []string
+    FindByQuery(q Query) []string
+    ForEachByQuery(q Query, fn func(key string, t TargetConn) error) error
+}
+```
+
+<a name="TargetResolver"></a>
+## type TargetResolver
+
+TargetResolver chooses a target key from the request context. It returns the key and true on success.
+
+```go
+type TargetResolver func(ctx context.Context) (key string, ok bool)
+```
+
+<a name="TenantResolverFromPrefix"></a>
+### func TenantResolverFromPrefix
+
+```go
+func TenantResolverFromPrefix(prefix string) TargetResolver
+```
+
+TenantResolverFromPrefix returns a TargetResolver that looks up tenant ID with given prefix.
+
+<a name="TargetResolverV2"></a>
+## type TargetResolverV2
+
+TargetResolverV2 returns a TargetDecision derived from the request context. It returns false when no decision could be made.
+
+```go
+type TargetResolverV2 func(ctx context.Context) (TargetDecision, bool)
+```
+
+<a name="AutoLabelResolver"></a>
+### func AutoLabelResolver
+
+```go
+func AutoLabelResolver(opts AutoLabelResolverOptions) TargetResolverV2
+```
+
+AutoLabelResolver builds a TargetResolverV2 that aggregates labels from various sources and turns them into a Query.
+
+<a name="TargetWatcher"></a>
+## type TargetWatcher
+
+TargetWatcher periodically applies configuration updates from a provider.
+
+```go
+type TargetWatcher struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="TenantIDKey"></a>
+## type TenantIDKey
+
+TenantIDKey is the context key used by WithTenantID.
+
+```go
+type TenantIDKey struct{}
 ```
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
