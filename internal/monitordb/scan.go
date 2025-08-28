@@ -2,6 +2,7 @@ package monitordb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -124,13 +125,16 @@ func schemaFromDSN(driver, dsn string) string {
 }
 
 // helper for scanning multiple databases
-func ScanAll(ctx context.Context, repo *Repo, dbs []Database) {
+func ScanAll(ctx context.Context, repo *Repo, dbs []Database) error {
+	var errs []error
 	for _, d := range dbs {
 		tables, inserted, updated, skipped, err := ScanDatabase(ctx, repo, d.ID, d.TenantID)
 		if err != nil {
 			log.Printf("ScanDatabase failed for ID %d (tenant %s): %v", d.ID, d.TenantID, err)
+			errs = append(errs, fmt.Errorf("id %d tenant %s: %w", d.ID, d.TenantID, err))
 			continue
 		}
 		log.Printf("ScanDatabase success for ID %d: tables=%d inserted=%d updated=%d skipped=%d", d.ID, tables, inserted, updated, len(skipped))
 	}
+	return errors.Join(errs...)
 }
