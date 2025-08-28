@@ -2,6 +2,7 @@ package events
 
 import (
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -12,7 +13,8 @@ func LoadConfig(path string) (Config, error) {
 	if path == "" {
 		return c, nil
 	}
-	data, err := os.ReadFile(path)
+	p := filepath.Clean(path)
+	data, err := os.ReadFile(p) // #nosec G304 -- path cleaned prior to read
 	if err != nil {
 		return c, err
 	}

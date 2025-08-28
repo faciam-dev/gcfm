@@ -75,9 +75,8 @@ func newConfigGetCmd() *cobra.Command {
 			b, err := json.MarshalIndent(struct {
 				Active   string `json:"active"`
 				APIURL   string `json:"apiUrl"`
-				Insecure bool   `json:"insecure"`
 				HasToken bool   `json:"hasToken"`
-			}{cfg.Active, p.APIURL, p.Insecure, p.Token != ""}, "", "  ")
+			}{cfg.Active, p.APIURL, p.Token != ""}, "", "  ")
 			if err != nil {
 				return err
 			}

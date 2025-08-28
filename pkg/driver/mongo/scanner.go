@@ -105,7 +105,9 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 					}
 				}
 			}
-			idxCur.Close(ctx)
+			if err := idxCur.Close(ctx); err != nil {
+				return nil, err
+			}
 		}
 
 		metas = append(metas, colMetas...)

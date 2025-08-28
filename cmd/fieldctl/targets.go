@@ -87,14 +87,9 @@ func apiRequest(method, path string, body any, ifMatch string) (*http.Response, 
 	if ifMatch != "" {
 		req.Header.Set("If-Match", ifMatch)
 	}
-	client := http.DefaultClient
-	if resolved.Insecure {
-		// SECURITY WARNING:
-		// Disabling TLS certificate verification (InsecureSkipVerify: true) is highly insecure.
-		// This exposes the client to man-in-the-middle attacks and should only be used for testing or development.
-		tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-		client = &http.Client{Transport: tr}
-	}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	client := &http.Client{Transport: tr}
 	return client.Do(req)
 }
 

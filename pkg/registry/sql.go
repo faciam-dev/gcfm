@@ -208,11 +208,15 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver, tablePrefix string, meta
 	case "mysql":
 		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), widget_config=VALUES(widget_config), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
 	default:
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("rollback: %v: unsupported driver: %s", rbErr, driver)
+		}
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("rollback: %v: prepare: %w", rbErr, err)
+		}
 		return fmt.Errorf("prepare: %w", err)
 	}
 	defer stmt.Close()
@@ -234,7 +238,9 @@ func UpsertSQL(ctx context.Context, db *sql.DB, driver, tablePrefix string, meta
 		}
 		dbid := monitordb.NormalizeDBID(m.DBID)
 		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator); err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("rollback: %v: exec: %w", rbErr, err)
+			}
 			return fmt.Errorf("exec: %w", err)
 		}
 	}
@@ -261,11 +267,15 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tablePrefix, ten
 	case "mysql":
 		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf("INSERT INTO %s (db_id, tenant_id, table_name, column_name, data_type, label_key, widget, widget_config, placeholder_key, nullable, `unique`, has_default, default_value, validator, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE data_type=VALUES(data_type), label_key=VALUES(label_key), widget=VALUES(widget), widget_config=VALUES(widget_config), placeholder_key=VALUES(placeholder_key), nullable=VALUES(nullable), `unique`=VALUES(`unique`), has_default=VALUES(has_default), default_value=VALUES(default_value), validator=VALUES(validator), updated_at=NOW()", tbl))
 	default:
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return 0, 0, fmt.Errorf("rollback: %v: unsupported driver: %s", rbErr, driver)
+		}
 		return 0, 0, fmt.Errorf("unsupported driver: %s", driver)
 	}
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return 0, 0, fmt.Errorf("rollback: %v: prepare: %w", rbErr, err)
+		}
 		return 0, 0, fmt.Errorf("prepare: %w", err)
 	}
 	defer stmt.Close()
@@ -290,7 +300,9 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tablePrefix, ten
 		case "postgres":
 			var isInsert bool
 			if err := stmt.QueryRowContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator).Scan(&isInsert); err != nil {
-				tx.Rollback()
+				if rbErr := tx.Rollback(); rbErr != nil {
+					return 0, 0, fmt.Errorf("rollback: %v: exec: %w", rbErr, err)
+				}
 				return 0, 0, fmt.Errorf("exec: %w", err)
 			}
 			if isInsert {
@@ -301,7 +313,9 @@ func UpsertSQLByTenant(ctx context.Context, db *sql.DB, driver, tablePrefix, ten
 		case "mysql":
 			res, err := stmt.ExecContext(ctx, dbid, tenant, m.TableName, m.ColumnName, m.DataType, labelKey, widget, widgetCfg, placeholderKey, m.Nullable, m.Unique, m.HasDefault, def, m.Validator)
 			if err != nil {
-				tx.Rollback()
+				if rbErr := tx.Rollback(); rbErr != nil {
+					return 0, 0, fmt.Errorf("rollback: %v: exec: %w", rbErr, err)
+				}
 				return 0, 0, fmt.Errorf("exec: %w", err)
 			}
 			ra, _ := res.RowsAffected()
@@ -345,18 +359,24 @@ func DeleteSQL(ctx context.Context, db *sql.DB, driver, tablePrefix string, meta
 	case "mysql":
 		stmt, err = tx.PrepareContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE db_id = ? AND table_name = ? AND column_name = ?`, tbl))
 	default:
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("rollback: %v: unsupported driver: %s", rbErr, driver)
+		}
 		return fmt.Errorf("unsupported driver: %s", driver)
 	}
 	if err != nil {
-		tx.Rollback()
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("rollback: %v: prepare: %w", rbErr, err)
+		}
 		return fmt.Errorf("prepare: %w", err)
 	}
 	defer stmt.Close()
 	for _, m := range metas {
 		dbid := monitordb.NormalizeDBID(m.DBID)
 		if _, err := stmt.ExecContext(ctx, dbid, m.TableName, m.ColumnName); err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("rollback: %v: exec: %w", rbErr, err)
+			}
 			return fmt.Errorf("exec: %w", err)
 		}
 	}

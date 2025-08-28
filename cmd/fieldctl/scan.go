@@ -72,7 +72,9 @@ func newScanCmd() *cobra.Command {
 						for _, s := range skipped {
 							fmt.Fprintf(tw, "%s\t%s\t%s\n", s.Table, s.Column, s.Reason)
 						}
-						tw.Flush()
+						if err := tw.Flush(); err != nil {
+							return err
+						}
 					}
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Scan finished: %d inserted, %d updated, %d skipped\n", inserted, updated, len(skipped))
@@ -106,7 +108,7 @@ func newScanCmd() *cobra.Command {
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
 	cmd.Flags().Int64Var(&scanDBID, "db-id", 0, "monitored database id")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("schema")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "schema")
 	return cmd
 }

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // Migration holds migration data for one version.
@@ -92,8 +94,13 @@ func (m *Migrator) Current(ctx context.Context, db *sql.DB) (int, error) {
 		return 0, err
 	}
 	tbl := m.versionTable()
-	query := fmt.Sprintf("SELECT MAX(version) FROM %s", tbl)
-	row := db.QueryRowContext(ctx, query)
+	var query string
+	if m.Driver == "postgres" {
+		query = fmt.Sprintf("SELECT MAX(version) FROM %s", pq.QuoteIdentifier(tbl))
+	} else {
+		query = fmt.Sprintf("SELECT MAX(version) FROM `%s`", tbl)
+	}
+	row := db.QueryRowContext(ctx, query) // #nosec G201 -- table name derived from trusted prefix
 	var v sql.NullInt64
 	if err := row.Scan(&v); err != nil {
 		if isTableMissing(err) {
@@ -195,7 +202,9 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 	}
 	for i := cur; i < target; i++ {
 		if err := execAll(ctx, tx, m.migrations[i].UpSQL); err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("rollback: %v: %w", rbErr, err)
+			}
 			return err
 		}
 	}
@@ -217,7 +226,9 @@ func (m *Migrator) Down(ctx context.Context, db *sql.DB, target int) error {
 	}
 	for i := cur - 1; i >= target; i-- {
 		if err := execAll(ctx, tx, m.migrations[i].DownSQL); err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("rollback: %v: %w", rbErr, err)
+			}
 			return err
 		}
 	}

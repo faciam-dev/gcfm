@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -21,27 +22,28 @@ func NewRegistryCmd() *cobra.Command {
 			if len(srcs) == 0 {
 				return errors.New("--src is required")
 			}
+			cleanOut := filepath.Clean(out)
 			b, err := generator.GenerateYAMLFromGo(generator.YAMLFromGoOptions{Srcs: srcs, Merge: merge})
 			if err != nil {
 				return err
 			}
-			if out == "" {
+			if cleanOut == "" {
 				_, err := cmd.OutOrStdout().Write(b)
 				return err
 			}
-			if merge && out != "" {
-				if existing, err := os.ReadFile(out); err == nil {
+			if merge && cleanOut != "" {
+				if existing, err := os.ReadFile(cleanOut); err == nil { // #nosec G304 -- path cleaned
 					b, err = generator.GenerateYAMLFromGo(generator.YAMLFromGoOptions{Srcs: srcs, Merge: true, Existing: existing})
 					if err != nil {
 						return err
 					}
 				}
 			}
-			if out != "" {
-				if err := os.WriteFile(out, b, 0644); err != nil {
+			if cleanOut != "" {
+				if err := os.WriteFile(cleanOut, b, 0o600); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", out)
+				fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", cleanOut)
 				return nil
 			}
 			return nil

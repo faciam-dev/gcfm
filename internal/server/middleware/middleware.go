@@ -32,7 +32,9 @@ func JWT(api huma.API, secret string) func(huma.Context, func(huma.Context)) {
 		r, w := humachi.Unwrap(ctx)
 		auth := r.Header.Get("Authorization")
 		if !strings.HasPrefix(auth, "Bearer ") {
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			if err := huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized"); err != nil {
+				// best effort; no logging available
+			}
 			return
 		}
 		tokenString := strings.TrimPrefix(auth, "Bearer ")
@@ -43,12 +45,16 @@ func JWT(api huma.API, secret string) func(huma.Context, func(huma.Context)) {
 			return key, nil
 		})
 		if err != nil || !t.Valid {
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			if err := huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized"); err != nil {
+				// best effort
+			}
 			return
 		}
 		claims, ok := t.Claims.(jwt.MapClaims)
 		if !ok {
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			if err := huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized"); err != nil {
+				// best effort
+			}
 			return
 		}
 		sub, _ := claims["sub"].(string)

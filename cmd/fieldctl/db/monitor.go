@@ -43,9 +43,9 @@ func NewAddMonCmd() *cobra.Command {
 	cmd.Flags().StringVar(&driver, "target-driver", "", "target driver")
 	cmd.Flags().StringVar(&dsn, "dsn", "", "target DSN")
 	cmd.Flags().StringVar(&tenant, "tenant", "default", "tenant id")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("driver")
-	cmd.MarkFlagRequired("dsn")
+	cobra.CheckErr(cmd.MarkFlagRequired("name"))
+	cobra.CheckErr(cmd.MarkFlagRequired("driver"))
+	cobra.CheckErr(cmd.MarkFlagRequired("dsn"))
 	return cmd
 }
 
@@ -93,6 +93,6 @@ func NewRemoveMonCmd() *cobra.Command {
 	f.AddFlags(cmd)
 	cmd.Flags().Int64Var(&id, "id", 0, "database id")
 	cmd.Flags().StringVar(&tenant, "tenant", "default", "tenant id")
-	cmd.MarkFlagRequired("id")
+	cobra.CheckErr(cmd.MarkFlagRequired("id"))
 	return cmd
 }

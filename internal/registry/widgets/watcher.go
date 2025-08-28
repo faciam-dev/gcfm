@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,11 @@ type Watcher struct {
 }
 
 func NewWatcher(dir string, reg Registry, debounce time.Duration, logger *slog.Logger) *Watcher {
-	return &Watcher{dir: dir, reg: reg, debounce: debounce, logger: logger, known: map[string]string{}}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		absDir = filepath.Clean(dir)
+	}
+	return &Watcher{dir: absDir, reg: reg, debounce: debounce, logger: logger, known: map[string]string{}}
 }
 
 // Start begins watching. Returns stop function.
@@ -93,20 +98,40 @@ func (w *Watcher) applyPaths(ctx context.Context, paths []string) {
 	var upserts []Widget
 	var removes []string
 	for _, p := range paths {
-		wi, err := LoadOne(p)
-		if errors.Is(err, os.ErrNotExist) {
-			if id, ok := w.known[p]; ok {
-				removes = append(removes, id)
-				delete(w.known, p)
-			}
+		cleaned := filepath.Clean(p)
+		abs := cleaned
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(w.dir, cleaned)
+		}
+		dir := filepath.Dir(abs)
+		resolvedDir, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			w.logger.Warn("skip invalid path", "path", p, "err", err)
 			continue
 		}
+		resolved := filepath.Join(resolvedDir, filepath.Base(abs))
+		rel, err := filepath.Rel(w.dir, resolved)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			w.logger.Warn("skip outside widget dir", "path", resolved)
+			continue
+		}
+		if _, err := os.Stat(resolved); errors.Is(err, os.ErrNotExist) {
+			if id, ok := w.known[resolved]; ok {
+				removes = append(removes, id)
+				delete(w.known, resolved)
+			}
+			continue
+		} else if err != nil {
+			w.logger.Warn("skip invalid path", "path", resolved, "err", err)
+			continue
+		}
+		wi, err := LoadOne(resolved)
 		if err != nil {
-			w.logger.Warn("skip invalid widget json", "path", p, "err", err)
+			w.logger.Warn("skip invalid widget json", "path", resolved, "err", err)
 			continue
 		}
 		upserts = append(upserts, wi)
-		w.known[p] = wi.ID
+		w.known[resolved] = wi.ID
 	}
 	if len(upserts) == 0 && len(removes) == 0 {
 		return

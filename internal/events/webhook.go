@@ -62,7 +62,9 @@ func (s *WebhookSink) Emit(ctx context.Context, e Event) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		return err
+	}
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook: %s", resp.Status)
 	}

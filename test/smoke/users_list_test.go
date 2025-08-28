@@ -8,7 +8,7 @@ import (
 
 func TestUsersPagingAndSort(t *testing.T) {
 	e := newEnv(t)
-	defer e.close()
+	defer e.close(t)
 
 	jwt := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 

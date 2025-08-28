@@ -42,9 +42,13 @@ func newEnv(t *testing.T) *Env {
 		t.Fatalf("ping db: %v", err)
 	}
 
-	os.Setenv("CF_ENC_KEY", strings.Repeat("0", 32))
+	if err := os.Setenv("CF_ENC_KEY", strings.Repeat("0", 32)); err != nil {
+		t.Fatalf("set CF_ENC_KEY: %v", err)
+	}
 	secret := []byte("test-secret")
-	os.Setenv("JWT_SECRET", string(secret))
+	if err := os.Setenv("JWT_SECRET", string(secret)); err != nil {
+		t.Fatalf("set JWT_SECRET: %v", err)
+	}
 
 	runMigrations(t, dsn)
 	seed(t, db)
@@ -55,9 +59,12 @@ func newEnv(t *testing.T) *Env {
 	return &Env{DB: db, URL: ts.URL, HTTP: ts, Now: time.Now().UTC(), Secret: secret}
 }
 
-func (e *Env) close() {
+func (e *Env) close(t *testing.T) {
+	t.Helper()
 	e.HTTP.Close()
-	e.DB.Close()
+	if err := e.DB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
 }
 
 func buildRouterForTest(t *testing.T, db *sql.DB) http.Handler {

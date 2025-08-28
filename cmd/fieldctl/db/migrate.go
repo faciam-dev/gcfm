@@ -58,7 +58,7 @@ func NewMigrateCmd() *cobra.Command {
 	flags.AddFlags(cmd)
 	cmd.Flags().StringVar(&to, "to", "latest", "target version (number or latest)")
 	cmd.Flags().BoolVar(&seed, "seed", false, "seed admin user")
-	cmd.MarkFlagRequired("db")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
 	return cmd
 }
 
@@ -135,11 +135,13 @@ func seedAdmin(ctx context.Context, f DBFlags, out io.Writer) error {
 	// seed casbin rules giving admin full access
 	switch f.Driver {
 	case "postgres":
-		if _, err := db.ExecContext(ctx, "INSERT INTO "+casbin+"(ptype,v0,v1,v2,v3,v4,v5) VALUES ('p','admin','*','*','*','*','*'),('g','admin','admin','','','','') ON CONFLICT DO NOTHING"); err != nil {
+		query := fmt.Sprintf("INSERT INTO %s (ptype,v0,v1,v2,v3,v4,v5) VALUES ('p','admin','*','*','*','*','*'),('g','admin','admin','','','','') ON CONFLICT DO NOTHING", casbin) // #nosec G201 -- table name validated above
+		if _, err := db.ExecContext(ctx, query); err != nil {                                                                                                                      // #nosec G202 -- casbin validated above
 			return err
 		}
 	default:
-		if _, err := db.ExecContext(ctx, "INSERT IGNORE INTO "+casbin+"(ptype,v0,v1,v2,v3,v4,v5) VALUES ('p','admin','*','*','*','*','*'),('g','admin','admin','','','','')"); err != nil {
+		query := fmt.Sprintf("INSERT IGNORE INTO %s (ptype,v0,v1,v2,v3,v4,v5) VALUES ('p','admin','*','*','*','*','*'),('g','admin','admin','','','','')", casbin) // #nosec G201 -- table name validated above
+		if _, err := db.ExecContext(ctx, query); err != nil {                                                                                                      // #nosec G202 -- casbin validated above
 			return err
 		}
 	}

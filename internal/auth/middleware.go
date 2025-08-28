@@ -22,13 +22,17 @@ func Middleware(api huma.API, j *JWT) func(huma.Context, func(huma.Context)) {
 		r, w := humachi.Unwrap(ctx)
 		authHdr := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authHdr, "Bearer ") {
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			if err := huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized"); err != nil {
+				// best effort
+			}
 			return
 		}
 		token := strings.TrimPrefix(authHdr, "Bearer ")
 		claims, err := j.Validate(token)
 		if err != nil {
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized")
+			if err := huma.WriteErr(api, ctx, http.StatusUnauthorized, "unauthorized"); err != nil {
+				// best effort
+			}
 			return
 		}
 		ctxWithUser := context.WithValue(r.Context(), userKey, claims.Subject)

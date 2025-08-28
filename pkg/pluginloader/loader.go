@@ -27,7 +27,8 @@ func verifySignature(path string) bool {
 	if PublicKeyPath == "" {
 		return false
 	}
-	pubData, err := os.ReadFile(PublicKeyPath)
+	pubPath := filepath.Clean(PublicKeyPath)
+	pubData, err := os.ReadFile(pubPath) // #nosec G304 -- path controlled by administrator
 	if err != nil {
 		return false
 	}
@@ -37,11 +38,12 @@ func verifySignature(path string) bool {
 	}
 	pub := ed25519.PublicKey(pubKeyBytes)
 
-	data, err := os.ReadFile(path)
+	path = filepath.Clean(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- cleaned plugin path
 	if err != nil {
 		return false
 	}
-	sigData, err := os.ReadFile(path + ".sig")
+	sigData, err := os.ReadFile(path + ".sig") // #nosec G304 -- cleaned plugin signature path
 	if err != nil {
 		return false
 	}

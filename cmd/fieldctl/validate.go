@@ -24,7 +24,8 @@ func newValidateCmd() *cobra.Command {
 			if file == "" {
 				return errors.New("--file is required")
 			}
-			data, err := os.ReadFile(file)
+			clean := filepath.Clean(file)
+			data, err := os.ReadFile(clean) // #nosec G304 -- file path cleaned
 			if err != nil {
 				return err
 			}

@@ -22,10 +22,15 @@ func main() {
 		if err != nil {
 			log.Fatalf("create %s: %v", f.Path, err)
 		}
-		if err := tpl.Execute(out, map[string]string{"IDType": f.IDType}); err != nil {
-			out.Close()
-			log.Fatalf("write %s: %v", f.Path, err)
-		}
-		out.Close()
+		func() {
+			defer func() {
+				if cerr := out.Close(); cerr != nil {
+					log.Fatalf("close %s: %v", f.Path, cerr)
+				}
+			}()
+			if err := tpl.Execute(out, map[string]string{"IDType": f.IDType}); err != nil {
+				log.Fatalf("write %s: %v", f.Path, err)
+			}
+		}()
 	}
 }

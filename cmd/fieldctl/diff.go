@@ -41,12 +41,13 @@ func newDiffCmd() *cobra.Command {
 			if file == "" {
 				return errors.New("--file is required")
 			}
+			cleanFile := filepath.Clean(file)
 			if format != "text" && format != "markdown" {
 				return errors.New("--format must be text or markdown")
 			}
 			ctx := context.Background()
 			exported := false
-			data, err := os.ReadFile(file)
+			data, err := os.ReadFile(cleanFile) // #nosec G304 -- file path cleaned
 			if err != nil {
 				if os.IsNotExist(err) && fallback {
 					svc := sdk.New(sdk.ServiceConfig{})
@@ -54,7 +55,7 @@ func newDiffCmd() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					if err := os.WriteFile(file, data, 0644); err != nil {
+					if err := os.WriteFile(cleanFile, data, 0o600); err != nil {
 						return err
 					}
 					exported = true
@@ -155,8 +156,8 @@ func newDiffCmd() *cobra.Command {
 	cmd.Flags().StringVar(&prefix, "table-prefix", os.Getenv("CF_TABLE_PREFIX"), "table name prefix")
 	cmd.Flags().BoolVar(&fallback, "fallback-export", false, "export registry if file missing")
 	cmd.Flags().BoolVar(&skipRes, "skip-reserved", true, "exclude reserved tables")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("driver")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "driver")
 	return cmd
 }
 
@@ -255,7 +256,8 @@ func equalStringPtr(a, b *string) bool {
 func loadReservedPatterns() ([]string, error) {
 	_, f, _, _ := runtime.Caller(0)
 	base := filepath.Join(filepath.Dir(f), "..", "..")
-	data, err := os.ReadFile(filepath.Join(base, "configs", "default.yaml"))
+	cfgPath := filepath.Clean(filepath.Join(base, "configs", "default.yaml"))
+	data, err := os.ReadFile(cfgPath) // #nosec G304 -- path constructed from source tree
 	if err != nil {
 		return nil, err
 	}

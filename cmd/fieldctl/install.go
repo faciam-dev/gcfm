@@ -22,13 +22,13 @@ func newPluginsInstallCmd() *cobra.Command {
 				return fmt.Errorf("untrusted module: %s", mod)
 			}
 			dir = resolvePluginDir(dir)
-			if err := os.MkdirAll(dir, 0755); err != nil {
+			if err := os.MkdirAll(dir, 0o750); err != nil {
 				return err
 			}
 			name := filepath.Base(strings.Split(mod, "@")[0]) + ".so"
 			dst := filepath.Join(dir, name)
 			tmp := dst + ".tmp"
-			buildCmd := exec.Command("go", "build", "-buildmode=plugin", "-o", tmp, mod)
+			buildCmd := exec.Command("go", "build", "-buildmode=plugin", "-o", tmp, mod) // #nosec G204 -- module path validated by isTrustedModule
 			buildCmd.Env = os.Environ()
 			if out, err := buildCmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("go build: %v\n%s", err, out)

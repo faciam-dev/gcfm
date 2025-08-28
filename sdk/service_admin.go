@@ -128,25 +128,30 @@ func oneIsNilOtherIsNot(a, b *string) bool {
 
 func hashFieldDef(f FieldDef) uint32 {
 	h := fnv.New32a()
-	h.Write([]byte(f.ColumnName))
-	h.Write([]byte(f.DataType))
+	write := func(b []byte) {
+		if _, err := h.Write(b); err != nil {
+			panic(err)
+		}
+	}
+	write([]byte(f.ColumnName))
+	write([]byte(f.DataType))
 	if f.Nullable {
-		h.Write([]byte{1})
+		write([]byte{1})
 	} else {
-		h.Write([]byte{0})
+		write([]byte{0})
 	}
 	if f.Unique {
-		h.Write([]byte{1})
+		write([]byte{1})
 	} else {
-		h.Write([]byte{0})
+		write([]byte{0})
 	}
 	if f.HasDefault {
-		h.Write([]byte{1})
+		write([]byte{1})
 		if f.Default != nil {
-			h.Write([]byte(*f.Default))
+			write([]byte(*f.Default))
 		}
 	} else {
-		h.Write([]byte{0})
+		write([]byte{0})
 	}
 	return h.Sum32()
 }

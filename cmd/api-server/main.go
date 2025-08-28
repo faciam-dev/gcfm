@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -65,13 +66,19 @@ func main() {
 	if db != nil {
 		repo := &monitordb.Repo{DB: db, Driver: dbCfg.Driver, Dialect: dialect, TablePrefix: dbCfg.TablePrefix}
 		s := gocron.NewScheduler(time.UTC)
-		s.Cron("0 3 * * *").Do(func() {
+		if _, err := s.Cron("0 3 * * *").Do(func() {
 			ctx := context.Background()
 			dbs, err := repo.ListAll(ctx)
-			if err == nil {
-				monitordb.ScanAll(ctx, repo, dbs)
+			if err != nil {
+				logger.L.Error("list databases", "err", err)
+				return
 			}
-		})
+			if err := monitordb.ScanAll(ctx, repo, dbs); err != nil {
+				logger.L.Error("scan all databases", "err", err)
+			}
+		}); err != nil {
+			logger.L.Error("schedule db scan", "err", err)
+		}
 		s.StartAsync()
 	}
 
@@ -81,7 +88,8 @@ func main() {
 			logger.L.Error("marshal openapi", "err", err)
 			os.Exit(1)
 		}
-		if err := os.WriteFile(*openapi, data, 0644); err != nil {
+		p := filepath.Clean(*openapi)
+		if err := os.WriteFile(p, data, 0o600); err != nil {
 			logger.L.Error("write openapi", "err", err)
 			os.Exit(1)
 		}
@@ -89,7 +97,14 @@ func main() {
 	}
 
 	logger.L.Info("listening", "addr", *addr)
-	if err := http.ListenAndServe(*addr, api.Adapter()); err != nil {
+	srv := &http.Server{
+		Addr:         *addr,
+		Handler:      api.Adapter(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		logger.L.Error("server error", "err", err)
 		os.Exit(1)
 	}

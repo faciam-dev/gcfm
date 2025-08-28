@@ -41,7 +41,8 @@ func LoadAll(dir string) ([]Widget, error) {
 
 // LoadOne reads a single widget JSON file.
 func LoadOne(path string) (Widget, error) {
-	b, err := os.ReadFile(path)
+	p := filepath.Clean(path)
+	b, err := os.ReadFile(p) // #nosec G304 -- path derived from directory listing
 	if err != nil {
 		return Widget{}, err
 	}

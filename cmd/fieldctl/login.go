@@ -2,8 +2,11 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"syscall"
 	"time"
@@ -15,7 +18,6 @@ import (
 )
 
 var (
-	loginInsecure       bool
 	loginNonInteractive bool
 )
 
@@ -47,11 +49,7 @@ func newLoginCmd() *cobra.Command {
 				return fmt.Errorf("api-url and token are required (provide flags or use interactive mode)")
 			}
 
-			if loginInsecure {
-				fmt.Fprintln(cmd.ErrOrStderr(), "WARNING: TLS verification disabled; do not use --insecure in production")
-			}
-
-			ok, err := probe(url, tok, loginInsecure)
+			ok, err := probe(url, tok)
 			if err != nil || !ok {
 				return fmt.Errorf("login failed: %w", err)
 			}
@@ -60,7 +58,6 @@ func newLoginCmd() *cobra.Command {
 			cp.Name = prof
 			cp.APIURL = url
 			cp.Token = tok
-			cp.Insecure = loginInsecure
 			cfg.Profiles[prof] = cp
 			cfg.Active = prof
 
@@ -71,7 +68,6 @@ func newLoginCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&loginInsecure, "insecure", false, "Disable TLS verify (dev only)")
 	cmd.Flags().BoolVar(&loginNonInteractive, "non-interactive", false, "Fail instead of prompting")
 	return cmd
 }
@@ -79,7 +75,12 @@ func newLoginCmd() *cobra.Command {
 func prompt(label, def string) string {
 	fmt.Printf("%s [%s]: ", label, def)
 	var s string
-	fmt.Scanln(&s)
+	if _, err := fmt.Scanln(&s); err != nil {
+		if !errors.Is(err, io.EOF) {
+			fmt.Fprintf(os.Stderr, "read input: %v\n", err)
+		}
+		return def
+	}
 	if strings.TrimSpace(s) == "" {
 		return def
 	}
@@ -93,17 +94,12 @@ func promptSecret(label string) string {
 	return strings.TrimSpace(string(b))
 }
 
-func probe(baseURL, token string, insecure bool) (bool, error) {
+func probe(baseURL, token string) (bool, error) {
 	url := strings.TrimSuffix(baseURL, "/") + "/admin/targets/version"
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
-
-	tr := &http.Transport{}
-	if insecure {
-		// SECURITY WARNING: Disabling TLS certificate verification (InsecureSkipVerify: true)
-		// is highly insecure and should only be used for testing or development purposes.
-		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402: dev only
-	}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	cli := &http.Client{Transport: tr, Timeout: 5 * time.Second}
 	resp, err := cli.Do(req)
 	if err != nil {
