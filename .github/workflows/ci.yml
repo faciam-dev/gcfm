@@ -39,7 +39,7 @@ jobs:
       - name: Run tests
         run: go test ./...
       - name: Security scan
-        uses: securego/gosec@v2
+        uses: securego/gosec@v2.15.0
         with:
           args: ./...
       - name: Lint YAML
