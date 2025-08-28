@@ -340,7 +340,6 @@ type FailoverPolicy struct {
     HalfOpenProbe     int
     PreferOnFail      *SelectionHint
     AllowWriteRetry   bool
-    // contains filtered or unexported fields
 }
 ```
 
