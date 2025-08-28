@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -129,6 +130,7 @@ func LatestSemver(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, pr
 func NextSemver(prev, bump string) string {
 	var maj, min, patch int
 	if _, err := fmt.Sscanf(prev, "%d.%d.%d", &maj, &min, &patch); err != nil {
+		log.Printf("NextSemver parse %q: %v", prev, err)
 		return prev
 	}
 	switch bump {

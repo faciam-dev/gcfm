@@ -2,8 +2,11 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"syscall"
 	"time"
@@ -73,6 +76,9 @@ func prompt(label, def string) string {
 	fmt.Printf("%s [%s]: ", label, def)
 	var s string
 	if _, err := fmt.Scanln(&s); err != nil {
+		if !errors.Is(err, io.EOF) {
+			fmt.Fprintf(os.Stderr, "read input: %v\n", err)
+		}
 		return def
 	}
 	if strings.TrimSpace(s) == "" {

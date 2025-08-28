@@ -73,7 +73,9 @@ func main() {
 				logger.L.Error("list databases", "err", err)
 				return
 			}
-			monitordb.ScanAll(ctx, repo, dbs)
+			if err := monitordb.ScanAll(ctx, repo, dbs); err != nil {
+				logger.L.Error("scan all databases", "err", err)
+			}
 		}); err != nil {
 			logger.L.Error("schedule db scan", "err", err)
 		}
