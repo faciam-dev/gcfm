@@ -25,8 +25,12 @@ func initEnforcer(db *sql.DB, dialect driver.Dialect, tablePrefix string) (*casb
 	if err != nil {
 		return nil, err
 	}
-	e.AddPolicy("admin", "/v1/*", "*")
-	e.AddPolicy("admin", "/admin/*", "*")
+	if _, err := e.AddPolicy("admin", "/v1/*", "*"); err != nil {
+		return nil, err
+	}
+	if _, err := e.AddPolicy("admin", "/admin/*", "*"); err != nil {
+		return nil, err
+	}
 	if db != nil {
 		if err := rbac.Load(context.Background(), db, dialect, tablePrefix, e); err != nil {
 			logger.L.Error("load rbac", "err", err)

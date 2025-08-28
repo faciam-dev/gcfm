@@ -128,7 +128,9 @@ func LatestSemver(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, pr
 
 func NextSemver(prev, bump string) string {
 	var maj, min, patch int
-	fmt.Sscanf(prev, "%d.%d.%d", &maj, &min, &patch)
+	if _, err := fmt.Sscanf(prev, "%d.%d.%d", &maj, &min, &patch); err != nil {
+		return prev
+	}
 	switch bump {
 	case "major":
 		maj++
@@ -166,7 +168,9 @@ func Decode(data []byte) ([]byte, error) { return decompress(data) }
 
 func ParsePatch(ver string) int {
 	var maj, min, patch int
-	fmt.Sscanf(ver, "%d.%d.%d", &maj, &min, &patch)
+	if _, err := fmt.Sscanf(ver, "%d.%d.%d", &maj, &min, &patch); err != nil {
+		return 0
+	}
 	return patch
 }
 

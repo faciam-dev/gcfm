@@ -25,7 +25,9 @@ func ExtractTenant(api huma.API) func(huma.Context, func(huma.Context)) {
 				next(humachi.NewContext(ctx.Operation(), r, w))
 				return
 			}
-			huma.WriteErr(api, ctx, 400, "missing tenant identifier: set X-Tenant-ID header or tid claim")
+			if err := huma.WriteErr(api, ctx, 400, "missing tenant identifier: set X-Tenant-ID header or tid claim"); err != nil {
+				// best effort
+			}
 			return
 		}
 		r = r.WithContext(tenant.WithTenant(r.Context(), tid))

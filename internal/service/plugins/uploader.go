@@ -272,7 +272,9 @@ func extractManifestFromZip(path string) (*Manifest, error) {
 				return nil, err
 			}
 			b, err := io.ReadAll(rc)
-			rc.Close()
+			if cerr := rc.Close(); cerr != nil {
+				return nil, cerr
+			}
 			if err != nil {
 				return nil, err
 			}

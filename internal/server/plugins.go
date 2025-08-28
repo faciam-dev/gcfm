@@ -123,7 +123,9 @@ func setupPluginRoutes(api huma.API, r chi.Router, db *sql.DB, driver, tablePref
 					UpdatedAt:    r.UpdatedAt,
 				}
 			}
-			wreg.ApplyDiff(context.Background(), ws, nil)
+			if _, _, err := wreg.ApplyDiff(context.Background(), ws, nil); err != nil {
+				logger.L.Error("apply diff", "err", err)
+			}
 		}
 		if rdb != nil {
 			sub := &widgetreg.RedisSubscriber{RDB: rdb, Channel: cfg.RedisChannel, Repo: wrepo, Reg: wreg, Logger: logger.L, BackoffMS: cfg.BackoffMS, BackoffMaxMS: cfg.BackoffMaxMS}

@@ -29,7 +29,9 @@ func Load(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix str
 		return err
 	}
 	for _, r := range rows {
-		e.AddPolicy(fmt.Sprint(r["role"]), fmt.Sprint(r["path"]), fmt.Sprint(r["method"]))
+		if _, err := e.AddPolicy(fmt.Sprint(r["role"]), fmt.Sprint(r["path"]), fmt.Sprint(r["method"])); err != nil {
+			return err
+		}
 	}
 	return loadGroupPolicies(ctx, db, dialect, prefix, e)
 }
@@ -48,7 +50,9 @@ func loadGroupPolicies(ctx context.Context, db *sql.DB, dialect ormdriver.Dialec
 		return err
 	}
 	for _, r := range rows {
-		e.AddGroupingPolicy(fmt.Sprint(r["uid"]), fmt.Sprint(r["role"]))
+		if _, err := e.AddGroupingPolicy(fmt.Sprint(r["uid"]), fmt.Sprint(r["role"])); err != nil {
+			return err
+		}
 	}
 	return nil
 }

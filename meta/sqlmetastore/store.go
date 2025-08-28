@@ -297,14 +297,24 @@ func (s *SQLMetaStore) UpsertTarget(ctx context.Context, tx *sql.Tx, t metapkg.T
 		}
 		for _, lb := range labels {
 			if _, err := lstmt.ExecContext(ctx, t.Key, lb); err != nil {
-				lstmt.Close()
+				if cerr := lstmt.Close(); cerr != nil {
+					if ownTx {
+						_ = tx.Rollback()
+					}
+					return cerr
+				}
 				if ownTx {
 					_ = tx.Rollback()
 				}
 				return err
 			}
 		}
-		lstmt.Close()
+		if err := lstmt.Close(); err != nil {
+			if ownTx {
+				_ = tx.Rollback()
+			}
+			return err
+		}
 	}
 
 	if ownTx {
