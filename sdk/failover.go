@@ -5,11 +5,13 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net"
 	"strconv"
 	"sync"
 	"time"
+
+	crand "crypto/rand"
 
 	"github.com/faciam-dev/gcfm/pkg/metrics"
 )
@@ -26,9 +28,6 @@ type FailoverPolicy struct {
 	HalfOpenProbe     int
 	PreferOnFail      *SelectionHint
 	AllowWriteRetry   bool
-
-	randSrc *rand.Rand
-	randMu  sync.Mutex
 }
 
 // ErrorClassifier determines whether an error is transient and retryable.
@@ -204,16 +203,12 @@ func (p *FailoverPolicy) backoff(attempt int) time.Duration {
 		}
 	}
 	if p.JitterRatio > 0 {
-		var jitter float64
-		if p.randSrc != nil {
-			p.randMu.Lock()
-			jitter = p.randSrc.Float64() * p.JitterRatio * float64(d)
-			p.randMu.Unlock()
-		} else {
-			tmpRand := rand.New(rand.NewSource(time.Now().UnixNano()))
-			jitter = tmpRand.Float64() * p.JitterRatio * float64(d)
+		max := int64(p.JitterRatio * float64(d))
+		if max > 0 {
+			if n, err := crand.Int(crand.Reader, big.NewInt(max)); err == nil {
+				d += time.Duration(n.Int64())
+			}
 		}
-		d += time.Duration(jitter)
 	}
 	return d
 }

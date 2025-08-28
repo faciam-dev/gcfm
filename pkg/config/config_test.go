@@ -14,7 +14,7 @@ func TestLoadSave(t *testing.T) {
 	cfg := &File{
 		Active: "p1",
 		Profiles: map[string]Profile{
-			"p1": {Name: "p1", APIURL: "http://api", Token: "tok", Insecure: true},
+			"p1": {Name: "p1", APIURL: "http://api", Token: "tok"},
 		},
 		Version: 1,
 	}

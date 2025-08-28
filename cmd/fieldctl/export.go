@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -35,10 +36,11 @@ func newExportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := os.WriteFile(out, data, 0644); err != nil {
+			outPath := filepath.Clean(out)
+			if err := os.WriteFile(outPath, data, 0o600); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "exported registry to %s\n", out)
+			fmt.Fprintf(cmd.OutOrStdout(), "exported registry to %s\n", outPath)
 			return nil
 		},
 	}
@@ -47,7 +49,7 @@ func newExportCmd() *cobra.Command {
 	cmd.Flags().StringVar(&out, "out", "registry.yaml", "output file")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite without confirmation")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("schema")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "schema")
 	return cmd
 }

@@ -181,16 +181,17 @@ func (u *Uploader) persist(src, orig, id string) error {
 	if u.StoreDir == "" {
 		return nil
 	}
-	if err := os.MkdirAll(u.StoreDir, 0o755); err != nil {
+	if err := os.MkdirAll(u.StoreDir, 0o750); err != nil {
 		return err
 	}
-	dst := filepath.Join(u.StoreDir, fmt.Sprintf("%s_%s", id, filepath.Base(orig)))
-	in, err := os.Open(src)
+	src = filepath.Clean(src)
+	dst := filepath.Clean(filepath.Join(u.StoreDir, fmt.Sprintf("%s_%s", id, filepath.Base(orig))))
+	in, err := os.Open(src) // #nosec G304 -- src is a temp file under our control
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
@@ -228,7 +229,8 @@ func (u *Uploader) saveTemp(f multipart.File) (string, int64, error) {
 
 // ExtractManifest extracts manifest.json or plugin.json from the archive at path.
 func ExtractManifest(path string) (*Manifest, error) {
-	f, err := os.Open(path)
+	p := filepath.Clean(path)
+	f, err := os.Open(p) // #nosec G304 -- path cleaned before use
 	if err != nil {
 		return nil, err
 	}
@@ -242,17 +244,18 @@ func ExtractManifest(path string) (*Manifest, error) {
 	switch {
 	// ZIP files start with "PK\x03\x04"
 	case header[0] == 0x50 && header[1] == 0x4b && header[2] == 0x03 && header[3] == 0x04:
-		return extractManifestFromZip(path)
+		return extractManifestFromZip(p)
 	// Gzip-compressed tarballs start with 0x1f,0x8b
 	case header[0] == 0x1f && header[1] == 0x8b:
-		return extractManifestFromTgz(path)
+		return extractManifestFromTgz(p)
 	default:
 		return nil, fmt.Errorf("unsupported archive")
 	}
 }
 
 func extractManifestFromZip(path string) (*Manifest, error) {
-	zr, err := zip.OpenReader(path)
+	p := filepath.Clean(path)
+	zr, err := zip.OpenReader(p) // #nosec G304 -- path cleaned and validated
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +283,8 @@ func extractManifestFromZip(path string) (*Manifest, error) {
 }
 
 func extractManifestFromTgz(path string) (*Manifest, error) {
-	f, err := os.Open(path)
+	p := filepath.Clean(path)
+	f, err := os.Open(p) // #nosec G304 -- path cleaned before use
 	if err != nil {
 		return nil, err
 	}

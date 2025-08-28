@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // Migration holds migration data for one version.
@@ -92,8 +94,13 @@ func (m *Migrator) Current(ctx context.Context, db *sql.DB) (int, error) {
 		return 0, err
 	}
 	tbl := m.versionTable()
-	query := fmt.Sprintf("SELECT MAX(version) FROM %s", tbl)
-	row := db.QueryRowContext(ctx, query)
+	var query string
+	if m.Driver == "postgres" {
+		query = fmt.Sprintf("SELECT MAX(version) FROM %s", pq.QuoteIdentifier(tbl))
+	} else {
+		query = fmt.Sprintf("SELECT MAX(version) FROM `%s`", tbl)
+	}
+	row := db.QueryRowContext(ctx, query) // #nosec G201 -- table name derived from trusted prefix
 	var v sql.NullInt64
 	if err := row.Scan(&v); err != nil {
 		if isTableMissing(err) {

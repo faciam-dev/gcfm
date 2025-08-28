@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -25,7 +26,9 @@ func NewGoCmd() *cobra.Command {
 			if file == "" {
 				file = "registry.yaml"
 			}
-			data, err := os.ReadFile(file)
+			inPath := filepath.Clean(file)
+			outPath := filepath.Clean(out)
+			data, err := os.ReadFile(inPath) // #nosec G304 -- path cleaned
 			if err != nil {
 				return err
 			}
@@ -33,10 +36,10 @@ func NewGoCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := os.WriteFile(out, b, 0644); err != nil {
+			if err := os.WriteFile(outPath, b, 0o600); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "generated %s\n", out)
+			fmt.Fprintf(cmd.OutOrStdout(), "generated %s\n", outPath)
 			return nil
 		},
 	}

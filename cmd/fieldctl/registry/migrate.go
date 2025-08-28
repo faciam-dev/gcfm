@@ -50,6 +50,6 @@ func NewMigrateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&driver, "driver", "", "database driver")
 	cmd.Flags().IntVar(&to, "to", 0, "target version (0=latest)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print SQL without executing")
-	cmd.MarkFlagRequired("db")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
 	return cmd
 }

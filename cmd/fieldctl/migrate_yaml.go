@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -19,7 +20,9 @@ func newMigrateYAMLCmd() *cobra.Command {
 			if inFile == "" || outFile == "" {
 				return errors.New("--in and --out are required")
 			}
-			data, err := os.ReadFile(inFile)
+			inPath := filepath.Clean(inFile)
+			outPath := filepath.Clean(outFile)
+			data, err := os.ReadFile(inPath) // #nosec G304 -- file paths cleaned
 			if err != nil {
 				return err
 			}
@@ -31,12 +34,12 @@ func newMigrateYAMLCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return os.WriteFile(outFile, outData, 0644)
+			return os.WriteFile(outPath, outData, 0o600)
 		},
 	}
 	cmd.Flags().StringVar(&inFile, "in", "", "input YAML file")
 	cmd.Flags().StringVar(&outFile, "out", "", "output YAML file")
-	cmd.MarkFlagRequired("in")
-	cmd.MarkFlagRequired("out")
+	mustFlag(cmd, "in")
+	mustFlag(cmd, "out")
 	return cmd
 }

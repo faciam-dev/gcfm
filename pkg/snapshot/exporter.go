@@ -23,10 +23,10 @@ type Dest interface {
 type LocalDir struct{ Path string }
 
 func (l LocalDir) Write(_ context.Context, name string, data []byte) error {
-	if err := os.MkdirAll(l.Path, 0o755); err != nil {
+	if err := os.MkdirAll(l.Path, 0o750); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(l.Path, name), data, 0o644)
+	return os.WriteFile(filepath.Join(l.Path, name), data, 0o600)
 }
 
 type S3 struct {

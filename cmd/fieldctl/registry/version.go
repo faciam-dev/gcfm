@@ -43,6 +43,6 @@ func NewVersionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&dbDSN, "db", "", "database DSN")
 	cmd.Flags().StringVar(&driver, "driver", "", "database driver")
 	cmd.Flags().StringVar(&tablePrefix, "table-prefix", util.GetEnv("CF_TABLE_PREFIX", "gcfm_"), "registry table prefix")
-	cmd.MarkFlagRequired("db")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
 	return cmd
 }

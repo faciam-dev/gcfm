@@ -9,10 +9,9 @@ import (
 )
 
 type Resolved struct {
-	APIURL   string
-	Token    string
-	Insecure bool
-	Profile  string
+	APIURL  string
+	Token   string
+	Profile string
 }
 
 func Resolve(cmd *cobra.Command) (Resolved, error) {
@@ -39,10 +38,9 @@ func Resolve(cmd *cobra.Command) (Resolved, error) {
 	}
 
 	return Resolved{
-		APIURL:   url,
-		Token:    tok,
-		Insecure: cp.Insecure,
-		Profile:  prof,
+		APIURL:  url,
+		Token:   tok,
+		Profile: prof,
 	}, nil
 }
 

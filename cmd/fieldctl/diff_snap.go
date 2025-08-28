@@ -72,9 +72,9 @@ func newDiffSnapCmd() *cobra.Command {
 	cmd.Flags().StringVar(&fromVer, "from", "", "from version")
 	cmd.Flags().StringVar(&toVer, "to", "", "to version")
 	cmd.Flags().StringVar(&tablePrefix, "table-prefix", util.GetEnv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("schema")
-	cmd.MarkFlagRequired("from")
-	cmd.MarkFlagRequired("to")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "schema")
+	mustFlag(cmd, "from")
+	mustFlag(cmd, "to")
 	return cmd
 }

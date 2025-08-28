@@ -67,8 +67,8 @@ func newRevertCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tenant, "tenant", util.GetEnv("CF_TENANT", "default"), "tenant id")
 	cmd.Flags().StringVar(&toVer, "to", "", "target snapshot version")
 	cmd.Flags().StringVar(&tablePrefix, "table-prefix", util.GetEnv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("schema")
-	cmd.MarkFlagRequired("to")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "schema")
+	mustFlag(cmd, "to")
 	return cmd
 }

@@ -34,6 +34,6 @@ func NewRunCmd() *cobra.Command {
 	cmd.Flags().StringVar(&mode, "mode", "redis", "broker mode")
 	cmd.Flags().StringVar(&dsn, "dsn", "", "redis DSN")
 	cmd.Flags().StringVar(&channel, "channel", "cf-events", "channel name")
-	cmd.MarkFlagRequired("dsn")
+	mustFlag(cmd, "dsn")
 	return cmd
 }

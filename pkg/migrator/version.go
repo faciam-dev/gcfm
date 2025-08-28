@@ -47,8 +47,15 @@ func (m *Migrator) ensureVersionTable(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("no migrations available to set latest version")
 	}
 	latest := m.migrations[len(m.migrations)-1]
-	upd := fmt.Sprintf(`UPDATE %s SET semver='%s' WHERE version=%d`, tbl, latest.SemVer, latest.Version)
-	if _, err := db.ExecContext(ctx, upd); err != nil {
+	var upd string
+	var args []any
+	if m.Driver == "postgres" {
+		upd = fmt.Sprintf(`UPDATE %s SET semver=$1 WHERE version=$2`, tbl)
+	} else {
+		upd = fmt.Sprintf(`UPDATE %s SET semver=? WHERE version=?`, tbl)
+	}
+	args = append(args, latest.SemVer, latest.Version)
+	if _, err := db.ExecContext(ctx, upd, args...); err != nil {
 		return err
 	}
 	return nil

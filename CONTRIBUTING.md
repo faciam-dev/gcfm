@@ -9,6 +9,12 @@ Thank you for considering a contribution! We welcome pull requests, issues, and 
 3. Run `make lint` and `make test` to ensure code quality and tests pass.
 4. Open a pull request describing your changes.
 
+## Security practices
+
+- Run `gosec ./...` and `go test ./...` after addressing vulnerabilities.
+- Keep dependencies up to date and monitor advisories.
+- Ensure security-related changes receive code review.
+
 ## Reporting issues
 
 - Use the GitHub issue tracker.

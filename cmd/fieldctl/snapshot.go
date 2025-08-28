@@ -84,7 +84,7 @@ func newSnapshotCmd() *cobra.Command {
 	cmd.Flags().StringVar(&bump, "bump", "patch", "semver bump type")
 	cmd.Flags().StringVar(&message, "message", "", "snapshot message")
 	cmd.Flags().StringVar(&tablePrefix, "table-prefix", util.GetEnv("CF_TABLE_PREFIX", "gcfm_"), "table name prefix")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("schema")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "schema")
 	return cmd
 }

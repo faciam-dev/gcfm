@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -26,7 +27,8 @@ func newApplyCmd() *cobra.Command {
 			if file == "" {
 				return errors.New("--file is required")
 			}
-			data, err := os.ReadFile(file)
+			clean := filepath.Clean(file)
+			data, err := os.ReadFile(clean) // #nosec G304 -- file path cleaned
 			if err != nil {
 				return err
 			}
@@ -45,7 +47,7 @@ func newApplyCmd() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "registry.yaml", "input file")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show diff without applying")
 	cmd.Flags().StringVar(&driverFlag, "driver", "", "database driver (mysql|postgres|mongo)")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("schema")
+	mustFlag(cmd, "db")
+	mustFlag(cmd, "schema")
 	return cmd
 }

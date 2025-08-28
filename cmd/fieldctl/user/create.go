@@ -58,9 +58,9 @@ func NewCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&username, "username", "", "username")
 	cmd.Flags().StringVar(&password, "password", "", "password")
 	cmd.Flags().StringVar(&role, "role", "", "role")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("username")
-	cmd.MarkFlagRequired("password")
-	cmd.MarkFlagRequired("role")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
+	cobra.CheckErr(cmd.MarkFlagRequired("username"))
+	cobra.CheckErr(cmd.MarkFlagRequired("password"))
+	cobra.CheckErr(cmd.MarkFlagRequired("role"))
 	return cmd
 }

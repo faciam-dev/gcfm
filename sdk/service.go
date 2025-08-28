@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"hash/fnv"
-	"math/rand"
 	"sort"
 	"time"
 
@@ -126,7 +125,6 @@ func New(cfg ServiceConfig) Service {
 	if classifier == nil {
 		classifier = DefaultErrorClassifier
 	}
-	cfg.Failover.randSrc = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	rs := cfg.ReadSource
 	if rs == 0 {
@@ -289,7 +287,9 @@ func (s *service) chooseOrder(keys []string, hint *SelectionHint) []string {
 		}
 		h := fnv.New32a()
 		_, _ = h.Write([]byte(hashSrc))
-		idx := int(h.Sum32() % uint32(len(keys)))
+		n := len(keys)
+		hash := uint64(h.Sum32())
+		idx := int(hash % uint64(n)) // #nosec G115 -- bounded by key slice length
 		return append(keys[idx:], keys[:idx]...)
 	default:
 		return keys

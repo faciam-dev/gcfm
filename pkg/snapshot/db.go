@@ -55,17 +55,6 @@ type SnapshotData struct {
 
 func Insert(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect, prefix string, data SnapshotData) (Record, error) {
 	table := prefix + "registry_snapshots"
-	if _, ok := dialect.(ormdriver.PostgresDialect); ok {
-		stmt := fmt.Sprintf("INSERT INTO %s(tenant_id, semver, yaml, author) VALUES($1,$2,$3,$4) RETURNING id, taken_at", table)
-		var (
-			id int64
-			ts time.Time
-		)
-		if err := db.QueryRowContext(ctx, stmt, data.Tenant, data.Semver, data.YAML, data.Author).Scan(&id, &ts); err != nil {
-			return Record{}, err
-		}
-		return Record{ID: id, Semver: data.Semver, YAML: data.YAML, TakenAt: ts, Author: data.Author}, nil
-	}
 	id, err := query.New(db, table, dialect).WithContext(ctx).InsertGetId(map[string]any{
 		"tenant_id": data.Tenant,
 		"semver":    data.Semver,

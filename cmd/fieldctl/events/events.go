@@ -61,7 +61,7 @@ func newListFailedCmd() *cobra.Command {
 		},
 	}
 	flags.AddFlags(cmd)
-	cmd.MarkFlagRequired("db")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
 	return cmd
 }
 
@@ -107,9 +107,9 @@ func newRetryCmd() *cobra.Command {
 	cmd.Flags().Int64Var(&id, "id", 0, "event id")
 	cmd.Flags().StringVar(&redisDSN, "redis", "", "redis DSN")
 	cmd.Flags().StringVar(&channel, "channel", "cf-events", "channel name")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("id")
-	cmd.MarkFlagRequired("redis")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
+	cobra.CheckErr(cmd.MarkFlagRequired("id"))
+	cobra.CheckErr(cmd.MarkFlagRequired("redis"))
 	return cmd
 }
 
@@ -136,6 +136,6 @@ func newTailCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "redis DSN")
 	cmd.Flags().StringVar(&channel, "channel", "cf-events", "channel name")
-	cmd.MarkFlagRequired("dsn")
+	cobra.CheckErr(cmd.MarkFlagRequired("dsn"))
 	return cmd
 }

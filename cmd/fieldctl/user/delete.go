@@ -52,7 +52,7 @@ func NewDeleteCmd() *cobra.Command {
 	}
 	flags.AddFlags(cmd)
 	cmd.Flags().Uint64Var(&id, "id", 0, "user id")
-	cmd.MarkFlagRequired("db")
-	cmd.MarkFlagRequired("id")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
+	cobra.CheckErr(cmd.MarkFlagRequired("id"))
 	return cmd
 }

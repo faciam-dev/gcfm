@@ -2,6 +2,7 @@ package reserved
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -14,7 +15,8 @@ var patterns []*regexp.Regexp
 // variable CF_RESERVED_TABLES is set, it overrides the file contents.
 func Load(path string) {
 	patterns = nil
-	data, err := os.ReadFile(path)
+	p := filepath.Clean(path)
+	data, err := os.ReadFile(p) // #nosec G304 -- configuration path provided by operator
 	if err == nil {
 		var cfg struct {
 			Reserved []string `yaml:"reserved_tables"`

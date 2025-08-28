@@ -57,14 +57,18 @@ func NewListCmd() *cobra.Command {
 				return err
 			}
 			b, _ := json.MarshalIndent(us, "", "  ")
-			cmd.OutOrStdout().Write(b)
+			if _, err := cmd.OutOrStdout().Write(b); err != nil {
+				return err
+			}
 			if len(us) > 0 {
-				cmd.OutOrStdout().Write([]byte("\n"))
+				if _, err := cmd.OutOrStdout().Write([]byte("\n")); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
 	}
 	flags.AddFlags(cmd)
-	cmd.MarkFlagRequired("db")
+	cobra.CheckErr(cmd.MarkFlagRequired("db"))
 	return cmd
 }
