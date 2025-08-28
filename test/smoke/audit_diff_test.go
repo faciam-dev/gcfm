@@ -12,7 +12,7 @@ import (
 
 func TestAuditDiffAndCounts(t *testing.T) {
 	e := newEnv(t)
-	defer e.close()
+	defer e.close(t)
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {

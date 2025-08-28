@@ -55,9 +55,12 @@ func newEnv(t *testing.T) *Env {
 	return &Env{DB: db, URL: ts.URL, HTTP: ts, Now: time.Now().UTC(), Secret: secret}
 }
 
-func (e *Env) close() {
+func (e *Env) close(t *testing.T) {
+	t.Helper()
 	e.HTTP.Close()
-	e.DB.Close()
+	if err := e.DB.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
 }
 
 func buildRouterForTest(t *testing.T, db *sql.DB) http.Handler {

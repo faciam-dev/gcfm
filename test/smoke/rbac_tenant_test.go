@@ -8,7 +8,7 @@ import (
 
 func TestTenantIsolation(t *testing.T) {
 	e := newEnv(t)
-	defer e.close()
+	defer e.close(t)
 
 	jwt1 := signJWT(t, e.Secret, "1", "t1", "admin", time.Hour)
 	req1, _ := http.NewRequest("GET", e.URL+"/v1/rbac/users?page=1&per_page=100", nil)
