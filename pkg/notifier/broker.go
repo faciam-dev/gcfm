@@ -67,7 +67,9 @@ func (b *WebhookBroker) Emit(ctx context.Context, diff DiffReport) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		return err
+	}
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook: %s", resp.Status)
 	}

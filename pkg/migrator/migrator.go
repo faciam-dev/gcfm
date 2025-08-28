@@ -202,7 +202,9 @@ func (m *Migrator) Up(ctx context.Context, db *sql.DB, target int) error {
 	}
 	for i := cur; i < target; i++ {
 		if err := execAll(ctx, tx, m.migrations[i].UpSQL); err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("rollback: %v: %w", rbErr, err)
+			}
 			return err
 		}
 	}
@@ -224,7 +226,9 @@ func (m *Migrator) Down(ctx context.Context, db *sql.DB, target int) error {
 	}
 	for i := cur - 1; i >= target; i-- {
 		if err := execAll(ctx, tx, m.migrations[i].DownSQL); err != nil {
-			tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				return fmt.Errorf("rollback: %v: %w", rbErr, err)
+			}
 			return err
 		}
 	}
