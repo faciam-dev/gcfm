@@ -1,0 +1,20 @@
+version: 1
+profile: default
+requires:
+  - "docker"
+allowed_paths:
+  - "docs/**"
+  - "deploy/**"
+  - "scripts/**"
+  - "Makefile"
+  - "cmd/**"
+  - "internal/**"
+runs:
+  - name: deps
+    cmd: ["bash", "-lc", "if [ -f Makefile ] && grep -q "^deps:" Makefile; then make deps; elif [ -f go.mod ]; then go mod download; elif command -v npm >/dev/null 2>&1 && [ -f package.json ]; then npm ci; else echo "no deps step"; fi"]
+  - name: migrate
+    cmd: ["make", "migrate"]
+  - name: up-api
+    cmd: ["docker", "compose", "-f", "deploy/compose/docker-compose.local.yml", "up", "-d", "db", "api-server"]
+  - name: smoke
+    cmd: ["scripts/smoke.sh"]
