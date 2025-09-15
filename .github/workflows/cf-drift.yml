@@ -30,7 +30,7 @@ jobs:
       TABLE_PREFIX: gcfm_
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Clean Go module cache
         run: |
