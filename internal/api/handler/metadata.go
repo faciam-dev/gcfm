@@ -5,6 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/url"
+	"strings"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	humago "github.com/danielgtaylor/huma/v2"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
@@ -62,19 +68,29 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 		}
 		return nil, huma.Error422("db_id", err.Error())
 	}
-	conn, err := sql.Open(mdb.Driver, mdb.DSN)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
+	var raw []md.TableInfo
+	if strings.EqualFold(mdb.Driver, "mongo") {
+		tables, err := listMongoCollections(ctx, mdb.DSN, mdb.Schema)
+		if err != nil {
+			return nil, err
+		}
+		raw = tables
+	} else {
+		conn, err := sql.Open(mdb.Driver, mdb.DSN)
+		if err != nil {
+			return nil, err
+		}
+		defer conn.Close()
 
-	dialect := pkgutil.DialectFromDriver(mdb.Driver)
-	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
-		return nil, huma.Error422("db_id", "unsupported driver")
-	}
-	raw, err := listPhysicalTables(ctx, conn, dialect)
-	if err != nil {
-		return nil, err
+		dialect := pkgutil.DialectFromDriver(mdb.Driver)
+		if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
+			return nil, huma.Error422("db_id", "unsupported driver")
+		}
+		physical, err := listPhysicalTables(ctx, conn, dialect)
+		if err != nil {
+			return nil, err
+		}
+		raw = physical
 	}
 
 	filtered := md.FilterTables(mdb.Driver, raw)
@@ -84,6 +100,61 @@ func (h *MetadataHandler) listTables(ctx context.Context, p *listTablesParams) (
 		out.Body.Items = append(out.Body.Items, tableInfo{Schema: t.Schema, Name: t.Name, Full: t.Qualified})
 	}
 	return out, nil
+}
+
+func listMongoCollections(ctx context.Context, dsn, fallbackDB string) ([]md.TableInfo, error) {
+	cli, err := mongo.Connect(ctx, options.Client().ApplyURI(dsn))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = cli.Disconnect(ctx) }()
+
+	dbName, err := mongoDatabaseName(dsn, fallbackDB)
+	if err != nil {
+		return nil, err
+	}
+	cur, err := cli.Database(dbName).ListCollections(ctx, bson.D{})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var tables []md.TableInfo
+	for cur.Next(ctx) {
+		var spec struct {
+			Name string `bson:"name"`
+		}
+		if err := cur.Decode(&spec); err != nil {
+			return nil, err
+		}
+		qualified := spec.Name
+		if dbName != "" {
+			qualified = dbName + "." + spec.Name
+		}
+		tables = append(tables, md.TableInfo{Schema: dbName, Name: spec.Name, Qualified: qualified})
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return tables, nil
+}
+
+func mongoDatabaseName(dsn, fallback string) (string, error) {
+	if fallback != "" {
+		return fallback, nil
+	}
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		return "", huma.Error422("db_id", "invalid mongo dsn")
+	}
+	name := strings.Trim(parsed.Path, "/")
+	if name == "" {
+		name = parsed.Query().Get("authSource")
+	}
+	if name == "" {
+		return "", huma.Error422("db_id", "mongo database name not specified")
+	}
+	return name, nil
 }
 
 func listPhysicalTables(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect) ([]md.TableInfo, error) {

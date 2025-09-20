@@ -56,6 +56,18 @@ func HasDatabaseName(driver, dsn string) bool {
 			return true
 		}
 		return false
+	case "mongo":
+		u, err := url.Parse(dsn)
+		if err != nil {
+			return false
+		}
+		if strings.TrimPrefix(u.Path, "/") != "" {
+			return true
+		}
+		if u.Query().Get("authSource") != "" {
+			return true
+		}
+		return false
 	default:
 		return false
 	}

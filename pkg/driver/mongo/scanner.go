@@ -61,7 +61,10 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 									ColumnName: field,
 									DataType:   mapBSONType(m["bsonType"]),
 									Nullable:   true,
+									StoreKind:  "mongo",
 								}
+								fm.PhysicalType = registry.MongoPhysicalType(fm.DataType)
+								fm.Kind = registry.GuessMongoKind(fm.DataType)
 								if _, ok := required[field]; ok {
 									fm.Nullable = false
 								}
@@ -109,7 +112,16 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 							if idx, ok := metaMap[field]; ok {
 								colMetas[idx].Unique = true
 							} else {
-								fm := registry.FieldMeta{TableName: name, ColumnName: field, DataType: "string", Unique: true, Nullable: true}
+								fm := registry.FieldMeta{
+									TableName:    name,
+									ColumnName:   field,
+									DataType:     "string",
+									StoreKind:    "mongo",
+									Kind:         registry.GuessMongoKind("string"),
+									PhysicalType: registry.MongoPhysicalType("string"),
+									Unique:       true,
+									Nullable:     true,
+								}
 								colMetas = append(colMetas, fm)
 								metaMap[field] = len(colMetas) - 1
 							}
@@ -158,10 +170,25 @@ func sampleCollection(ctx context.Context, name string, coll *mongo.Collection) 
 	for k, types := range typeMap {
 		if len(types) == 1 {
 			for t := range types {
-				metas = append(metas, registry.FieldMeta{TableName: name, ColumnName: k, DataType: t})
+				fm := registry.FieldMeta{
+					TableName:    name,
+					ColumnName:   k,
+					DataType:     t,
+					StoreKind:    "mongo",
+					Kind:         registry.GuessMongoKind(t),
+					PhysicalType: registry.MongoPhysicalType(t),
+				}
+				metas = append(metas, fm)
 			}
 		} else {
-			metas = append(metas, registry.FieldMeta{TableName: name, ColumnName: k, DataType: "string"})
+			metas = append(metas, registry.FieldMeta{
+				TableName:    name,
+				ColumnName:   k,
+				DataType:     "string",
+				StoreKind:    "mongo",
+				Kind:         registry.GuessMongoKind("string"),
+				PhysicalType: registry.MongoPhysicalType("string"),
+			})
 		}
 	}
 	return metas, nil

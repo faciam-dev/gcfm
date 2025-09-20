@@ -18,9 +18,9 @@ func TestGetFieldWithoutDBID(t *testing.T) {
 
 	h := &CustomFieldHandler{DB: db, Dialect: ormdriver.PostgresDialect{}, Driver: "postgres"}
 
-	mock.ExpectQuery(`SELECT "db_id", "data_type" FROM "custom_fields".*`).
+	mock.ExpectQuery(`SELECT "db_id", "data_type", "store_kind", "kind", "physical_type", "driver_extras" FROM "custom_fields".*`).
 		WithArgs("my_table", "my_column").
-		WillReturnRows(sqlmock.NewRows([]string{"db_id", "data_type"}).AddRow(2, "text"))
+		WillReturnRows(sqlmock.NewRows([]string{"db_id", "data_type", "store_kind", "kind", "physical_type", "driver_extras"}).AddRow(2, "text", nil, nil, nil, []byte("{}")))
 
 	meta, err := h.getField(context.Background(), nil, "my_table", "my_column")
 	if err != nil {
@@ -43,8 +43,8 @@ func TestListReturnsValidator(t *testing.T) {
 
 	h := &CustomFieldHandler{DB: db, Driver: "postgres", Dialect: ormdriver.PostgresDialect{}, TablePrefix: "gcfm_"}
 
-	rows := sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
-		AddRow(4, "tenant_confirm_tokens", "new1", "varchar", nil, nil, nil, nil, false, false, false, nil, "email")
+	rows := sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
+		AddRow(4, "tenant_confirm_tokens", "new1", "varchar", "sql", "string", "sql:varchar", []byte("{}"), nil, nil, nil, nil, false, false, false, nil, "email")
 
 	mock.ExpectQuery(`SELECT .* FROM "gcfm_custom_fields"`).
 		WithArgs("default", int64(4)).

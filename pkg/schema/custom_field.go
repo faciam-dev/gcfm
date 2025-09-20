@@ -21,6 +21,10 @@ type CustomField struct {
 	Table        string          `json:"table"`
 	Column       string          `json:"column"`
 	Type         string          `json:"type"`
+	StoreKind    *string         `json:"store_kind,omitempty"`
+	Kind         *string         `json:"kind,omitempty"`
+	PhysicalType *string         `json:"physical_type,omitempty"`
+	DriverExtras map[string]any  `json:"driver_extras,omitempty"`
 	Display      DisplaySettings `json:"display"`
 	Nullable     *bool           `json:"nullable,omitempty" validate:"omitempty"`
 	Unique       *bool           `json:"unique,omitempty" validate:"omitempty"`

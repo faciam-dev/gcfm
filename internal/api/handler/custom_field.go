@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -281,6 +282,10 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			display.WidgetResolved = display.Widget
 		}
 	}
+	storeKind := registry.DefaultStoreKindForDriver(mdb.Driver)
+	if in.Body.StoreKind != nil && strings.TrimSpace(*in.Body.StoreKind) != "" {
+		storeKind = strings.TrimSpace(*in.Body.StoreKind)
+	}
 	meta := registry.FieldMeta{
 		DBID:            *in.Body.DBID,
 		TableName:       in.Body.Table,
@@ -289,6 +294,26 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		Display:         display,
 		Validator:       in.Body.Validator,
 		ValidatorParams: in.Body.ValidatorParams,
+		StoreKind:       storeKind,
+	}
+	if in.Body.Kind != nil && strings.TrimSpace(*in.Body.Kind) != "" {
+		meta.Kind = strings.TrimSpace(*in.Body.Kind)
+	} else {
+		meta.Kind = registry.GuessKind(storeKind, meta.DataType)
+	}
+	if in.Body.PhysicalType != nil && strings.TrimSpace(*in.Body.PhysicalType) != "" {
+		meta.PhysicalType = strings.TrimSpace(*in.Body.PhysicalType)
+	} else if storeKind == "mongo" {
+		meta.PhysicalType = registry.MongoPhysicalType(meta.DataType)
+	} else {
+		meta.PhysicalType = registry.SQLPhysicalType(mdb.Driver, meta.DataType)
+	}
+	if len(in.Body.DriverExtras) > 0 {
+		extras := make(map[string]any, len(in.Body.DriverExtras))
+		for k, v := range in.Body.DriverExtras {
+			extras[k] = v
+		}
+		meta.DriverExtras = extras
 	}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
@@ -410,7 +435,7 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, c
 			return nil, err
 		}
 		q := query.New(h.DB, tbl, h.Dialect).
-			Select("db_id", "data_type").
+			Select("db_id", "data_type", "store_kind", "kind", "physical_type", "driver_extras").
 			Where("table_name", table).
 			Where("column_name", column).
 			WithContext(ctx)
@@ -418,8 +443,12 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, c
 			q = q.Where("db_id", *dbID)
 		}
 		var row struct {
-			DBID     int64  `db:"db_id"`
-			DataType string `db:"data_type"`
+			DBID         int64          `db:"db_id"`
+			DataType     string         `db:"data_type"`
+			StoreKind    sql.NullString `db:"store_kind"`
+			Kind         sql.NullString `db:"kind"`
+			PhysicalType sql.NullString `db:"physical_type"`
+			DriverExtras []byte         `db:"driver_extras"`
 		}
 		err := q.First(&row)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -428,7 +457,35 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, c
 		if err != nil {
 			return nil, err
 		}
-		return &registry.FieldMeta{DBID: row.DBID, TableName: table, ColumnName: column, DataType: row.DataType}, nil
+		meta := &registry.FieldMeta{DBID: row.DBID, TableName: table, ColumnName: column, DataType: row.DataType}
+		if row.StoreKind.Valid {
+			meta.StoreKind = row.StoreKind.String
+		}
+		if row.Kind.Valid {
+			meta.Kind = row.Kind.String
+		}
+		if row.PhysicalType.Valid {
+			meta.PhysicalType = row.PhysicalType.String
+		}
+		if len(row.DriverExtras) > 0 {
+			var extras map[string]any
+			if err := json.Unmarshal(row.DriverExtras, &extras); err != nil {
+				return nil, fmt.Errorf("decode driver extras: %w", err)
+			}
+			if len(extras) > 0 {
+				meta.DriverExtras = extras
+			}
+		}
+		if meta.StoreKind == "" {
+			meta.StoreKind = "sql"
+		}
+		if meta.Kind == "" {
+			meta.Kind = registry.GuessSQLKind(meta.DataType)
+		}
+		if meta.PhysicalType == "" {
+			meta.PhysicalType = registry.SQLPhysicalType("sql", meta.DataType)
+		}
+		return meta, nil
 	}
 }
 
@@ -518,7 +575,51 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			display.WidgetResolved = display.Widget
 		}
 	}
-	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
+	storeKind := registry.DefaultStoreKindForDriver(mdb.Driver)
+	if in.Body.StoreKind != nil && strings.TrimSpace(*in.Body.StoreKind) != "" {
+		storeKind = strings.TrimSpace(*in.Body.StoreKind)
+	} else if oldMeta != nil && oldMeta.StoreKind != "" {
+		storeKind = oldMeta.StoreKind
+	}
+	meta := registry.FieldMeta{
+		DBID:            dbID,
+		TableName:       table,
+		ColumnName:      column,
+		DataType:        in.Body.Type,
+		Display:         display,
+		Validator:       in.Body.Validator,
+		ValidatorParams: in.Body.ValidatorParams,
+		StoreKind:       storeKind,
+	}
+	if in.Body.Kind != nil && strings.TrimSpace(*in.Body.Kind) != "" {
+		meta.Kind = strings.TrimSpace(*in.Body.Kind)
+	} else if oldMeta != nil && oldMeta.Kind != "" {
+		meta.Kind = oldMeta.Kind
+	} else {
+		meta.Kind = registry.GuessKind(storeKind, meta.DataType)
+	}
+	if in.Body.PhysicalType != nil && strings.TrimSpace(*in.Body.PhysicalType) != "" {
+		meta.PhysicalType = strings.TrimSpace(*in.Body.PhysicalType)
+	} else if oldMeta != nil && oldMeta.PhysicalType != "" {
+		meta.PhysicalType = oldMeta.PhysicalType
+	} else if storeKind == "mongo" {
+		meta.PhysicalType = registry.MongoPhysicalType(meta.DataType)
+	} else {
+		meta.PhysicalType = registry.SQLPhysicalType(mdb.Driver, meta.DataType)
+	}
+	if in.Body.DriverExtras != nil {
+		extras := make(map[string]any, len(in.Body.DriverExtras))
+		for k, v := range in.Body.DriverExtras {
+			extras[k] = v
+		}
+		meta.DriverExtras = extras
+	} else if oldMeta != nil && len(oldMeta.DriverExtras) > 0 {
+		extras := make(map[string]any, len(oldMeta.DriverExtras))
+		for k, v := range oldMeta.DriverExtras {
+			extras[k] = v
+		}
+		meta.DriverExtras = extras
+	}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}

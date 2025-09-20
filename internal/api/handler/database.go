@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/casbin/casbin/v2"
+	"github.com/faciam-dev/gcfm/internal/domain/capability"
 	"github.com/faciam-dev/gcfm/internal/events"
 	huma "github.com/faciam-dev/gcfm/internal/huma"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
+	capuses "github.com/faciam-dev/gcfm/internal/usecase/capability"
 	"github.com/faciam-dev/gcfm/pkg/audit"
 	"github.com/faciam-dev/gcfm/pkg/crypto"
 	cfmdb "github.com/faciam-dev/gcfm/pkg/monitordb"
@@ -26,9 +28,10 @@ import (
 
 // DatabaseHandler manages monitored databases via REST.
 type DatabaseHandler struct {
-	Repo     *monitordb.Repo
-	Recorder *audit.Recorder
-	Enf      *casbin.Enforcer
+	Repo         *monitordb.Repo
+	Recorder     *audit.Recorder
+	Enf          *casbin.Enforcer
+	Capabilities capuses.Service
 }
 
 type createDBInput struct{ Body schema.CreateDatabase }
@@ -65,6 +68,8 @@ type dbTablesParams struct {
 }
 
 type dbTablesOutput struct{ Body []string }
+
+type capabilitiesOutput struct{ Body capability.Capabilities }
 
 // GET /v1/databases/{id}/tables returns the list of tables for the monitored DB specified by db_id
 func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*dbTablesOutput, error) {
@@ -114,6 +119,24 @@ func (h *DatabaseHandler) listTables(ctx context.Context, p *dbTablesParams) (*d
 	return &dbTablesOutput{Body: out}, nil
 }
 
+func (h *DatabaseHandler) capabilities(ctx context.Context, p *idParam) (*capabilitiesOutput, error) {
+	if h.Capabilities == nil {
+		return nil, huma.NewError(http.StatusNotImplemented, "capability service not configured")
+	}
+	tid := tenant.FromContext(ctx)
+	caps, err := h.Capabilities.Get(ctx, tid, p.ID)
+	if err != nil {
+		if errors.Is(err, cfmdb.ErrNotFound) {
+			return nil, huma.Error422("id", "database not found")
+		}
+		if errors.Is(err, capuses.ErrAdapterNotFound) {
+			return nil, huma.Error422("driver", "capabilities not available for driver")
+		}
+		return nil, err
+	}
+	return &capabilitiesOutput{Body: caps}, nil
+}
+
 // RegisterDatabase registers database endpoints.
 func RegisterDatabase(api huma.API, h *DatabaseHandler) {
 	huma.Register(api, huma.Operation{
@@ -154,6 +177,14 @@ func RegisterDatabase(api huma.API, h *DatabaseHandler) {
 		Tags:          []string{"Database"},
 		DefaultStatus: http.StatusOK,
 	}, h.scan)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "databaseCapabilities",
+		Method:      http.MethodGet,
+		Path:        "/v1/databases/{id}/capabilities",
+		Summary:     "List driver capabilities",
+		Tags:        []string{"Database"},
+	}, h.capabilities)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listDbTables",

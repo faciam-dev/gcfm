@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 
@@ -115,6 +117,15 @@ func schemaFromDSN(driver, dsn string) string {
 	case "mysql":
 		if cfg, err := mysqlDriver.ParseDSN(dsn); err == nil {
 			return cfg.DBName
+		}
+	case "mongo":
+		if u, err := url.Parse(dsn); err == nil {
+			if name := strings.Trim(u.Path, "/"); name != "" {
+				return name
+			}
+			if source := u.Query().Get("authSource"); source != "" {
+				return source
+			}
 		}
 	}
 	// default schema

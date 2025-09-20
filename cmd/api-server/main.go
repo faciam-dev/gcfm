@@ -34,6 +34,29 @@ func main() {
 
 	logger.Set(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
+	driverProvided := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "driver" {
+			driverProvided = true
+		}
+	})
+
+	if *dsn != "" {
+		if detected, err := util.DetectDriver(*dsn); err != nil {
+			if !driverProvided || *driver == "" {
+				logger.L.Error("detect driver", "dsn", *dsn, "err", err)
+				os.Exit(1)
+			}
+		} else {
+			if !driverProvided || *driver == "" {
+				*driver = detected
+			} else if detected != "" && *driver != detected {
+				logger.L.Error("driver mismatch", "driver", *driver, "dsn", *dsn, "expected", detected)
+				os.Exit(1)
+			}
+		}
+	}
+
 	if err := crypto.CheckEnv(); err != nil {
 		logger.L.Error("crypto key", "err", err)
 		os.Exit(1)
