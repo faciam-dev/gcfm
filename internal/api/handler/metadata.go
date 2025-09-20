@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -137,24 +136,6 @@ func listMongoCollections(ctx context.Context, dsn, fallbackDB string) ([]md.Tab
 		return nil, err
 	}
 	return tables, nil
-}
-
-func mongoDatabaseName(dsn, fallback string) (string, error) {
-	if fallback != "" {
-		return fallback, nil
-	}
-	parsed, err := url.Parse(dsn)
-	if err != nil {
-		return "", huma.Error422("db_id", "invalid mongo dsn")
-	}
-	name := strings.Trim(parsed.Path, "/")
-	if name == "" {
-		name = parsed.Query().Get("authSource")
-	}
-	if name == "" {
-		return "", huma.Error422("db_id", "mongo database name not specified")
-	}
-	return name, nil
 }
 
 func listPhysicalTables(ctx context.Context, db *sql.DB, dialect ormdriver.Dialect) ([]md.TableInfo, error) {
