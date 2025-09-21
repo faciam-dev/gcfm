@@ -1113,7 +1113,7 @@ func mongoDatabaseName(dsn, fallback string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse mongo dsn: %w", err)
 	}
-	if db := strings.TrimPrefix(u.Path, "/"); db != "" {
+	if db := strings.Trim(u.Path, "/"); db != "" {
 		return db, nil
 	}
 	if auth := u.Query().Get("authSource"); auth != "" {
