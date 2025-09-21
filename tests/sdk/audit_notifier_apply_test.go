@@ -29,7 +29,7 @@ func TestApplyHooks(t *testing.T) {
 
 	t.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
 
-	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 	sqlStr, _, _ := query.New(db, "gcfm_monitored_databases", ormdriver.MySQLDialect{}).
 		Select("id").
 		Where("id", 1).
@@ -41,9 +41,7 @@ func TestApplyHooks(t *testing.T) {
 	mock.ExpectPrepare("INSERT INTO gcfm_custom_fields").ExpectExec().WithArgs(
 		1,
 		"posts", "title", "text",
-		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-		sqlmock.AnyArg(),
+		"sql", "", "", "{}", "", "text", nil, "", false, false, false, "", "",
 	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -74,7 +72,7 @@ func TestApplyHooksDryRun(t *testing.T) {
 	defer db.Close()
 
 	t.Setenv("CF_ENC_KEY", "0123456789abcdef0123456789abcdef")
-	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	mock.ExpectQuery("SELECT .* FROM .*custom_fields").WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	nt := &stubNotifier{}
 	disable := false
