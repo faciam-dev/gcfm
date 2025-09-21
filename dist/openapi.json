@@ -184,6 +184,45 @@
         ],
         "type": "object"
       },
+      "Capabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/Capabilities.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "driver": {
+            "type": "string"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/Labels"
+          },
+          "supports": {
+            "$ref": "#/components/schemas/Supports"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/Type"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "driver",
+          "types",
+          "supports",
+          "labels"
+        ],
+        "type": "object"
+      },
       "CapsOutBody": {
         "additionalProperties": false,
         "properties": {
@@ -335,8 +374,15 @@
           "display": {
             "$ref": "#/components/schemas/DisplaySettings"
           },
+          "driver_extras": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "hasDefault": {
             "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
           },
           "nullable": {
             "type": "boolean"
@@ -344,6 +390,12 @@
           "on_update_current_timestamp": {
             "description": "Ignored. Use default.on_update_current_timestamp",
             "type": "boolean"
+          },
+          "physical_type": {
+            "type": "string"
+          },
+          "store_kind": {
+            "type": "string"
           },
           "table": {
             "type": "string"
@@ -633,8 +685,21 @@
           "defaultValue": {
             "type": "string"
           },
+          "driverExtras": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "hasDefault": {
             "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "physicalType": {
+            "type": "string"
+          },
+          "storeKind": {
+            "type": "string"
           },
           "validatorParams": {
             "additionalProperties": {},
@@ -652,6 +717,22 @@
           "Nullable",
           "Unique",
           "hasDefault"
+        ],
+        "type": "object"
+      },
+      "Labels": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "column"
         ],
         "type": "object"
       },
@@ -1189,6 +1270,38 @@
         ],
         "type": "object"
       },
+      "Supports": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "boolean"
+          },
+          "geo": {
+            "type": "boolean"
+          },
+          "partialIndex": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "ttl": {
+            "type": "boolean"
+          },
+          "unique": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "default",
+          "required",
+          "unique",
+          "ttl",
+          "geo",
+          "partialIndex"
+        ],
+        "type": "object"
+      },
       "TableInfo": {
         "additionalProperties": false,
         "properties": {
@@ -1467,6 +1580,22 @@
         "required": [
           "access_token",
           "expires_at"
+        ],
+        "type": "object"
+      },
+      "Type": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "physical": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "physical",
+          "kind"
         ],
         "type": "object"
       },
@@ -2245,6 +2374,14 @@
         "operationId": "delete-admin-targets-by-key",
         "parameters": [
           {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "If-Match",
             "schema": {
@@ -2323,6 +2460,14 @@
         "operationId": "patch-admin-targets-by-key",
         "parameters": [
           {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "If-Match",
             "schema": {
@@ -2374,6 +2519,14 @@
       "put": {
         "operationId": "put-admin-targets-by-key",
         "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "If-Match",
@@ -2428,6 +2581,14 @@
       "post": {
         "operationId": "post-admin-targets-by-key-default",
         "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "If-Match",
@@ -3276,6 +3437,48 @@
           }
         },
         "summary": "Update monitored database",
+        "tags": [
+          "Database"
+        ]
+      }
+    },
+    "/v1/databases/{id}/capabilities": {
+      "get": {
+        "operationId": "databaseCapabilities",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List driver capabilities",
         "tags": [
           "Database"
         ]

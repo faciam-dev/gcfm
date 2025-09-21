@@ -37,13 +37,18 @@ make build   # builds the CLI and API server (outputs to bin/)
 ### 2. Initialize DB
 
 ```bash
-fieldctl db migrate --db postgres://user:pass@localhost:5432/app --schema public --seed
+bin/fieldctl db migrate \
+  --table-prefix="gcfm_" \
+  --db "root:rootpw@tcp(localhost:3306)/gcfm" \
+  --schema public \
+  --seed \
+  --driver=mysql
 ```
 
 ### 3. Start API Server
 
 ```bash
-bin/api-server -addr :8080
+bin/api-server -addr=:18081 --driver=mysql --dsn "root:rootpw@tcp(localhost:3306)/gcfm"
 ```
 
 ---
@@ -120,4 +125,3 @@ We welcome pull requests, issues, and feature proposals. See [CONTRIBUTING.md](.
 ## 📄 License
 
 [MIT License](./LICENSE)
-
