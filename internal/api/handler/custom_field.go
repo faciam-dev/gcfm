@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1076,17 +1077,31 @@ func driverExtraInt32(extras map[string]any, key string) (int32, bool) {
 	}
 	switch v := val.(type) {
 	case float64:
-		return int32(v), true
+		return floatToInt32(v)
 	case float32:
-		return int32(v), true
+		return floatToInt32(float64(v))
 	case int:
-		return int32(v), true
+		return int64ToInt32(int64(v))
 	case int32:
 		return v, true
 	case int64:
-		return int32(v), true
+		return int64ToInt32(v)
+	case uint:
+		return uint64ToInt32(uint64(v))
+	case uint32:
+		return uint64ToInt32(uint64(v))
+	case uint64:
+		return uint64ToInt32(v)
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return int64ToInt32(i)
+		}
+		if f, err := v.Float64(); err == nil {
+			return floatToInt32(f)
+		}
+		return 0, false
 	case string:
-		parsed, err := strconv.Atoi(v)
+		parsed, err := strconv.ParseInt(v, 10, 32)
 		if err != nil {
 			return 0, false
 		}
@@ -1094,6 +1109,38 @@ func driverExtraInt32(extras map[string]any, key string) (int32, bool) {
 	default:
 		return 0, false
 	}
+}
+
+const (
+	minInt32Value = -1 << 31
+	maxInt32Value = 1<<31 - 1
+)
+
+func int64ToInt32(v int64) (int32, bool) {
+	if v < minInt32Value || v > maxInt32Value {
+		return 0, false
+	}
+	return int32(v), true
+}
+
+func uint64ToInt32(v uint64) (int32, bool) {
+	if v > uint64(maxInt32Value) {
+		return 0, false
+	}
+	return int32(v), true
+}
+
+func floatToInt32(f float64) (int32, bool) {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	if f < float64(minInt32Value) || f > float64(maxInt32Value) {
+		return 0, false
+	}
+	if math.Trunc(f) != f {
+		return 0, false
+	}
+	return int32(f), true
 }
 
 func appendUnique(list []string, value string) []string {
