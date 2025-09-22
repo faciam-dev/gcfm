@@ -32,6 +32,10 @@ type FieldMeta struct {
 	TableName       string         `yaml:"table"`
 	ColumnName      string         `yaml:"column"`
 	DataType        string         `yaml:"type"`
+	StoreKind       string         `yaml:"storeKind,omitempty" json:"storeKind,omitempty"`
+	Kind            string         `yaml:"kind,omitempty" json:"kind,omitempty"`
+	PhysicalType    string         `yaml:"physicalType,omitempty" json:"physicalType,omitempty"`
+	DriverExtras    map[string]any `yaml:"driverExtras,omitempty" json:"driverExtras,omitempty"`
 	Placeholder     string         `yaml:"placeholder,omitempty"`
 	Display         *DisplayMeta   `yaml:"display,omitempty"`
 	Validator       string         `yaml:"validator,omitempty"`

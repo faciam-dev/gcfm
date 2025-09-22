@@ -3,10 +3,14 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +33,7 @@ import (
 	"github.com/faciam-dev/goquent/orm/query"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type CustomFieldHandler struct {
@@ -246,22 +251,34 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
 		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
 	}
-	target, err := sql.Open(mdb.Driver, mdb.DSN)
-	if err != nil {
-		return nil, err
+	storeKind := registry.DefaultStoreKindForDriver(mdb.Driver)
+	if in.Body.StoreKind != nil && strings.TrimSpace(*in.Body.StoreKind) != "" {
+		storeKind = strings.TrimSpace(*in.Body.StoreKind)
 	}
-	defer target.Close()
-	dialect := pkgutil.DialectFromDriver(mdb.Driver)
-	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
-		return nil, huma.Error422("db_id", "unsupported driver")
-	}
-	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, in.Body.Table)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		msg := fmt.Sprintf("table %q not found in target database", in.Body.Table)
-		return nil, huma.Error422("table", msg)
+	var (
+		target  *sql.DB
+		dialect ormdriver.Dialect
+	)
+	if storeKind != "mongo" {
+		target, err = sql.Open(mdb.Driver, mdb.DSN)
+		if err != nil {
+			return nil, err
+		}
+		defer target.Close()
+		dialect = pkgutil.DialectFromDriver(mdb.Driver)
+		if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
+			return nil, huma.Error422("db_id", "unsupported driver")
+		}
+		ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, in.Body.Table)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			msg := fmt.Sprintf("table %q not found in target database", in.Body.Table)
+			return nil, huma.Error422("table", msg)
+		}
+	} else if h.Driver == "mongo" && h.Mongo == nil {
+		return nil, huma.NewError(http.StatusInternalServerError, "mongo client not configured")
 	}
 	var display *registry.DisplayMeta
 	if in.Body.Display.Widget != "" || in.Body.Display.LabelKey != nil || in.Body.Display.PlaceholderKey != nil || len(in.Body.Display.WidgetConfig) > 0 {
@@ -289,6 +306,26 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		Display:         display,
 		Validator:       in.Body.Validator,
 		ValidatorParams: in.Body.ValidatorParams,
+		StoreKind:       storeKind,
+	}
+	if in.Body.Kind != nil && strings.TrimSpace(*in.Body.Kind) != "" {
+		meta.Kind = strings.TrimSpace(*in.Body.Kind)
+	} else {
+		meta.Kind = registry.GuessKind(storeKind, meta.DataType)
+	}
+	if in.Body.PhysicalType != nil && strings.TrimSpace(*in.Body.PhysicalType) != "" {
+		meta.PhysicalType = strings.TrimSpace(*in.Body.PhysicalType)
+	} else if storeKind == "mongo" {
+		meta.PhysicalType = registry.MongoPhysicalType(meta.DataType)
+	} else {
+		meta.PhysicalType = registry.SQLPhysicalType(mdb.Driver, meta.DataType)
+	}
+	if len(in.Body.DriverExtras) > 0 {
+		extras := make(map[string]any, len(in.Body.DriverExtras))
+		for k, v := range in.Body.DriverExtras {
+			extras[k] = v
+		}
+		meta.DriverExtras = extras
 	}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
@@ -297,18 +334,27 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 		meta.Unique = *in.Body.Unique
 	}
 	d := unifyDefault(&in.Body)
-	nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
-	d = nd.Default
-	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
-	if err != nil {
-		if errors.Is(err, registry.ErrDefaultNotSupported) {
-			return nil, huma.Error400BadRequest("invalid default for column type")
+	if d.Mode != "none" {
+		meta.HasDefault = true
+		if strings.TrimSpace(d.Raw) != "" {
+			raw := d.Raw
+			meta.Default = &raw
 		}
-		return nil, huma.Error422("default", err.Error())
 	}
-	meta.HasDefault = hasDef
-	if hasDef {
-		meta.Default = norm
+	if storeKind != "mongo" {
+		nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
+		d = nd.Default
+		_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
+		if err != nil {
+			if errors.Is(err, registry.ErrDefaultNotSupported) {
+				return nil, huma.Error400BadRequest("invalid default for column type")
+			}
+			return nil, huma.Error422("default", err.Error())
+		}
+		meta.HasDefault = hasDef
+		if hasDef {
+			meta.Default = norm
+		}
 	}
 	switch h.Driver {
 	case "mongo":
@@ -316,21 +362,29 @@ func (h *CustomFieldHandler) create(ctx context.Context, in *createInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := registry.ColumnExists(ctx, target, dialect, mdb.Schema, meta.TableName, meta.ColumnName)
-		if err != nil {
-			return nil, err
-		}
-		if !exists {
-			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
-				if errors.Is(err, registry.ErrDefaultNotSupported) {
-					return nil, huma.Error400BadRequest("invalid default for column type")
+		if storeKind != "mongo" {
+			exists, err := registry.ColumnExists(ctx, target, dialect, mdb.Schema, meta.TableName, meta.ColumnName)
+			if err != nil {
+				return nil, err
+			}
+			if !exists {
+				if err := registry.AddColumnSQL(ctx, target, mdb.Driver, meta.TableName, meta.ColumnName, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
+					if errors.Is(err, registry.ErrDefaultNotSupported) {
+						return nil, huma.Error400BadRequest("invalid default for column type")
+					}
+					msg := fmt.Sprintf("add column failed: %v", err)
+					return nil, huma.Error422("db", msg)
 				}
-				msg := fmt.Sprintf("add column failed: %v", err)
-				return nil, huma.Error422("db", msg)
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
+		}
+	}
+	if storeKind == "mongo" {
+		if err := h.syncMongoCollection(ctx, tid, mdb, meta.TableName, meta.DBID); err != nil {
+			_ = registry.DeleteSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta})
+			return nil, huma.NewError(http.StatusInternalServerError, fmt.Sprintf("failed to apply mongo schema: %v", err))
 		}
 	}
 	actor := middleware.UserFromContext(ctx)
@@ -410,7 +464,7 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, c
 			return nil, err
 		}
 		q := query.New(h.DB, tbl, h.Dialect).
-			Select("db_id", "data_type").
+			Select("db_id", "data_type", "store_kind", "kind", "physical_type", "driver_extras").
 			Where("table_name", table).
 			Where("column_name", column).
 			WithContext(ctx)
@@ -418,8 +472,12 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, c
 			q = q.Where("db_id", *dbID)
 		}
 		var row struct {
-			DBID     int64  `db:"db_id"`
-			DataType string `db:"data_type"`
+			DBID         int64          `db:"db_id"`
+			DataType     string         `db:"data_type"`
+			StoreKind    sql.NullString `db:"store_kind"`
+			Kind         sql.NullString `db:"kind"`
+			PhysicalType sql.NullString `db:"physical_type"`
+			DriverExtras []byte         `db:"driver_extras"`
 		}
 		err := q.First(&row)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -428,7 +486,35 @@ func (h *CustomFieldHandler) getField(ctx context.Context, dbID *int64, table, c
 		if err != nil {
 			return nil, err
 		}
-		return &registry.FieldMeta{DBID: row.DBID, TableName: table, ColumnName: column, DataType: row.DataType}, nil
+		meta := &registry.FieldMeta{DBID: row.DBID, TableName: table, ColumnName: column, DataType: row.DataType}
+		if row.StoreKind.Valid {
+			meta.StoreKind = row.StoreKind.String
+		}
+		if row.Kind.Valid {
+			meta.Kind = row.Kind.String
+		}
+		if row.PhysicalType.Valid {
+			meta.PhysicalType = row.PhysicalType.String
+		}
+		if len(row.DriverExtras) > 0 {
+			var extras map[string]any
+			if err := json.Unmarshal(row.DriverExtras, &extras); err != nil {
+				return nil, fmt.Errorf("decode driver extras: %w", err)
+			}
+			if len(extras) > 0 {
+				meta.DriverExtras = extras
+			}
+		}
+		if meta.StoreKind == "" {
+			meta.StoreKind = "sql"
+		}
+		if meta.Kind == "" {
+			meta.Kind = registry.GuessSQLKind(meta.DataType)
+		}
+		if meta.PhysicalType == "" {
+			meta.PhysicalType = registry.SQLPhysicalType("sql", meta.DataType)
+		}
+		return meta, nil
 	}
 }
 
@@ -479,26 +565,40 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
 		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
 	}
-	target, err := sql.Open(mdb.Driver, mdb.DSN)
-	if err != nil {
-		return nil, err
-	}
-	defer target.Close()
-	dialect := pkgutil.DialectFromDriver(mdb.Driver)
-	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
-		return nil, huma.Error422("db_id", "unsupported driver")
-	}
-	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		msg := fmt.Sprintf("table %q not found in target database", table)
-		return nil, huma.Error422("table", msg)
-	}
 	oldMeta, err := h.getField(ctx, &dbID, table, column)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing field metadata: %w", err)
+	}
+	storeKind := registry.DefaultStoreKindForDriver(mdb.Driver)
+	if in.Body.StoreKind != nil && strings.TrimSpace(*in.Body.StoreKind) != "" {
+		storeKind = strings.TrimSpace(*in.Body.StoreKind)
+	} else if oldMeta != nil && oldMeta.StoreKind != "" {
+		storeKind = oldMeta.StoreKind
+	}
+	var (
+		target  *sql.DB
+		dialect ormdriver.Dialect
+	)
+	if storeKind != "mongo" {
+		target, err = sql.Open(mdb.Driver, mdb.DSN)
+		if err != nil {
+			return nil, err
+		}
+		defer target.Close()
+		dialect = pkgutil.DialectFromDriver(mdb.Driver)
+		if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
+			return nil, huma.Error422("db_id", "unsupported driver")
+		}
+		ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			msg := fmt.Sprintf("table %q not found in target database", table)
+			return nil, huma.Error422("table", msg)
+		}
+	} else if h.Driver == "mongo" && h.Mongo == nil {
+		return nil, huma.NewError(http.StatusInternalServerError, "mongo client not configured")
 	}
 	var display *registry.DisplayMeta
 	if in.Body.Display.Widget != "" || in.Body.Display.LabelKey != nil || in.Body.Display.PlaceholderKey != nil || len(in.Body.Display.WidgetConfig) > 0 {
@@ -518,7 +618,45 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			display.WidgetResolved = display.Widget
 		}
 	}
-	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column, DataType: in.Body.Type, Display: display, Validator: in.Body.Validator, ValidatorParams: in.Body.ValidatorParams}
+	meta := registry.FieldMeta{
+		DBID:            dbID,
+		TableName:       table,
+		ColumnName:      column,
+		DataType:        in.Body.Type,
+		Display:         display,
+		Validator:       in.Body.Validator,
+		ValidatorParams: in.Body.ValidatorParams,
+		StoreKind:       storeKind,
+	}
+	if in.Body.Kind != nil && strings.TrimSpace(*in.Body.Kind) != "" {
+		meta.Kind = strings.TrimSpace(*in.Body.Kind)
+	} else if oldMeta != nil && oldMeta.Kind != "" {
+		meta.Kind = oldMeta.Kind
+	} else {
+		meta.Kind = registry.GuessKind(storeKind, meta.DataType)
+	}
+	if in.Body.PhysicalType != nil && strings.TrimSpace(*in.Body.PhysicalType) != "" {
+		meta.PhysicalType = strings.TrimSpace(*in.Body.PhysicalType)
+	} else if oldMeta != nil && oldMeta.PhysicalType != "" {
+		meta.PhysicalType = oldMeta.PhysicalType
+	} else if storeKind == "mongo" {
+		meta.PhysicalType = registry.MongoPhysicalType(meta.DataType)
+	} else {
+		meta.PhysicalType = registry.SQLPhysicalType(mdb.Driver, meta.DataType)
+	}
+	if in.Body.DriverExtras != nil {
+		extras := make(map[string]any, len(in.Body.DriverExtras))
+		for k, v := range in.Body.DriverExtras {
+			extras[k] = v
+		}
+		meta.DriverExtras = extras
+	} else if oldMeta != nil && len(oldMeta.DriverExtras) > 0 {
+		extras := make(map[string]any, len(oldMeta.DriverExtras))
+		for k, v := range oldMeta.DriverExtras {
+			extras[k] = v
+		}
+		meta.DriverExtras = extras
+	}
 	if in.Body.Nullable != nil {
 		meta.Nullable = *in.Body.Nullable
 	}
@@ -526,18 +664,27 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 		meta.Unique = *in.Body.Unique
 	}
 	d := unifyDefault(&in.Body)
-	nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
-	d = nd.Default
-	_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
-	if err != nil {
-		if errors.Is(err, registry.ErrDefaultNotSupported) {
-			return nil, huma.Error400BadRequest("invalid default for column type")
+	if d.Mode != "none" {
+		meta.HasDefault = true
+		if strings.TrimSpace(d.Raw) != "" {
+			raw := d.Raw
+			meta.Default = &raw
 		}
-		return nil, huma.Error422("default", err.Error())
 	}
-	meta.HasDefault = hasDef
-	if hasDef {
-		meta.Default = norm
+	if storeKind != "mongo" {
+		nd := registry.NormalizeDefaultForType(mdb.Driver, meta.DataType, d)
+		d = nd.Default
+		_, _, norm, hasDef, err := registry.BuildDefaultClauses(mdb.Driver, meta.DataType, d)
+		if err != nil {
+			if errors.Is(err, registry.ErrDefaultNotSupported) {
+				return nil, huma.Error400BadRequest("invalid default for column type")
+			}
+			return nil, huma.Error422("default", err.Error())
+		}
+		meta.HasDefault = hasDef
+		if hasDef {
+			meta.Default = norm
+		}
 	}
 	switch h.Driver {
 	case "mongo":
@@ -545,29 +692,39 @@ func (h *CustomFieldHandler) update(ctx context.Context, in *updateInput) (*crea
 			return nil, err
 		}
 	default:
-		exists, err := registry.ColumnExists(ctx, target, dialect, mdb.Schema, table, column)
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
-				if errors.Is(err, registry.ErrDefaultNotSupported) {
-					return nil, huma.Error400BadRequest("invalid default for column type")
-				}
-				msg := fmt.Sprintf("modify column failed: %v", err)
-				return nil, huma.Error422("db", msg)
+		if storeKind != "mongo" {
+			exists, err := registry.ColumnExists(ctx, target, dialect, mdb.Schema, table, column)
+			if err != nil {
+				return nil, err
 			}
-		} else {
-			if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
-				if errors.Is(err, registry.ErrDefaultNotSupported) {
-					return nil, huma.Error400BadRequest("invalid default for column type")
+			if exists {
+				if err := registry.ModifyColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
+					if errors.Is(err, registry.ErrDefaultNotSupported) {
+						return nil, huma.Error400BadRequest("invalid default for column type")
+					}
+					msg := fmt.Sprintf("modify column failed: %v", err)
+					return nil, huma.Error422("db", msg)
 				}
-				msg := fmt.Sprintf("add column failed: %v", err)
-				return nil, huma.Error422("db", msg)
+			} else {
+				if err := registry.AddColumnSQL(ctx, target, mdb.Driver, table, column, meta.DataType, in.Body.Nullable, in.Body.Unique, d); err != nil {
+					if errors.Is(err, registry.ErrDefaultNotSupported) {
+						return nil, huma.Error400BadRequest("invalid default for column type")
+					}
+					msg := fmt.Sprintf("add column failed: %v", err)
+					return nil, huma.Error422("db", msg)
+				}
 			}
 		}
 		if err := registry.UpsertSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
+		}
+	}
+	if storeKind == "mongo" {
+		if err := h.syncMongoCollection(ctx, tid, mdb, table, dbID); err != nil {
+			if oldMeta != nil {
+				_ = registry.UpsertSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{*oldMeta})
+			}
+			return nil, huma.NewError(http.StatusInternalServerError, fmt.Sprintf("failed to apply mongo schema: %v", err))
 		}
 	}
 	actor := middleware.UserFromContext(ctx)
@@ -605,22 +762,34 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	if !monitordbrepo.HasDatabaseName(mdb.Driver, mdb.DSN) {
 		return nil, huma.Error422("db_id", "monitored database DSN must include database name")
 	}
-	target, err := sql.Open(mdb.Driver, mdb.DSN)
-	if err != nil {
-		return nil, err
+	storeKind := registry.DefaultStoreKindForDriver(mdb.Driver)
+	if oldMeta != nil && oldMeta.StoreKind != "" {
+		storeKind = oldMeta.StoreKind
 	}
-	defer target.Close()
-	dialect := pkgutil.DialectFromDriver(mdb.Driver)
-	if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
-		return nil, huma.Error422("db_id", "unsupported driver")
-	}
-	ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		msg := fmt.Sprintf("table %q not found in target database", table)
-		return nil, huma.Error422("table", msg)
+	var (
+		target  *sql.DB
+		dialect ormdriver.Dialect
+	)
+	if storeKind != "mongo" {
+		target, err = sql.Open(mdb.Driver, mdb.DSN)
+		if err != nil {
+			return nil, err
+		}
+		defer target.Close()
+		dialect = pkgutil.DialectFromDriver(mdb.Driver)
+		if _, ok := dialect.(pkgutil.UnsupportedDialect); ok {
+			return nil, huma.Error422("db_id", "unsupported driver")
+		}
+		ok, err := monitordbrepo.TableExists(ctx, target, dialect, mdb.Schema, table)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			msg := fmt.Sprintf("table %q not found in target database", table)
+			return nil, huma.Error422("table", msg)
+		}
+	} else if h.Driver == "mongo" && h.Mongo == nil {
+		return nil, huma.NewError(http.StatusInternalServerError, "mongo client not configured")
 	}
 	meta := registry.FieldMeta{DBID: dbID, TableName: table, ColumnName: column}
 	switch h.Driver {
@@ -629,12 +798,22 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 			return nil, err
 		}
 	default:
-		if err := registry.DropColumnSQL(ctx, target, mdb.Driver, table, column); err != nil {
-			msg := fmt.Sprintf("drop column failed: %v", err)
-			return nil, huma.Error422("db", msg)
+		if storeKind != "mongo" {
+			if err := registry.DropColumnSQL(ctx, target, mdb.Driver, table, column); err != nil {
+				msg := fmt.Sprintf("drop column failed: %v", err)
+				return nil, huma.Error422("db", msg)
+			}
 		}
 		if err := registry.DeleteSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{meta}); err != nil {
 			return nil, err
+		}
+	}
+	if storeKind == "mongo" {
+		if err := h.syncMongoCollection(ctx, tid, mdb, table, dbID); err != nil {
+			if oldMeta != nil {
+				_ = registry.UpsertSQL(ctx, h.DB, h.Driver, h.TablePrefix, []registry.FieldMeta{*oldMeta})
+			}
+			return nil, huma.NewError(http.StatusInternalServerError, fmt.Sprintf("failed to apply mongo schema: %v", err))
 		}
 	}
 	actor := middleware.UserFromContext(ctx)
@@ -643,6 +822,351 @@ func (h *CustomFieldHandler) delete(ctx context.Context, in *deleteInput) (*stru
 	}
 	events.Emit(ctx, events.Event{Name: "cf.field.deleted", Time: time.Now(), Data: map[string]string{"table": table, "column": column}, ID: table + "." + column})
 	return &struct{}{}, nil
+}
+
+func (h *CustomFieldHandler) syncMongoCollection(ctx context.Context, tenant string, mdb monitordbrepo.Record, table string, dbID int64) error {
+	normalizedID := pkgmonitordb.NormalizeDBID(dbID)
+	metas, err := registry.LoadSQLByDB(ctx, h.DB, registry.DBConfig{Driver: h.Driver, Schema: h.Schema, TablePrefix: h.TablePrefix}, tenant, normalizedID)
+	if err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+	var fields []registry.FieldMeta
+	for _, m := range metas {
+		storeKind := strings.ToLower(strings.TrimSpace(m.StoreKind))
+		if storeKind == "" {
+			storeKind = "sql"
+		}
+		if storeKind != "mongo" {
+			continue
+		}
+		if m.TableName == table {
+			fields = append(fields, m)
+		}
+	}
+	targetDB := mdb.Schema
+	if targetDB == "" {
+		name, err := mongoDatabaseName(mdb.DSN, "")
+		if err != nil {
+			return err
+		}
+		targetDB = name
+	}
+	ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctxTimeout, options.Client().ApplyURI(mdb.DSN))
+	if err != nil {
+		return fmt.Errorf("mongo connect: %w", err)
+	}
+	defer func() {
+		_ = client.Disconnect(context.Background())
+	}()
+	database := client.Database(targetDB)
+	validator := buildMongoValidator(fields)
+	cmd := bson.D{{Key: "collMod", Value: table}}
+	if len(validator) > 0 {
+		cmd = append(cmd, bson.E{Key: "validator", Value: validator})
+		cmd = append(cmd, bson.E{Key: "validationLevel", Value: "moderate"})
+		cmd = append(cmd, bson.E{Key: "validationAction", Value: "error"})
+	} else {
+		cmd = append(cmd, bson.E{Key: "validator", Value: bson.M{}})
+		cmd = append(cmd, bson.E{Key: "validationLevel", Value: "off"})
+	}
+	if err := database.RunCommand(ctxTimeout, cmd).Err(); err != nil {
+		var cmdErr mongo.CommandError
+		if errors.As(err, &cmdErr) && cmdErr.Code == 26 {
+			createOpts := options.CreateCollection()
+			if len(validator) > 0 {
+				createOpts.SetValidator(validator)
+			}
+			if cerr := database.CreateCollection(ctxTimeout, table, createOpts); cerr != nil {
+				return fmt.Errorf("create collection: %w", cerr)
+			}
+		} else {
+			return fmt.Errorf("collMod: %w", err)
+		}
+	}
+	collection := database.Collection(table)
+	desiredIndexes := buildMongoIndexes(fields, table)
+	if err := reconcileMongoIndexes(ctxTimeout, collection, desiredIndexes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func buildMongoValidator(fields []registry.FieldMeta) bson.M {
+	if len(fields) == 0 {
+		return bson.M{}
+	}
+	props := bson.M{}
+	var required []string
+	for _, f := range fields {
+		prop := buildMongoProperty(f)
+		props[f.ColumnName] = prop
+		if !f.Nullable || driverExtraBool(f.DriverExtras, "required") {
+			required = appendUnique(required, f.ColumnName)
+		}
+	}
+	schema := bson.M{"bsonType": "object"}
+	if len(props) > 0 {
+		schema["properties"] = props
+	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return bson.M{"$jsonSchema": schema}
+}
+
+func buildMongoProperty(f registry.FieldMeta) bson.M {
+	bsonType := mongoBSONType(f)
+	var typeValue any
+	if f.Nullable || driverExtraBool(f.DriverExtras, "allowNull") {
+		typeValue = bson.A{bsonType, "null"}
+	} else {
+		typeValue = bsonType
+	}
+	prop := bson.M{"bsonType": typeValue}
+	if bsonType == "array" {
+		if itemType := mongoArrayItemType(f.DriverExtras); itemType != "" {
+			prop["items"] = bson.M{"bsonType": itemType}
+		}
+	}
+	return prop
+}
+
+func mongoBSONType(f registry.FieldMeta) string {
+	pt := strings.ToLower(strings.TrimSpace(f.PhysicalType))
+	if strings.HasPrefix(pt, "mongodb:") {
+		pt = strings.TrimPrefix(pt, "mongodb:")
+	}
+	if pt == "" {
+		pt = strings.ToLower(strings.TrimSpace(f.DataType))
+	}
+	switch pt {
+	case "varchar", "string", "regex", "binary":
+		if pt == "regex" {
+			return "regex"
+		}
+		if pt == "binary" {
+			return "binData"
+		}
+		return "string"
+	case "int", "int32", "integer":
+		return "int"
+	case "long", "int64":
+		return "long"
+	case "double", "number", "float", "float64":
+		return "double"
+	case "decimal", "decimal128":
+		return "decimal"
+	case "bool", "boolean":
+		return "bool"
+	case "date", "datetime":
+		return "date"
+	case "timestamp":
+		return "timestamp"
+	case "object", "document":
+		return "object"
+	case "array":
+		return "array"
+	case "objectid":
+		return "objectId"
+	default:
+		return "string"
+	}
+}
+
+func mongoArrayItemType(extras map[string]any) string {
+	if extras == nil {
+		return ""
+	}
+	itemsRaw, ok := extras["array_items"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	if pt, ok := itemsRaw["physical_type"].(string); ok {
+		return mongoBSONType(registry.FieldMeta{PhysicalType: pt})
+	}
+	if kind, ok := itemsRaw["kind"].(string); ok {
+		return mongoBSONType(registry.FieldMeta{PhysicalType: "mongodb:" + kind})
+	}
+	return ""
+}
+
+func buildMongoIndexes(fields []registry.FieldMeta, table string) map[string]mongo.IndexModel {
+	desired := make(map[string]mongo.IndexModel)
+	prefix := fmt.Sprintf("gcfm_%s_", table)
+	for _, f := range fields {
+		extras := f.DriverExtras
+		if f.Unique || driverExtraBool(extras, "unique") {
+			name := prefix + f.ColumnName + "_unique"
+			desired[name] = mongo.IndexModel{
+				Keys:    bson.D{{Key: f.ColumnName, Value: 1}},
+				Options: options.Index().SetName(name).SetUnique(true),
+			}
+		}
+		if ttl, ok := driverExtraInt32(extras, "ttlSeconds"); ok && ttl > 0 {
+			name := prefix + f.ColumnName + "_ttl"
+			desired[name] = mongo.IndexModel{
+				Keys:    bson.D{{Key: f.ColumnName, Value: 1}},
+				Options: options.Index().SetName(name).SetExpireAfterSeconds(ttl),
+			}
+		}
+	}
+	return desired
+}
+
+func reconcileMongoIndexes(ctx context.Context, coll *mongo.Collection, desired map[string]mongo.IndexModel) error {
+	prefix := fmt.Sprintf("gcfm_%s_", coll.Name())
+	existing, err := coll.Indexes().List(ctx)
+	if err == nil {
+		defer existing.Close(ctx)
+		for existing.Next(ctx) {
+			var idxDoc bson.M
+			if err := existing.Decode(&idxDoc); err != nil {
+				continue
+			}
+			name, _ := idxDoc["name"].(string)
+			if name == "" {
+				continue
+			}
+			if strings.HasPrefix(name, prefix) {
+				if _, err := coll.Indexes().DropOne(ctx, name); err != nil {
+					continue
+				}
+			}
+		}
+	}
+	if len(desired) == 0 {
+		return nil
+	}
+	models := make([]mongo.IndexModel, 0, len(desired))
+	for _, m := range desired {
+		models = append(models, m)
+	}
+	if _, err := coll.Indexes().CreateMany(ctx, models); err != nil {
+		return fmt.Errorf("create indexes: %w", err)
+	}
+	return nil
+}
+
+func driverExtraBool(extras map[string]any, key string) bool {
+	if extras == nil {
+		return false
+	}
+	val, ok := extras[key]
+	if !ok {
+		return false
+	}
+	switch v := val.(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(v, "true") || v == "1"
+	default:
+		return false
+	}
+}
+
+func driverExtraInt32(extras map[string]any, key string) (int32, bool) {
+	if extras == nil {
+		return 0, false
+	}
+	val, ok := extras[key]
+	if !ok || val == nil {
+		return 0, false
+	}
+	switch v := val.(type) {
+	case float64:
+		return floatToInt32(v)
+	case float32:
+		return floatToInt32(float64(v))
+	case int:
+		return int64ToInt32(int64(v))
+	case int32:
+		return v, true
+	case int64:
+		return int64ToInt32(v)
+	case uint:
+		return uint64ToInt32(uint64(v))
+	case uint32:
+		return uint64ToInt32(uint64(v))
+	case uint64:
+		return uint64ToInt32(v)
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return int64ToInt32(i)
+		}
+		if f, err := v.Float64(); err == nil {
+			return floatToInt32(f)
+		}
+		return 0, false
+	case string:
+		parsed, err := strconv.ParseInt(v, 10, 32)
+		if err != nil {
+			return 0, false
+		}
+		return int32(parsed), true
+	default:
+		return 0, false
+	}
+}
+
+const (
+	minInt32Value = -1 << 31
+	maxInt32Value = 1<<31 - 1
+)
+
+func int64ToInt32(v int64) (int32, bool) {
+	if v < minInt32Value || v > maxInt32Value {
+		return 0, false
+	}
+	return int32(v), true
+}
+
+func uint64ToInt32(v uint64) (int32, bool) {
+	if v > uint64(maxInt32Value) {
+		return 0, false
+	}
+	return int32(v), true
+}
+
+func floatToInt32(f float64) (int32, bool) {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	if f < float64(minInt32Value) || f > float64(maxInt32Value) {
+		return 0, false
+	}
+	if math.Trunc(f) != f {
+		return 0, false
+	}
+	return int32(f), true
+}
+
+func appendUnique(list []string, value string) []string {
+	for _, existing := range list {
+		if existing == value {
+			return list
+		}
+	}
+	return append(list, value)
+}
+
+func mongoDatabaseName(dsn, fallback string) (string, error) {
+	if fallback != "" {
+		return fallback, nil
+	}
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse mongo dsn: %w", err)
+	}
+	if db := strings.Trim(u.Path, "/"); db != "" {
+		return db, nil
+	}
+	if auth := u.Query().Get("authSource"); auth != "" {
+		return auth, nil
+	}
+	return "", fmt.Errorf("mongo database name not specified")
 }
 
 // --- helpers ---

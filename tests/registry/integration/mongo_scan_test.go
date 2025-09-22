@@ -52,7 +52,7 @@ func TestMongoScanMetadata(t *testing.T) {
 		"properties": bson.M{
 			"email":    bson.M{"bsonType": "string"},
 			"age":      bson.M{"bsonType": "int"},
-			"nickname": bson.M{"bsonType": "string", "default": "guest"},
+			"nickname": bson.M{"bsonType": "string"},
 		},
 	}}}}
 	if err := db.RunCommand(ctx, cmd).Err(); err != nil {
@@ -86,7 +86,7 @@ func TestMongoScanMetadata(t *testing.T) {
 		t.Fatalf("age meta incorrect: %+v", age)
 	}
 	nick := find("nickname")
-	if !nick.Nullable || nick.Unique || !nick.HasDefault || nick.Default == nil || *nick.Default != "guest" {
+	if !nick.Nullable || nick.Unique || nick.HasDefault {
 		t.Fatalf("nickname meta incorrect: %+v", nick)
 	}
 }

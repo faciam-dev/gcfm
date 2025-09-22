@@ -12,11 +12,11 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
-const selectCustomFields = "SELECT `db_id`, `table_name`, `column_name`, `data_type`, `label_key`, `widget`, `widget_config`, `placeholder_key`, `nullable`, `unique`, `has_default`, `default_value`, `validator` FROM `gcfm_custom_fields` ORDER BY table_name, column_name"
+const selectCustomFields = "SELECT `db_id`, `table_name`, `column_name`, `data_type`, `store_kind`, `kind`, `physical_type`, `driver_extras`, `label_key`, `widget`, `widget_config`, `placeholder_key`, `nullable`, `unique`, `has_default`, `default_value`, `validator` FROM `gcfm_custom_fields` ORDER BY table_name, column_name"
 
 func fieldRows(m sqlmock.Sqlmock) *sqlmock.Rows {
-	return m.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
-		AddRow(1, "posts", "title", "text", nil, nil, nil, nil, false, false, false, nil, nil)
+	return m.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}).
+		AddRow(1, "posts", "title", "text", "sql", nil, nil, []byte("{}"), nil, nil, nil, nil, false, false, false, nil, nil)
 }
 
 type passthroughConverter struct{}

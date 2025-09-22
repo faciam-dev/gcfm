@@ -110,7 +110,7 @@ func (r *PGRepo) List(ctx context.Context, f Filter) ([]Row, int, error) {
 // GetETagAndLastMod returns an ETag and last modified timestamp for the filtered set.
 func (r *PGRepo) GetETagAndLastMod(ctx context.Context, f Filter) (string, time.Time, error) {
 	q := query.New(r.DB, r.table(), ormdriver.PostgresDialect{}).
-		SelectRaw("coalesce(encode(digest(string_agg(id||'@'||version||'#'||to_char(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') ORDER BY id), 'sha256'),'hex'),'') AS etag").
+		SelectRaw("coalesce(encode(digest(string_agg(id||'@'||version||'#'||to_char(updated_at,'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'), '' ORDER BY id), 'sha256'),'hex'),'') AS etag").
 		SelectRaw("coalesce(MAX(updated_at), 'epoch') AS last_mod")
 	r.applyFilters(q, f)
 	var res struct {

@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	capabilitydomain "github.com/faciam-dev/gcfm/internal/domain/capability"
+	"github.com/faciam-dev/gcfm/internal/monitordb"
+	capabilityusecase "github.com/faciam-dev/gcfm/internal/usecase/capability"
+	"github.com/faciam-dev/gcfm/pkg/tenant"
 	ormdriver "github.com/faciam-dev/goquent/orm/driver"
 	"github.com/faciam-dev/goquent/orm/query"
-
-	"github.com/faciam-dev/gcfm/internal/monitordb"
-	"github.com/faciam-dev/gcfm/pkg/tenant"
 )
 
 func TestListHandlesPlainDSN(t *testing.T) {
@@ -46,5 +47,34 @@ func TestListHandlesPlainDSN(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("db expectations: %v", err)
+	}
+}
+
+type stubCapService struct {
+	caps capabilitydomain.Capabilities
+	err  error
+}
+
+func (s stubCapService) Get(ctx context.Context, tenant string, dbID int64) (capabilitydomain.Capabilities, error) {
+	return s.caps, s.err
+}
+
+func TestCapabilitiesSuccess(t *testing.T) {
+	h := &DatabaseHandler{Capabilities: stubCapService{caps: capabilitydomain.Capabilities{Driver: "mongodb"}}}
+	ctx := tenant.WithTenant(context.Background(), "default")
+	out, err := h.capabilities(ctx, &idParam{ID: 1})
+	if err != nil {
+		t.Fatalf("capabilities: %v", err)
+	}
+	if out.Body.Driver != "mongodb" {
+		t.Fatalf("unexpected driver: %+v", out.Body)
+	}
+}
+
+func TestCapabilitiesAdapterMissing(t *testing.T) {
+	h := &DatabaseHandler{Capabilities: stubCapService{err: capabilityusecase.ErrAdapterNotFound}}
+	ctx := tenant.WithTenant(context.Background(), "default")
+	if _, err := h.capabilities(ctx, &idParam{ID: 2}); err == nil {
+		t.Fatalf("expected error")
 	}
 }

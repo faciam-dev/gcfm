@@ -21,11 +21,11 @@ func TestApplyEnsuresMonitoredDB(t *testing.T) {
 	defer db.Close()
 
 	scanSQL, _, _ := query.New(db, "gcfm_custom_fields", ormdriver.MySQLDialect{}).
-		Select("db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
+		Select("db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator").
 		OrderByRaw("table_name, column_name").
 		Build()
 	mock.ExpectQuery(regexp.QuoteMeta(scanSQL)).
-		WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+		WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	selSQL, _, _ := query.New(db, "gcfm_monitored_databases", ormdriver.MySQLDialect{}).
 		Select("id").
@@ -43,7 +43,7 @@ func TestApplyEnsuresMonitoredDB(t *testing.T) {
 	mock.ExpectBegin()
 	prep := mock.ExpectPrepare(regexp.QuoteMeta("INSERT INTO gcfm_custom_fields"))
 	prep.ExpectExec().
-		WithArgs(int64(1), "posts", "cf1", "text", "", "text", nil, "", false, false, false, "", "").
+		WithArgs(int64(1), "posts", "cf1", "text", "sql", "", "", "{}", "", "text", nil, "", false, false, false, "", "").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 

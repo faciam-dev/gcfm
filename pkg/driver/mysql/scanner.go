@@ -20,7 +20,7 @@ func NewScanner(db *sql.DB) *Scanner {
 
 // Scan retrieves column metadata for the given schema.
 func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.FieldMeta, error) {
-	const colQuery = `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+	const colQuery = `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
 FROM information_schema.columns
 WHERE table_schema = ? AND table_name != ?
 ORDER BY TABLE_NAME, ORDINAL_POSITION`
@@ -31,15 +31,27 @@ ORDER BY TABLE_NAME, ORDINAL_POSITION`
 	defer rows.Close()
 
 	var metas []registry.FieldMeta
+	storeKind := registry.DefaultStoreKindForDriver(conf.Driver)
 	for rows.Next() {
 		var (
-			table, column, dataType, isNullable string
-			def                                 sql.NullString
+			table, column, dataType, columnType, isNullable string
+			def                                             sql.NullString
 		)
-		if err := rows.Scan(&table, &column, &dataType, &isNullable, &def); err != nil {
+		if err := rows.Scan(&table, &column, &dataType, &columnType, &isNullable, &def); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
-		m := registry.FieldMeta{TableName: table, ColumnName: column, DataType: dataType}
+		physical := columnType
+		if physical == "" {
+			physical = dataType
+		}
+		m := registry.FieldMeta{
+			TableName:    table,
+			ColumnName:   column,
+			DataType:     dataType,
+			StoreKind:    storeKind,
+			Kind:         registry.GuessSQLKind(dataType),
+			PhysicalType: registry.SQLPhysicalType(conf.Driver, physical),
+		}
 		if isNullable == "YES" {
 			m.Nullable = true
 		}

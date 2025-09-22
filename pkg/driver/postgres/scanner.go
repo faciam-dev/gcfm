@@ -29,6 +29,7 @@ ORDER BY table_name, ordinal_position`
 	defer rows.Close()
 
 	var metas []registry.FieldMeta
+	storeKind := registry.DefaultStoreKindForDriver(conf.Driver)
 	for rows.Next() {
 		var (
 			table, column, dataType, isNullable string
@@ -37,7 +38,14 @@ ORDER BY table_name, ordinal_position`
 		if err := rows.Scan(&table, &column, &dataType, &isNullable, &def); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
-		m := registry.FieldMeta{TableName: table, ColumnName: column, DataType: dataType}
+		m := registry.FieldMeta{
+			TableName:    table,
+			ColumnName:   column,
+			DataType:     dataType,
+			StoreKind:    storeKind,
+			Kind:         registry.GuessSQLKind(dataType),
+			PhysicalType: registry.SQLPhysicalType(conf.Driver, dataType),
+		}
 		if isNullable == "YES" {
 			m.Nullable = true
 		}

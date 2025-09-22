@@ -30,12 +30,16 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 	}
 	defer rows.Close()
 
+	storeKind := registry.DefaultStoreKindForDriver(conf.Driver)
 	var metas []registry.FieldMeta
 	for rows.Next() {
 		var m registry.FieldMeta
 		if err := rows.Scan(&m.TableName, &m.ColumnName, &m.DataType); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
+		m.StoreKind = storeKind
+		m.Kind = registry.GuessSQLKind(m.DataType)
+		m.PhysicalType = registry.SQLPhysicalType(conf.Driver, m.DataType)
 		metas = append(metas, m)
 	}
 	if err := rows.Err(); err != nil {

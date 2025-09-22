@@ -146,19 +146,19 @@ type targetKeyParams struct {
 }
 
 type targetPutInput struct {
-	targetKeyParams
+	Key     string `path:"key"`
 	IfMatch string `header:"If-Match"`
 	Body    schema.TargetInput
 }
 
 type targetPatchInput struct {
-	targetKeyParams
+	Key     string `path:"key"`
 	IfMatch string `header:"If-Match"`
 	Body    schema.TargetPatch
 }
 
 type targetDeleteParams struct {
-	targetKeyParams
+	Key     string `path:"key"`
 	IfMatch string `header:"If-Match"`
 }
 

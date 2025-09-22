@@ -71,11 +71,12 @@ var CapMatrix = map[string]Capability{
 	"snapshots:apply":  {"/v1/snapshots/{ver}/apply", "POST"},
 
 	// Databases
-	"databases:list":   {"/v1/databases", "GET"},
-	"databases:create": {"/v1/databases", "POST"},
-	"databases:update": {"/v1/databases/{id}", "PUT"},
-	"databases:delete": {"/v1/databases/{id}", "DELETE"},
-	"databases:scan":   {"/v1/databases/{id}/scan", "POST"},
+	"databases:list":         {"/v1/databases", "GET"},
+	"databases:create":       {"/v1/databases", "POST"},
+	"databases:update":       {"/v1/databases/{id}", "PUT"},
+	"databases:delete":       {"/v1/databases/{id}", "DELETE"},
+	"databases:scan":         {"/v1/databases/{id}/scan", "POST"},
+	"databases:capabilities": {"/v1/databases/{id}/capabilities", "GET"},
 
 	// Targets
 	"targets:list":         {"/admin/targets", "GET"},

@@ -40,7 +40,7 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 
 		var (
 			colMetas []registry.FieldMeta
-			metaMap  = make(map[string]*registry.FieldMeta)
+			metaMap  = make(map[string]int)
 		)
 		if opts, ok := spec["options"].(bson.M); ok {
 			if validator, ok := opts["validator"].(bson.M); ok {
@@ -61,7 +61,10 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 									ColumnName: field,
 									DataType:   mapBSONType(m["bsonType"]),
 									Nullable:   true,
+									StoreKind:  "mongo",
 								}
+								fm.PhysicalType = registry.MongoPhysicalType(fm.DataType)
+								fm.Kind = registry.GuessMongoKind(fm.DataType)
 								if _, ok := required[field]; ok {
 									fm.Nullable = false
 								}
@@ -71,7 +74,7 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 									fm.Default = &v
 								}
 								colMetas = append(colMetas, fm)
-								metaMap[field] = &colMetas[len(colMetas)-1]
+								metaMap[field] = len(colMetas) - 1
 							}
 						}
 					}
@@ -92,14 +95,35 @@ func (s *Scanner) Scan(ctx context.Context, conf registry.DBConfig) ([]registry.
 				var idx bson.M
 				if err := idxCur.Decode(&idx); err == nil {
 					if u, ok := idx["unique"].(bool); ok && u {
-						if key, ok := idx["key"].(bson.M); ok && len(key) == 1 {
-							for field := range key {
-								if m, ok := metaMap[field]; ok {
-									m.Unique = true
-								} else {
-									fm := registry.FieldMeta{TableName: name, ColumnName: field, DataType: "string", Unique: true, Nullable: true}
-									colMetas = append(colMetas, fm)
+						field := ""
+						switch key := idx["key"].(type) {
+						case bson.M:
+							if len(key) == 1 {
+								for k := range key {
+									field = k
 								}
+							}
+						case primitive.D:
+							if len(key) == 1 {
+								field = key[0].Key
+							}
+						}
+						if field != "" {
+							if idx, ok := metaMap[field]; ok {
+								colMetas[idx].Unique = true
+							} else {
+								fm := registry.FieldMeta{
+									TableName:    name,
+									ColumnName:   field,
+									DataType:     "string",
+									StoreKind:    "mongo",
+									Kind:         registry.GuessMongoKind("string"),
+									PhysicalType: registry.MongoPhysicalType("string"),
+									Unique:       true,
+									Nullable:     true,
+								}
+								colMetas = append(colMetas, fm)
+								metaMap[field] = len(colMetas) - 1
 							}
 						}
 					}
@@ -146,10 +170,25 @@ func sampleCollection(ctx context.Context, name string, coll *mongo.Collection) 
 	for k, types := range typeMap {
 		if len(types) == 1 {
 			for t := range types {
-				metas = append(metas, registry.FieldMeta{TableName: name, ColumnName: k, DataType: t})
+				fm := registry.FieldMeta{
+					TableName:    name,
+					ColumnName:   k,
+					DataType:     t,
+					StoreKind:    "mongo",
+					Kind:         registry.GuessMongoKind(t),
+					PhysicalType: registry.MongoPhysicalType(t),
+				}
+				metas = append(metas, fm)
 			}
 		} else {
-			metas = append(metas, registry.FieldMeta{TableName: name, ColumnName: k, DataType: "string"})
+			metas = append(metas, registry.FieldMeta{
+				TableName:    name,
+				ColumnName:   k,
+				DataType:     "string",
+				StoreKind:    "mongo",
+				Kind:         registry.GuessMongoKind("string"),
+				PhysicalType: registry.MongoPhysicalType("string"),
+			})
 		}
 	}
 	return metas, nil

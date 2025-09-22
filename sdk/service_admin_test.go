@@ -50,12 +50,14 @@ func TestReconcileRepair(t *testing.T) {
 	}
 	defer db.Close()
 
-	query := "SELECT `db_id`, `table_name`, `column_name`, `data_type`, `label_key`, `widget`, `widget_config`, `placeholder_key`, `nullable`, `unique`, `has_default`, `default_value`, `validator` FROM `gcfm_custom_fields` WHERE `tenant_id` = ? AND `db_id` = ? ORDER BY table_name, column_name"
-	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("default", int64(1)).WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
+	query := "SELECT `db_id`, `table_name`, `column_name`, `data_type`, `store_kind`, `kind`, `physical_type`, `driver_extras`, `label_key`, `widget`, `widget_config`, `placeholder_key`, `nullable`, `unique`, `has_default`, `default_value`, `validator` FROM `gcfm_custom_fields` WHERE `tenant_id` = ? AND `db_id` = ? ORDER BY table_name, column_name"
+	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs("default", int64(1)).WillReturnRows(sqlmock.NewRows([]string{"db_id", "table_name", "column_name", "data_type", "store_kind", "kind", "physical_type", "driver_extras", "label_key", "widget", "widget_config", "placeholder_key", "nullable", "unique", "has_default", "default_value", "validator"}))
 
 	mock.ExpectBegin()
 	mock.ExpectPrepare(regexp.QuoteMeta("INSERT INTO gcfm_custom_fields"))
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_custom_fields")).WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO gcfm_custom_fields")).WithArgs(
+		sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+	).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	reg := NewHotReloadRegistry(&TargetConn{DB: db, Driver: "mysql", Schema: "", Dialect: util.DialectFromDriver("mysql")})

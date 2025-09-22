@@ -14,6 +14,8 @@ import (
 	admintargets "github.com/faciam-dev/gcfm/internal/adminapi/targets"
 	"github.com/faciam-dev/gcfm/internal/api/handler"
 	"github.com/faciam-dev/gcfm/internal/auth"
+	capabilitydomain "github.com/faciam-dev/gcfm/internal/domain/capability"
+	capmongoadapter "github.com/faciam-dev/gcfm/internal/infrastructure/capability/mongo"
 	"github.com/faciam-dev/gcfm/internal/logger"
 	"github.com/faciam-dev/gcfm/internal/monitordb"
 	"github.com/faciam-dev/gcfm/internal/plugin"
@@ -21,6 +23,7 @@ import (
 	widgetreg "github.com/faciam-dev/gcfm/internal/registry/widgets"
 	"github.com/faciam-dev/gcfm/internal/server/middleware"
 	"github.com/faciam-dev/gcfm/internal/server/reserved"
+	capabilityusecase "github.com/faciam-dev/gcfm/internal/usecase/capability"
 	"github.com/faciam-dev/gcfm/meta/sqlmetastore"
 	"github.com/faciam-dev/gcfm/pkg/audit"
 	pkgutil "github.com/faciam-dev/gcfm/pkg/util"
@@ -117,7 +120,14 @@ func New(db *sql.DB, cfg DBConfig) huma.API {
 	handler.RegisterAudit(api, &handler.AuditHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
 	handler.RegisterRBAC(api, &handler.RBACHandler{DB: db, Dialect: dialect, PasswordCost: bcrypt.DefaultCost, TablePrefix: cfg.TablePrefix, Recorder: rec})
 	handler.RegisterMetadata(api, &handler.MetadataHandler{DB: db, Dialect: dialect, TablePrefix: cfg.TablePrefix})
-	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}, Recorder: rec, Enf: e})
+	dbRepo := &monitordb.Repo{DB: db, Driver: driver, Dialect: dialect, TablePrefix: cfg.TablePrefix}
+	mongoCapAdapter := capmongoadapter.New()
+	capAdapters := map[string]capabilitydomain.Adapter{
+		"mongo":   mongoCapAdapter,
+		"mongodb": mongoCapAdapter,
+	}
+	capSvc := capabilityusecase.New(dbRepo, capAdapters)
+	handler.RegisterDatabase(api, &handler.DatabaseHandler{Repo: dbRepo, Recorder: rec, Enf: e, Capabilities: capSvc})
 	handler.RegisterPlugins(api, &handler.PluginHandler{UC: plugin.Usecase{Repo: &fsrepo.Repository{}}})
 
 	setupPluginRoutes(api, r, db, driver, cfg.TablePrefix, wreg, e, resolver)

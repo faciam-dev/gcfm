@@ -76,6 +76,9 @@ func TestMeCaps(t *testing.T) {
 	if out.Body.Capabilities["databases:scan"] {
 		t.Fatalf("expected databases:scan false")
 	}
+	if out.Body.Capabilities["databases:capabilities"] {
+		t.Fatalf("expected databases:capabilities false")
+	}
 }
 
 func TestMeCapsPluginsList(t *testing.T) {

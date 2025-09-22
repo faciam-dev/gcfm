@@ -23,3 +23,23 @@ func TestMergeValidators(t *testing.T) {
 		t.Fatalf("unexpected overwrite: %q", metas[1].Validator)
 	}
 }
+
+func TestSchemaFromDSN_Mongo(t *testing.T) {
+	tests := []struct {
+		name string
+		dsn  string
+		want string
+	}{
+		{name: "with database", dsn: "mongodb://user:pass@localhost:27017/sample", want: "sample"},
+		{name: "trim leading slash", dsn: "mongodb://localhost:27017//sample", want: "sample"},
+		{name: "srv", dsn: "mongodb+srv://example.com/mydb?ssl=true", want: "mydb"},
+		{name: "auth source", dsn: "mongodb://user:pass@localhost:27017/?authSource=admin", want: "admin"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := schemaFromDSN("mongo", tt.dsn); got != tt.want {
+				t.Fatalf("schemaFromDSN() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
