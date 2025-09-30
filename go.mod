@@ -118,7 +118,7 @@ require (
 	github.com/IBM/sarama v1.45.2
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/alicebob/miniredis/v2 v2.35.0
-	github.com/aws/aws-sdk-go-v2 v1.38.3
+	github.com/aws/aws-sdk-go-v2 v1.39.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
 	github.com/casbin/casbin/v2 v2.108.0
